@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-width=1.0">
+    <title>GSG Smart Gateway | v3.0 Tabs</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+        /* Плавные переходы */
+        .transition-all { transition: all 0.3s ease-in-out; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen">
+
+    <!-- Навигация и Статус Системы -->
+    <nav class="bg-slate-900 text-white shadow-lg sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <!-- Логотип -->
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center font-bold">G</div>
+                    <span class="font-bold text-xl tracking-wide hidden sm:block">GSG Gateway</span>
+                </div>
+
+                <!-- Метрики -->
+                <div class="text-xs font-medium text-slate-400 hidden md:flex items-center gap-6">
+                    <span>CPU: <span class="text-green-400">12%</span></span>
+                    <span>RAM: <span class="text-green-400">256MB / 1GB</span></span>
+                    <span>Temp: <span class="text-yellow-400">54°C</span></span>
+                </div>
+
+                <!-- Переключатель Простой / Эксперт -->
+                <div class="flex items-center bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 shadow-inner">
+                    <label class="inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="modeToggle" class="sr-only peer">
+                        <div class="relative w-11 h-6 bg-slate-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+                        <span class="ms-3 text-sm font-bold text-slate-300 w-24 tracking-wide" id="modeLabel">ПРОСТОЙ</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Экспертное меню (Вкладки) - Скрыто по умолчанию -->
+    <div id="expertTabsContainer" class="hidden bg-white border-b border-slate-200 shadow-sm sticky top-16 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <nav class="flex space-x-8" aria-label="Tabs">
+                <button onclick="switchTab('tab-devices', this)" class="tab-btn active border-blue-500 text-blue-600 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2">
+                    📱 Устройства
+                </button>
+                <button onclick="switchTab('tab-routing', this)" class="tab-btn border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2">
+                    🛡️ Маршрутизация
+                </button>
+                <button onclick="switchTab('tab-dhcp', this)" class="tab-btn border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2">
+                    ⚙️ DHCP и Сеть
+                </button>
+                <button onclick="switchTab('tab-proxy', this)" class="tab-btn border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2">
+                    🚀 Прокси и Логи
+                </button>
+            </nav>
+        </div>
+    </div>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+
+        <!-- ГЛОБАЛЬНЫЙ БЛОК: Статус и Подписка (Виден всегда) -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Статус -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-green-50 rounded-full blur-3xl -mr-10 -mt-10"></div>
+                <div class="flex justify-between items-start mb-4 relative z-10">
+                    <h2 class="text-lg font-bold text-slate-800">Состояние сети</h2>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                        <span class="w-2 h-2 mr-1.5 bg-green-500 rounded-full pulse"></span> Защита активна
+                    </span>
+                </div>
+                <div class="space-y-3 relative z-10">
+                    <div class="flex justify-between text-sm">
+                        <span class="text-slate-500">Провайдер VPN:</span>
+                        <span class="font-medium text-slate-900">GlobalShield</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Управление подпиской -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <h2 class="text-lg font-bold text-slate-800 mb-4">Настройки подписки</h2>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">URL провайдера (V2Ray/Clash)</label>
+                    <div class="flex gap-2">
+                        <input type="text" value="https://subscribe.globalshield.ru/tfjyBWPrYmxTs3Lw" class="flex-1 rounded-md border-slate-300 shadow-sm border p-2 text-sm focus:ring-blue-500 bg-slate-50 text-slate-500">
+                        <button class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors shadow-sm">Обновить</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- КОНТЕЙНЕР ДЛЯ ВСТРОЕННЫХ ВСТРАИВАЕМЫХ БЛОКОВ (ТАБОВ) -->
+
+        <!-- ТАБ 1: Устройства (В простом режиме виден всегда, в экспертном - только когда активен таб) -->
+        <div id="tab-devices" class="tab-content block transition-all opacity-100">
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="px-6 py-5 border-b border-slate-200 bg-slate-50/50 flex justify-between items-center">
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-800">Устройства в сети</h3>
+                        <p class="text-sm text-slate-500 mt-1">Управление доступом для каждого клиента</p>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-slate-200">
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Клиент</th>
+                                <th class="expert-item hidden px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Сеть</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Режим</th>
+                                <th class="expert-item hidden px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Опции</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-slate-200">
+                            <!-- Устройство 1 -->
+                            <tr class="hover:bg-slate-50 transition-colors">
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex items-center gap-4">
+                                        <div class="w-10 h-10 flex items-center justify-center bg-purple-100 text-purple-600 rounded-lg text-xl shadow-sm border border-purple-200">📺</div>
+                                        <div>
+                                            <div class="text-sm font-bold text-slate-900">LG Smart TV</div>
+                                            <div class="text-xs text-green-600 font-medium">Активен</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="expert-item hidden px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm text-slate-700 font-mono">10.10.1.140</div>
+                                    <div class="text-xs text-slate-400 font-mono">a4:b2:c3:d4:e5:f6</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <!-- Простой виджет -->
+                                    <div class="simple-item flex items-center gap-2">
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                          <input type="checkbox" checked class="sr-only peer">
+                                          <div class="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-green-500 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                                        </label>
+                                        <span class="text-sm font-medium text-slate-700">Защита ВКЛ</span>
+                                    </div>
+                                    <!-- Экспертный виджет -->
+                                    <select class="expert-item hidden rounded-md border-slate-300 shadow-sm border p-2 text-sm bg-purple-50 text-purple-700 font-bold focus:ring-purple-500 focus:border-purple-500 outline-none">
+                                        <option>🌐 Global (100% VPN)</option>
+                                        <option selected>🧠 Smart (Только РКН)</option>
+                                        <option>⚡ Bypass (Напрямую)</option>
+                                    </select>
+                                </td>
+                                <td class="expert-item hidden px-6 py-4 whitespace-nowrap text-right">
+                                    <button class="text-sm font-medium text-blue-600 hover:text-blue-800 border border-blue-200 px-3 py-1 rounded-md hover:bg-blue-50 transition-colors">Fix IP</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ТАБ 2: Маршрутизация (Полностью скрыт в простом режиме) -->
+        <div id="tab-routing" class="expert-item tab-content hidden opacity-0 transition-all">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Автоматика -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                    <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">🛡️ Базы Rule-sets (AntiFilter)</h3>
+                    <div class="space-y-4">
+                        <label class="flex items-start gap-3 p-4 border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors shadow-sm">
+                            <input type="checkbox" checked class="mt-1 w-4 h-4 text-blue-600 rounded focus:ring-blue-500">
+                            <div>
+                                <span class="block text-sm font-bold text-slate-900">Обход блокировок РКН</span>
+                                <span class="block text-xs text-slate-500 mt-1">Автоматически направлять реестр заблокированных сайтов и сервисы Google через прокси.</span>
+                            </div>
+                        </label>
+                        <label class="flex items-start gap-3 p-4 border border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors shadow-sm">
+                            <input type="checkbox" checked class="mt-1 w-4 h-4 text-blue-600 rounded focus:ring-blue-500">
+                            <div>
+                                <span class="block text-sm font-bold text-slate-900">Прямой доступ к .RU сегменту</span>
+                                <span class="block text-xs text-slate-500 mt-1">Госуслуги, банки и российские IP всегда идут напрямую (Bypass), минуя VPN.</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Ручные правила -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 border-l-4 border-l-blue-500">
+                    <h3 class="text-lg font-bold text-slate-800 mb-1">Пользовательские правила</h3>
+                    <p class="text-xs text-slate-500 mb-4">По одному домену в строке. Имеют высший приоритет.</p>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">➡️ Только НАПРЯМУЮ</label>
+                            <textarea rows="5" class="w-full rounded-md border-slate-300 border p-3 text-xs font-mono focus:ring-blue-500 focus:border-blue-500 text-slate-600 shadow-inner bg-slate-50" placeholder="kinopoisk.ru&#10;*.yandex.net"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-700 mb-1">🔒 Только через ПРОКСИ</label>
+                            <textarea rows="5" class="w-full rounded-md border-slate-300 border p-3 text-xs font-mono focus:ring-blue-500 focus:border-blue-500 text-slate-600 shadow-inner bg-slate-50" placeholder="chatgpt.com&#10;*.openai.com"></textarea>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex justify-end">
+                        <button class="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2 rounded-md text-sm font-medium transition-colors shadow-md">Сохранить правила</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ТАБ 3: DHCP и Сеть -->
+        <div id="tab-dhcp" class="expert-item tab-content hidden opacity-0 transition-all">
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">⚙️ Настройки DHCP (dnsmasq)</h3>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Шлюз по умолчанию (GSG IP)</label>
+                        <input type="text" value="10.10.1.139" class="w-full rounded-md border-slate-300 shadow-sm border p-2.5 text-sm font-mono focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Пул: Начальный IP</label>
+                        <input type="text" value="10.10.1.100" class="w-full rounded-md border-slate-300 shadow-sm border p-2.5 text-sm font-mono focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Пул: Конечный IP</label>
+                        <input type="text" value="10.10.1.200" class="w-full rounded-md border-slate-300 shadow-sm border p-2.5 text-sm font-mono focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Выдаваемый DNS</label>
+                        <input type="text" value="10.10.1.139" class="w-full rounded-md border-slate-300 shadow-sm border p-2.5 text-sm font-mono focus:ring-blue-500">
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end">
+                    <button class="bg-slate-100 hover:bg-slate-200 text-slate-800 px-5 py-2 border border-slate-300 rounded-md text-sm font-medium transition-colors">Перезапустить DHCP-сервер</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ТАБ 4: Прокси и Логи -->
+        <div id="tab-proxy" class="expert-item tab-content hidden opacity-0 transition-all">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Выбор сервера -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                    <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">🚀 Управление узлами (Nodes)</h3>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Активный сервер туннеля</label>
+                        <select class="w-full rounded-md border-slate-300 shadow-sm border p-3 text-sm focus:ring-blue-500 focus:border-blue-500 bg-white font-medium text-slate-700">
+                            <option>⚡ Автоматически (URL-Test)</option>
+                            <option selected>🇩🇪 DE-Frankfurt-Premium (Ping: 45ms)</option>
+                            <option>🇳🇱 NL-Amsterdam-Fast (Ping: 52ms)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Системная информация -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                    <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">📋 Системные данные</h3>
+                    <div class="space-y-2 font-mono text-xs text-slate-600 bg-slate-900 p-4 rounded-lg overflow-x-auto text-green-400">
+                        <div>[INFO] Sing-box started successfully.</div>
+                        <div>[INFO] TPROXY listening on 127.0.0.1:12345</div>
+                        <div>[INFO] Loaded 14500 routing rules.</div>
+                        <div>[WARN] Device 10.10.1.140 switched to SMART mode.</div>
+                        <div><span class="animate-pulse">_</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Скрипт логики интерфейса -->
+    <script>
+        const modeToggle = document.getElementById('modeToggle');
+        const modeLabel = document.getElementById('modeLabel');
+        const expertElements = document.querySelectorAll('.expert-item');
+        const simpleElements = document.querySelectorAll('.simple-item');
+        const tabsContainer = document.getElementById('expertTabsContainer');
+
+        // Логика переключения ПРОСТОЙ / ЭКСПЕРТ
+        modeToggle.addEventListener('change', (e) => {
+            const isExpert = e.target.checked;
+
+            if (isExpert) {
+                // Включаем Экспертный режим
+                modeLabel.textContent = 'ЭКСПЕРТ';
+                modeLabel.classList.replace('text-slate-300', 'text-white');
+                tabsContainer.classList.remove('hidden');
+
+                expertElements.forEach(el => {
+                    if (el.classList.contains('tab-content')) return; // Табы обрабатываются отдельно
+                    el.classList.remove('hidden');
+                });
+                simpleElements.forEach(el => el.classList.add('hidden'));
+
+                // Принудительно открываем первую вкладку
+                document.querySelector('.tab-btn').click();
+
+            } else {
+                // Возвращаем Простой режим
+                modeLabel.textContent = 'ПРОСТОЙ';
+                modeLabel.classList.replace('text-white', 'text-slate-300');
+                tabsContainer.classList.add('hidden');
+
+                expertElements.forEach(el => el.classList.add('hidden'));
+                simpleElements.forEach(el => el.classList.remove('hidden'));
+
+                // Показываем только контейнер с устройствами, скрываем остальные табы
+                document.querySelectorAll('.tab-content').forEach(el => {
+                    el.classList.add('hidden', 'opacity-0');
+                });
+                const devicesTab = document.getElementById('tab-devices');
+                devicesTab.classList.remove('hidden');
+                setTimeout(() => devicesTab.classList.remove('opacity-0'), 10);
+            }
+        });
+
+        // Логика переключения Вкладок (Табов)
+        function switchTab(tabId, btnElement) {
+            // 1. Убираем активные стили со всех кнопок
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('border-blue-500', 'text-blue-600');
+                btn.classList.add('border-transparent', 'text-slate-500');
+            });
+
+            // 2. Добавляем активный стиль нажатой кнопке
+            btnElement.classList.remove('border-transparent', 'text-slate-500');
+            btnElement.classList.add('border-blue-500', 'text-blue-600');
+
+            // 3. Скрываем все табы с анимацией
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.add('opacity-0');
+                setTimeout(() => {
+                    content.classList.add('hidden');
+                }, 150); // Ждем конца анимации opacity
+            });
+
+            // 4. Показываем нужный таб с анимацией
+            setTimeout(() => {
+                const activeContent = document.getElementById(tabId);
+                activeContent.classList.remove('hidden');
+                // Небольшая задержка перед opacity для плавного появления
+                setTimeout(() => activeContent.classList.remove('opacity-0'), 20);
+            }, 150);
+        }
+    </script>
+</body>
+</html>

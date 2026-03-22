@@ -1,0 +1,132 @@
+import os, json, yaml, httpx, time
+from pathlib import Path
+
+GSG_CONFIG_DIR = Path("/etc/gsg")
+GSG_DEVICES_FILE = GSG_CONFIG_DIR / "devices.json"
+GSG_RULES_FILE = GSG_CONFIG_DIR / "rules.json"
+GSG_RULESETS_FILE = GSG_CONFIG_DIR / "rulesets.json"
+GSG_SUBSCRIPTION_FILE = GSG_CONFIG_DIR / "subscription.json"
+GSG_NODES_FILE = GSG_CONFIG_DIR / "nodes.json"
+MIHOMO_CONFIG = Path("/etc/mihomo/config.yaml")
+
+def main():
+    def load_json(p, default):
+        try:
+            with open(p, 'r') as f: return json.load(f)
+        except: return default
+
+    devices = load_json(GSG_DEVICES_FILE, {})
+    user_rules = load_json(GSG_RULES_FILE, {"direct": [], "proxy": []})
+    rulesets = load_json(GSG_RULESETS_FILE, {"rkn_bypass": True, "ru_direct": True})
+    sub_data = load_json(GSG_SUBSCRIPTION_FILE, {"url": "", "global_node": "auto"})
+
+    url = sub_data.get("url")
+    global_node = sub_data.get("global_node", "auto")
+    server_config = {}
+    nodes = []
+
+    if url:
+        try:
+            headers = {"User-Agent": "Mihomo/1.18.10 (GSG-Smart-Gateway)"}
+            r = httpx.get(url, headers=headers, timeout=15.0, follow_redirects=True)
+            r.raise_for_status()
+            parsed_yaml = yaml.safe_load(r.text)
+            if isinstance(parsed_yaml, dict):
+                server_config = parsed_yaml
+                nodes = server_config.get("proxies") or []
+        except Exception as e: print(f"[ERROR] Failed to fetch config: {e}")
+
+    if not isinstance(server_config, dict): server_config = {}
+
+    gui_nodes = [{"tag": n["name"], "type": n["type"], "server": n["server"], "server_port": n.get("port", 443)} for n in nodes]
+    with open(GSG_NODES_FILE, 'w') as f: json.dump({"nodes": gui_nodes, "updated": str(time.time())}, f)
+
+    node_names = [n["name"] for n in nodes]
+    
+    matched_global = "auto"
+    if global_node != "auto":
+        for n in node_names:
+            if global_node.lower() in n.lower():
+                matched_global = n
+                break
+    global_node = matched_global
+
+    server_config["tproxy-port"] = int(os.getenv("GSG_TPROXY_PORT", "12345"))
+    server_config["mixed-port"] = 2080
+    server_config["mode"] = "rule"
+    server_config["allow-lan"] = True
+    server_config["external-controller"] = "0.0.0.0:9090"
+    server_config["log-level"] = "warning"
+    server_config["ipv6"] = False
+    
+    if "dns" not in server_config: server_config["dns"] = {"enable": True}
+    server_config["dns"]["listen"] = "0.0.0.0:1053"
+    server_config["dns"]["ipv6"] = False
+
+    if "sniffer" not in server_config:
+        server_config["sniffer"] = {"enable": True, "sniff": {"HTTP": {"ports": [80, 8080], "override-destination": True}, "TLS": {"ports": [443, 8443]}}}
+
+    if "proxies" not in server_config or not server_config["proxies"]:
+        server_config["proxies"] = [{"name": "GSG-FALLBACK", "type": "direct"}]
+    
+    if "proxy-groups" not in server_config:
+        server_config["proxy-groups"] = [{"name": "auto", "type": "url-test", "proxies": node_names if node_names else ["GSG-FALLBACK"], "url": "http://www.gstatic.com/generate_204", "interval": 300}]
+
+    rules = []
+    rule_providers = {}
+    sub_rules = {}
+
+    if rulesets.get('rkn_bypass', True):
+        rule_providers['rkn-domains'] = {
+            "type": "http", "behavior": "domain", "format": "text", 
+            "url": "https://community.antifilter.download/list/domains.lst", 
+            "path": "./rules/rkn-domains.txt", "interval": 86400
+        }
+
+    for ip, info in devices.items():
+        mode = info.get('mode', 'smart')
+        assign = info.get('assigned_node', 'auto')
+        
+        target = global_node
+        if assign != 'auto':
+            for name in node_names:
+                if assign.lower() in name.lower():
+                    target = name
+                    break
+
+        if mode == 'bypass':
+            rules.append(f"SRC-IP-CIDR,{ip}/32,DIRECT")
+        elif mode == 'global':
+            rules.append(f"SRC-IP-CIDR,{ip}/32,{target}")
+        else:
+            sub_name = f"smart_{ip.replace('.', '_')}"
+            device_sub = []
+            
+            if rulesets.get('rkn_bypass', True):
+                # Добавляем железные правила для сервисов, которые блокируют по IP/DPI
+                device_sub.append(f"GEOSITE,youtube,{target}")
+                device_sub.append(f"GEOSITE,meta,{target}")
+                device_sub.append(f"GEOSITE,instagram,{target}")
+                device_sub.append(f"GEOSITE,twitter,{target}")
+                device_sub.append(f"GEOSITE,telegram,{target}")
+                device_sub.append(f"RULE-SET,rkn-domains,{target}")
+            
+            device_sub.append("MATCH,DIRECT")
+            
+            if device_sub:
+                sub_rules[sub_name] = device_sub
+                rules.append(f"SUB-RULE,(SRC-IP-CIDR,{ip}/32),{sub_name}")
+
+    for d in user_rules.get('direct', []): rules.append(f"DOMAIN-SUFFIX,{d},DIRECT")
+    for d in user_rules.get('proxy', []): rules.append(f"DOMAIN-SUFFIX,{d},{global_node}")
+    rules.append(f"MATCH,{global_node}")
+
+    server_config["rule-providers"] = rule_providers
+    if sub_rules: server_config["sub-rules"] = sub_rules
+    server_config["rules"] = rules + server_config.get("rules", [])
+
+    MIHOMO_CONFIG.parent.mkdir(parents=True, exist_ok=True)
+    with open(MIHOMO_CONFIG, 'w') as f: yaml.dump(server_config, f, allow_unicode=True)
+
+if __name__ == "__main__":
+    main()

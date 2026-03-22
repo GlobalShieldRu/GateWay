@@ -1,0 +1,61 @@
+volumes:
+  gsg_config:
+    driver: local
+  dhcp_data:
+    driver: local
+
+services:
+  # Оркестратор - веб-интерфейс управления
+  web-orchestrator:
+    build: ./web-orchestrator
+    container_name: gsg-web-orchestrator
+    network_mode: "host"
+    volumes:
+      - gsg_config:/etc/gsg
+      - dhcp_data:/var/lib/misc:ro
+    environment:
+      - GSG_GATEWAY_IP=10.10.1.139
+    restart: always
+
+  # DHCP Сервер - раздача IP и регистрация имен
+  registry-dhcp:
+    build: ./registry-dhcp
+    container_name: gsg-dhcp
+    privileged: true
+    network_mode: "host"
+    volumes:
+      - gsg_config:/etc/gsg
+      - dhcp_data:/var/lib/misc
+    environment:
+      - GSG_GATEWAY_IP=10.10.1.139
+      - GSG_LAN_INTERFACE=eth0
+      - GSG_DHCP_START=10.10.1.100
+      - GSG_DHCP_END=10.10.1.200
+    restart: always
+
+  # Tunnel Provider - работа с прокси и подписками
+  tunnel-provider:
+    build: ./tunnel-provider
+    container_name: gsg-tunnel
+    network_mode: "host"
+    privileged: true
+    volumes:
+      - gsg_config:/etc/gsg
+    environment:
+      - GSG_TPROXY_PORT=12345
+      - ENABLE_DEPRECATED_LEGACY_DNS_SERVERS=true
+    restart: always
+
+  # Net Enforcer - управление правилами nftables (TPROXY)
+  net-enforcer:
+    build: ./net-enforcer
+    container_name: gsg-netenforcer
+    privileged: true
+    network_mode: "host"
+    volumes:
+      - gsg_config:/etc/gsg
+    environment:
+      - GSG_GATEWAY_IP=10.10.1.139
+      - GSG_TPROXY_PORT=12345
+      - GSG_LAN_INTERFACE=eth0
+    restart: always

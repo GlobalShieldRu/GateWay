@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GSG Smart Gateway</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+        .transition-all { transition: all 0.3s ease-in-out; }
+        .logs-scroll::-webkit-scrollbar { width: 6px; }
+        .logs-scroll::-webkit-scrollbar-track { background: #0f172a; }
+        .logs-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        /* Кастомная стрелка для селектов */
+        .custom-select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 0.5rem center;
+            background-repeat: no-repeat;
+            background-size: 1.5em 1.5em;
+            padding-right: 2.5rem;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans h-screen overflow-hidden flex">
+
+    <div id="mobileBackdrop" class="fixed inset-0 bg-slate-900/50 z-40 hidden md:hidden transition-opacity"></div>
+
+    <aside id="sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-slate-300 transform -translate-x-full md:relative md:translate-x-0 transition-transform duration-300 ease-in-out flex flex-col shadow-2xl md:shadow-none">
+        <div class="h-16 flex items-center px-6 bg-slate-950 text-white font-bold text-xl tracking-wide gap-3 shrink-0">
+            <div class="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center font-bold shadow-lg shadow-blue-500/30">G</div>
+            <span>GSG Gateway</span>
+        </div>
+
+        <div class="p-5 border-b border-slate-800 shrink-0">
+            <h4 class="text-[10px] uppercase font-bold tracking-wider text-slate-500 mb-3">Система</h4>
+            <div id="systemMetrics" class="text-xs font-medium text-slate-400 space-y-2">
+                <div class="animate-pulse space-y-2">
+                    <div class="flex justify-between"><div class="h-3 bg-slate-700 rounded w-8"></div><div class="h-3 bg-slate-700 rounded w-12"></div></div>
+                    <div class="flex justify-between"><div class="h-3 bg-slate-700 rounded w-8"></div><div class="h-3 bg-slate-700 rounded w-16"></div></div>
+                    <div class="flex justify-between"><div class="h-3 bg-slate-700 rounded w-10"></div><div class="h-3 bg-slate-700 rounded w-8"></div></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-5 border-b border-slate-800 shrink-0">
+            <label class="flex items-center justify-between cursor-pointer group">
+                <span class="text-sm font-bold text-slate-400 group-hover:text-slate-300 transition-colors" id="modeLabel">ПРОСТОЙ</span>
+                <div class="relative">
+                    <input type="checkbox" id="modeToggle" class="sr-only peer">
+                    <div class="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"></div>
+                </div>
+            </label>
+        </div>
+
+        <nav class="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
+            <h4 class="text-[10px] uppercase font-bold tracking-wider text-slate-500 px-3 mb-2 mt-2">Управление</h4>
+            <button onclick="GatewayApp.ui.switchTab('tab-devices', this)" class="tab-btn active bg-blue-600 text-white w-full text-left px-3 py-2.5 rounded-lg font-medium text-sm flex items-center gap-3 transition-colors">
+                <span class="text-lg">📱</span> Устройства
+            </button>
+            <button onclick="GatewayApp.ui.switchTab('tab-routing', this)" class="tab-btn expert-item hidden w-full text-left text-slate-400 hover:bg-slate-800 hover:text-white px-3 py-2.5 rounded-lg font-medium text-sm items-center gap-3 transition-colors">
+                <span class="text-lg">🛡️</span> Маршрутизация
+            </button>
+            <button onclick="GatewayApp.ui.switchTab('tab-dhcp', this)" class="tab-btn expert-item hidden w-full text-left text-slate-400 hover:bg-slate-800 hover:text-white px-3 py-2.5 rounded-lg font-medium text-sm items-center gap-3 transition-colors">
+                <span class="text-lg">⚙️</span> DHCP и Сеть
+            </button>
+            <button onclick="GatewayApp.ui.switchTab('tab-proxy', this)" class="tab-btn expert-item hidden w-full text-left text-slate-400 hover:bg-slate-800 hover:text-white px-3 py-2.5 rounded-lg font-medium text-sm items-center gap-3 transition-colors">
+                <span class="text-lg">🚀</span> Прокси и Логи
+            </button>
+        </nav>
+    </aside>
+
+    <div class="flex-1 flex flex-col h-screen overflow-hidden relative bg-slate-50/50">
+        
+        <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:hidden shrink-0 z-30">
+            <button id="mobileMenuBtn" class="text-slate-600 hover:text-slate-900 focus:outline-none p-2 -ml-2 rounded-lg">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+            </button>
+            <div class="font-bold text-slate-800 tracking-wide">GSG Gateway</div>
+            <div class="w-8"></div> 
+        </header>
+
+        <!-- Основной контент (получает opacity-50 при потере связи) -->
+        <main id="mainContent" class="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 transition-opacity duration-300">
+            
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+                
+                <!-- Карточка состояния с авто-высотой -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 relative overflow-hidden flex flex-col min-h-[320px]">
+                    <div class="absolute top-0 right-0 w-40 h-40 bg-slate-50 rounded-full blur-3xl -mr-16 -mt-16 transition-colors duration-700" id="statusGlow"></div>
+                    
+                    <div class="flex justify-between items-start mb-6 relative z-10 shrink-0">
+                        <h2 class="text-lg font-bold text-slate-800">Состояние сети</h2>
+                        <span id="globalProtectionBadge" class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                            <span class="animate-pulse mr-1.5">⏳</span> Проверка...
+                        </span>
+                    </div>
+                    
+                    <!-- Обёртка для центровки схемы -->
+                    <div class="flex-1 flex flex-col justify-center relative z-10">
+                        <div class="flex items-center justify-between text-sm">
+                            <div class="flex flex-col items-center gap-1.5 w-20">
+                                <span class="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-2xl shadow-sm border border-slate-200" id="directFlag">⏳</span>
+                                <span class="text-xs font-bold text-slate-600">Провайдер</span>
+                                <span class="text-[10px] text-slate-400 font-mono text-center" id="directIp">...</span>
+                            </div>
+                            <div class="flex-1 flex flex-col items-center px-3">
+                                <div class="h-1 w-full bg-slate-100 relative overflow-hidden rounded-full"><div class="absolute inset-0 bg-slate-300 transition-all" id="line1"></div></div>
+                            </div>
+                            <div class="flex flex-col items-center gap-1.5 w-20">
+                                <span class="w-12 h-12 rounded-2xl bg-blue-50/50 flex items-center justify-center text-2xl shadow-sm border border-blue-100" id="tunnelFlag">🌍</span>
+                                <span class="text-xs font-bold text-slate-600">Туннель</span>
+                                <span class="text-[10px] text-slate-400 font-mono text-center" id="tunnelIp">...</span>
+                            </div>
+                            <div class="flex-1 flex flex-col items-center px-3">
+                                <span class="text-[10px] font-bold mb-1.5 text-slate-400" id="ytPing"></span>
+                                <div class="h-1 w-full bg-slate-100 relative overflow-hidden rounded-full"><div class="absolute inset-0 bg-slate-300 transition-all" id="line2"></div></div>
+                            </div>
+                            <div class="flex flex-col items-center gap-1.5 w-20">
+                                <span class="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-2xl shadow-sm border border-slate-200 grayscale opacity-50 transition-all duration-500" id="ytIcon">📺</span>
+                                <span class="text-xs font-bold text-slate-600">Связь</span>
+                                <span class="text-[10px] font-bold text-slate-400" id="ytStatus">...</span>
+                            </div>
+                        </div>
+
+                        <!-- Блок инспекции трафика (динамика РКН) -->
+                        <div class="mt-8 pt-5 border-t border-slate-100">
+                            <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Инспекция трафика (Live)</h3>
+                            <div class="grid grid-cols-2 gap-2" id="trafficInspectionBox">
+                                <div class="bg-red-50/50 border border-red-100 rounded-lg p-2 flex justify-between items-center">
+                                    <span class="text-xs font-medium text-slate-600 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>Прямой доступ</span>
+                                    <span class="text-[10px] font-bold text-red-500 bg-white px-1.5 py-0.5 rounded shadow-sm">Блок РКН</span>
+                                </div>
+                                <div class="bg-emerald-50/50 border border-emerald-100 rounded-lg p-2 flex justify-between items-center">
+                                    <span class="text-xs font-medium text-slate-600 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Туннель GSG</span>
+                                    <span class="text-[10px] font-bold text-emerald-600 bg-white px-1.5 py-0.5 rounded shadow-sm">Свободен</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Карточка подписки без ограничения высоты -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col h-full">
+                    <div class="shrink-0">
+                        <h2 class="text-lg font-bold text-slate-800 mb-4">Настройки подписки</h2>
+                        <label class="block text-xs font-bold text-slate-500 mb-1.5 uppercase tracking-wide">URL провайдера (V2Ray/Clash)</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="subUrlInput" value="" placeholder="https://..." class="flex-1 rounded-lg border-slate-200 shadow-sm border p-2.5 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-slate-50 text-slate-600 outline-none transition-all">
+                            <button id="saveSubBtn" class="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-sm whitespace-nowrap">Обновить</button>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-6 border-t border-slate-100 pt-5 flex-1 flex flex-col">
+                        <div class="flex justify-between items-center mb-3 shrink-0">
+                            <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wide">Активный узел</h3>
+                            <button class="text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded transition-colors" onclick="GatewayApp.actions.fetchNodes()">Обновить пинг</button>
+                        </div>
+                        <!-- Сетка узлов (растягивается автоматически) -->
+                        <div id="nodesDashboard" class="grid grid-cols-1 xl:grid-cols-2 gap-3 h-full content-start">
+                            <!-- Контент узлов генерируется JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Табы с контентом -->
+            <div id="tab-devices" class="tab-content block transition-all opacity-100">
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="px-6 py-5 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50/30">
+                        <div>
+                            <h3 class="text-lg font-bold text-slate-800">Устройства в сети</h3>
+                            <p class="text-sm text-slate-500 mt-0.5">Активные клиенты локальной сети</p>
+                        </div>
+                    </div>
+                    <div class="p-4 md:p-0">
+                        <table class="min-w-full block md:table border-collapse">
+                            <thead class="hidden md:table-header-group bg-slate-50/50 border-b border-slate-100">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Клиент</th>
+                                    <th class="expert-item hidden px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Сеть</th>
+                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Режим</th>
+                                </tr>
+                            </thead>
+                            <tbody id="devicesTableBody" class="block md:table-row-group divide-y-0 md:divide-y divide-slate-100">
+                                <!-- Сюда вставляются устройства или скелетоны -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Остальные табы (Routing, DHCP, Proxy) остались без изменений -->
+            <div id="tab-routing" class="expert-item tab-content hidden opacity-0 transition-all">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                        <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">🛡️ Базы Rule-sets</h3>
+                        <div class="space-y-3">
+                            <label class="flex items-start gap-3 p-4 border border-slate-100 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors">
+                                <input type="checkbox" checked class="mt-0.5 w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500">
+                                <div><span class="block text-sm font-bold text-slate-800">Обход блокировок РКН</span><span class="text-xs text-slate-500">Автообновляемый список AntiFilter</span></div>
+                            </label>
+                            <label class="flex items-start gap-3 p-4 border border-slate-100 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors">
+                                <input type="checkbox" checked class="mt-0.5 w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500">
+                                <div><span class="block text-sm font-bold text-slate-800">Прямой доступ к .RU</span><span class="text-xs text-slate-500">Маршрутизация мимо прокси</span></div>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                        <h3 class="text-lg font-bold text-slate-800 mb-4">Пользовательские правила</h3>
+                        <div class="space-y-4">
+                            <div><label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">➡️ НАПРЯМУЮ (Bypass)</label><textarea rows="3" placeholder="domain:ru, ip:192.168..." class="w-full rounded-lg border border-slate-200 p-3 text-sm font-mono bg-slate-50 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"></textarea></div>
+                            <div><label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">🔒 ПРОКСИ (Proxy)</label><textarea rows="3" placeholder="domain:netflix.com..." class="w-full rounded-lg border border-slate-200 p-3 text-sm font-mono bg-slate-50 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"></textarea></div>
+                        </div>
+                        <div class="mt-5 flex justify-end">
+                            <button class="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors">Сохранить правила</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-dhcp" class="expert-item tab-content hidden opacity-0 transition-all">
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                    <h3 class="text-lg font-bold text-slate-800 mb-5">⚙️ Настройки DHCP (dnsmasq)</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+                        <div><label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Шлюз</label><input type="text" id="dhcpGateway" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"></div>
+                        <div><label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Начальный IP</label><input type="text" id="dhcpStart" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"></div>
+                        <div><label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Конечный IP</label><input type="text" id="dhcpEnd" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"></div>
+                        <div><label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">DNS</label><input type="text" id="dhcpDns" class="w-full rounded-lg border border-slate-200 p-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-proxy" class="expert-item tab-content hidden opacity-0 transition-all">
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 w-full">
+                    <h3 class="text-lg font-bold text-slate-800 mb-4 flex justify-between items-center">
+                        <span>📋 Журнал ядра (sing-box)</span>
+                        <span class="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-md border border-green-100 flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Live</span>
+                    </h3>
+                    <div id="systemLogsBox" class="space-y-1 font-mono text-xs text-slate-400 bg-slate-950 p-5 rounded-xl h-96 overflow-y-auto logs-scroll whitespace-nowrap shadow-inner border border-slate-800">
+                        <div>[INFO] Ожидание инициализации логов...</div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script>
+        const GatewayApp = (() => {
+            const state = {
+                isOnline: true,
+                expertMode: false,
+                nodes: [],
+                devices: [],
+                globalNode: 'auto',
+                _devicesHash: null
+            };
+
+            const utils = {
+                debounce: (func, wait = 400) => {
+                    let timeout;
+                    return (...args) => {
+                        clearTimeout(timeout);
+                        timeout = setTimeout(() => func(...args), wait);
+                    };
+                },
+                
+                apiCall: async (endpoint, options = {}) => {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 6000);
+                    try {
+                        const response = await fetch(`/api${endpoint}`, { ...options, signal: controller.signal, headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } });
+                        clearTimeout(timeoutId);
+                        if (!response.ok) throw new Error(`HTTP: ${response.status}`);
+                        if (!state.isOnline) ui.setConnectionStatus(true);
+                        return await response.json();
+                    } catch (error) {
+                        clearTimeout(timeoutId);
+                        ui.setConnectionStatus(false);
+                        console.warn(`[API] ${endpoint}:`, error.message);
+                        return null;
+                    }
+                },
+
+                getFlagEmoji: (text) => {
+                    if (!text || text === '-' || text === 'error') return '❌';
+                    const code = text.substring(0,2).toUpperCase();
+                    if (!/^[A-Z]{2}$/.test(code)) return '🌐';
+                    return String.fromCodePoint(...code.split('').map(c => 127397 + c.charCodeAt()));
+                },
+
+                // Новая логика цветов для пинга
+                getPingColorClass: (ping) => {
+                    if (ping === 'error' || ping === 'ERR' || ping > 500) return 'text-red-500';
+                    if (ping > 150) return 'text-amber-500';
+                    return 'text-emerald-500';
+                }
+            };
+
+            const ui = {
+                setConnectionStatus: (isOnline) => {
+                    if (state.isOnline === isOnline) return;
+                    state.isOnline = isOnline;
+                    let banner = document.getElementById('connection-banner');
+                    const mainContent = document.getElementById('mainContent');
+                    
+                    if (!banner) {
+                        banner = document.createElement('div');
+                        banner.id = 'connection-banner';
+                        banner.className = 'fixed top-0 left-0 w-full bg-red-500 text-white text-center py-2 text-sm font-bold z-[100] shadow-lg transition-transform duration-300 transform -translate-y-full flex items-center justify-center gap-2';
+                        banner.innerHTML = '<span class="animate-spin text-lg">⚙️</span> Потеряно соединение со шлюзом. Переподключение...';
+                        document.body.appendChild(banner);
+                    }
+                    
+                    if (isOnline) {
+                        banner.classList.add('-translate-y-full');
+                        mainContent.classList.remove('opacity-50', 'pointer-events-none');
+                    } else {
+                        banner.classList.remove('-translate-y-full');
+                        mainContent.classList.add('opacity-50', 'pointer-events-none'); // Заморозка интерфейса
+                    }
+                },
+
+                switchTab: (tabId, btn) => {
+                    document.querySelectorAll('.tab-btn').forEach(b => { 
+                        b.classList.remove('bg-blue-600', 'text-white'); 
+                        b.classList.add('text-slate-400', 'hover:bg-slate-800', 'hover:text-white'); 
+                    });
+                    btn.classList.remove('text-slate-400', 'hover:bg-slate-800', 'hover:text-white');
+                    btn.classList.add('bg-blue-600', 'text-white');
+
+                    document.querySelectorAll('.tab-content').forEach(c => { 
+                        c.classList.add('opacity-0'); 
+                        setTimeout(() => c.classList.add('hidden'), 150); 
+                    });
+                    
+                    setTimeout(() => {
+                        const ac = document.getElementById(tabId);
+                        ac.classList.remove('hidden');
+                        setTimeout(() => ac.classList.remove('opacity-0'), 20);
+                    }, 150);
+
+                    if (window.innerWidth < 768) {
+                        document.getElementById('sidebar').classList.add('-translate-x-full');
+                        document.getElementById('mobileBackdrop').classList.add('hidden');
+                    }
+                },
+
+                updateVisibility: () => {
+                    const expertItems = document.querySelectorAll('.expert-item:not(.tab-content)');
+                    const simpleItems = document.querySelectorAll('.simple-item');
+                    const modeLabel = document.getElementById('modeLabel');
+
+                    expertItems.forEach(el => state.expertMode ? el.classList.remove('hidden') : el.classList.add('hidden'));
+                    simpleItems.forEach(el => state.expertMode ? el.classList.add('hidden') : el.classList.remove('hidden'));
+                    
+                    if (state.expertMode) {
+                        modeLabel.textContent = 'ЭКСПЕРТ';
+                        modeLabel.classList.replace('text-slate-400', 'text-white');
+                    } else {
+                        modeLabel.textContent = 'ПРОСТОЙ';
+                        modeLabel.classList.replace('text-white', 'text-slate-400');
+                        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden', 'opacity-0'));
+                        
+                        const dt = document.getElementById('tab-devices');
+                        dt.classList.remove('hidden');
+                        setTimeout(() => dt.classList.remove('opacity-0'), 10);
+                        const firstBtn = document.querySelector('.tab-btn');
+                        ui.switchTab('tab-devices', firstBtn);
+                    }
+                },
+
+                renderSkeletons: () => {
+                    const tbody = document.getElementById('devicesTableBody');
+                    if (tbody) {
+                        tbody.innerHTML = Array(3).fill('').map(() => `
+                            <tr class="block md:table-row bg-white border border-slate-100 md:border-none p-4 md:p-0 mb-4 md:mb-0 rounded-xl md:rounded-none animate-pulse">
+                                <td class="block md:table-cell px-2 py-2 md:px-6 md:py-4 border-b border-slate-50 md:border-none">
+                                    <div class="flex items-center gap-4">
+                                        <div class="w-10 h-10 bg-slate-100 rounded-xl"></div>
+                                        <div class="space-y-2"><div class="h-3.5 bg-slate-200 rounded w-24"></div></div>
+                                    </div>
+                                </td>
+                                <td class="expert-item ${state.expertMode ? 'block' : 'hidden'} md:table-cell px-2 py-3 md:px-6 md:py-4 border-b border-slate-50 md:border-none">
+                                    <div class="space-y-2"><div class="h-3.5 bg-slate-200 rounded w-28"></div><div class="h-2.5 bg-slate-100 rounded w-32"></div></div>
+                                </td>
+                                <td class="block md:table-cell px-2 py-3 md:px-6 md:py-4">
+                                    <div class="simple-item ${state.expertMode ? 'hidden' : 'flex'} items-center gap-3"><div class="w-11 h-6 bg-slate-200 rounded-full"></div><div class="h-3.5 bg-slate-200 rounded w-20"></div></div>
+                                    <div class="expert-item ${state.expertMode ? 'block' : 'hidden'} space-y-2"><div class="h-10 bg-slate-100 rounded-lg w-full"></div></div>
+                                </td>
+                            </tr>
+                        `).join('');
+                    }
+
+                    const dash = document.getElementById('nodesDashboard');
+                    if (dash) {
+                        dash.innerHTML = Array(2).fill('').map(() => `
+                            <div class="animate-pulse flex items-center justify-between p-3 border border-slate-100 rounded-xl bg-slate-50/50">
+                                <div class="flex items-center gap-3"><div class="w-8 h-8 bg-slate-200 rounded-lg"></div><div class="space-y-2"><div class="h-3 bg-slate-200 rounded w-20"></div><div class="h-2 bg-slate-100 rounded w-12"></div></div></div>
+                                <div class="h-3.5 bg-slate-200 rounded w-10"></div>
+                            </div>
+                        `).join('');
+                    }
+                },
+
+                renderDevices: (devices) => {
+                    const newHash = JSON.stringify(devices) + state.expertMode + JSON.stringify(state.nodes);
+                    if (state._devicesHash === newHash) return;
+                    state._devicesHash = newHash;
+
+                    const tbody = document.getElementById('devicesTableBody');
+                    if (!tbody || !devices) return;
+
+                    const optionsHtml = `<option value="auto">⚡ Автоматически</option>` + 
+                        state.nodes.map(n => `<option value="${n.tag}">🌐 ${n.tag}</option>`).join('');
+
+                    tbody.innerHTML = devices.map(dev => {
+                        const isProtected = dev.mode !== 'bypass';
+                        const icon = dev.hostname.toLowerCase().includes('tv') ? '📺' : '📱';
+                        
+                        return `
+                        <tr class="block md:table-row bg-white border border-slate-100 md:border-none p-4 md:p-0 mb-4 md:mb-0 rounded-xl md:rounded-none hover:bg-slate-50/80 transition-colors" data-ip="${dev.ip}">
+                            <td class="block md:table-cell px-2 py-2 md:px-6 md:py-4 border-b border-slate-50 md:border-none relative">
+                                <!-- Зеленая точка статуса вместо капса "В СЕТИ" -->
+                                <div class="absolute top-2 left-2 md:top-4 md:left-6 w-3 h-3 bg-white rounded-full flex items-center justify-center shadow-sm">
+                                    <div class="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                                </div>
+                                <div class="flex items-center gap-4 pl-2">
+                                    <div class="w-10 h-10 flex items-center justify-center bg-blue-50 text-blue-600 rounded-xl text-xl border border-blue-100/50 shadow-sm">${icon}</div>
+                                    <div><div class="text-sm font-bold text-slate-800">${dev.hostname}</div></div>
+                                </div>
+                            </td>
+                            <td class="expert-item ${state.expertMode ? 'block' : 'hidden'} md:table-cell px-2 py-3 md:px-6 md:py-4 border-b border-slate-50 md:border-none">
+                                <div class="text-sm text-slate-600 font-mono"><span class="md:hidden text-slate-400 text-xs mr-2">IP:</span>${dev.ip}</div>
+                                <div class="text-xs text-slate-400 font-mono mt-0.5"><span class="md:hidden text-slate-400 text-xs mr-2">MAC:</span>${dev.mac}</div>
+                            </td>
+                            <td class="block md:table-cell px-2 py-3 md:px-6 md:py-4">
+                                <div class="simple-item ${state.expertMode ? 'hidden' : 'flex'} items-center gap-3 pt-1 md:pt-0">
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" class="sr-only peer device-toggle" data-ip="${dev.ip}" ${isProtected ? 'checked' : ''}>
+                                        <div class="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-emerald-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                                    </label>
+                                    <span class="text-sm font-bold ${isProtected ? 'text-slate-800' : 'text-slate-500'}">${isProtected ? 'Защита ВКЛ' : 'Напрямую'}</span>
+                                </div>
+                                <div class="expert-item ${state.expertMode ? 'block' : 'hidden'} space-y-2 mt-2 md:mt-0">
+                                    <select class="custom-select device-mode-select rounded-lg border-slate-200 border p-2 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none w-full bg-slate-50/50 text-slate-700" data-ip="${dev.ip}">
+                                        <option value="global" ${dev.mode === 'global' ? 'selected' : ''}>🌐 Global (Весь трафик)</option>
+                                        <option value="smart" ${dev.mode === 'smart' ? 'selected' : ''}>🧠 Smart (AntiFilter)</option>
+                                        <option value="bypass" ${dev.mode === 'bypass' ? 'selected' : ''}>⚡ Bypass (Провайдер)</option>
+                                    </select>
+                                    <select class="custom-select device-node-select rounded-lg border-slate-200 border p-2 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none w-full bg-slate-50/50 text-slate-700" data-ip="${dev.ip}">
+                                        ${optionsHtml}
+                                    </select>
+                                </div>
+                            </td>
+                        </tr>`;
+                    }).join('');
+
+                    devices.forEach(dev => {
+                        const nodeSelect = tbody.querySelector(`.device-node-select[data-ip="${dev.ip}"]`);
+                        if (nodeSelect) nodeSelect.value = dev.assigned_node || 'auto';
+                    });
+                },
+
+                renderNodes: () => {
+                    const dash = document.getElementById('nodesDashboard');
+                    if (!dash || !state.nodes) return;
+
+                    let html = `
+                        <div onclick="GatewayApp.actions.setGlobalNode('auto')" class="cursor-pointer flex items-center justify-between p-3 border rounded-xl transition-all ${state.globalNode === 'auto' ? 'border-blue-500 bg-blue-50/50 ring-1 ring-blue-500/50 shadow-sm' : 'border-slate-100 bg-slate-50/30 hover:border-blue-300'}">
+                            <div class="flex items-center gap-3"><span class="text-xl">⚡</span><div><div class="text-sm font-bold ${state.globalNode === 'auto' ? 'text-blue-700' : 'text-slate-700'}">Автоматически</div><div class="text-[10px] text-slate-400 font-mono">Балансировка</div></div></div>
+                        </div>
+                    `;
+
+                    html += state.nodes.map(n => {
+                        const isSelected = state.globalNode === n.tag;
+                        const pingColor = utils.getPingColorClass(n.ping);
+                        
+                        return `
+                        <div onclick="GatewayApp.actions.setGlobalNode('${n.tag}')" class="cursor-pointer flex items-center justify-between p-3 border rounded-xl transition-all ${isSelected ? 'border-blue-500 bg-blue-50/50 ring-1 ring-blue-500/50 shadow-sm' : 'border-slate-100 bg-slate-50/30 hover:border-blue-300'}">
+                            <div class="flex items-center gap-3 overflow-hidden">
+                                <span class="text-xl">${utils.getFlagEmoji(n.tag)}</span>
+                                <div class="truncate"><div class="text-sm font-bold ${isSelected ? 'text-blue-700' : 'text-slate-700'} truncate" title="${n.tag}">${n.tag}</div><div class="text-[10px] text-slate-400 font-mono uppercase">${n.type}</div></div>
+                            </div>
+                            <div class="text-right ml-2 flex-shrink-0">
+                                ${n.status === 'online' ? `<span class="text-xs font-bold ${pingColor}">${n.ping}ms</span>` : `<span class="text-xs font-bold text-red-500">ERR</span>`}
+                            </div>
+                        </div>
+                        `;
+                    }).join('');
+                    
+                    dash.innerHTML = html;
+                },
+
+                renderNetworkStatus: (data) => {
+                    if (!data) return;
+                    const badge = document.getElementById('globalProtectionBadge');
+                    const glow = document.getElementById('statusGlow');
+                    const pingColor = utils.getPingColorClass(data.youtube?.ping);
+                    
+                    if (data.tunnel.status === 'ok') {
+                        badge.className = "inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-emerald-100/50 text-emerald-700 border border-emerald-200/50";
+                        badge.innerHTML = '<span class="w-2 h-2 mr-2 bg-emerald-500 rounded-full pulse"></span> Шлюз онлайн';
+                        glow.className = "absolute top-0 right-0 w-40 h-40 bg-emerald-50 rounded-full blur-3xl -mr-16 -mt-16 transition-colors duration-700";
+                    } else {
+                        badge.className = "inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-red-100/50 text-red-700 border border-red-200/50";
+                        badge.innerHTML = '<span class="w-2 h-2 mr-2 bg-red-500 rounded-full"></span> Туннель недоступен';
+                        glow.className = "absolute top-0 right-0 w-40 h-40 bg-red-50 rounded-full blur-3xl -mr-16 -mt-16 transition-colors duration-700";
+                    }
+
+                    document.getElementById('directIp').textContent = data.direct.ip || '...';
+                    document.getElementById('directFlag').textContent = utils.getFlagEmoji(data.direct.country);
+                    document.getElementById('line1').classList.replace('bg-slate-300', 'bg-blue-500');
+
+                    document.getElementById('tunnelIp').textContent = data.tunnel.ip || '...';
+                    document.getElementById('tunnelFlag').textContent = utils.getFlagEmoji(data.tunnel.country);
+                    
+                    const ytIco = document.getElementById('ytIcon');
+                    const ytStat = document.getElementById('ytStatus');
+                    const line2 = document.getElementById('line2');
+                    const ytPingEl = document.getElementById('ytPing');
+
+                    if (data.youtube.status === 'ok') {
+                        ytIco.classList.remove('grayscale', 'opacity-50');
+                        ytIco.classList.add('bg-emerald-50', 'border-emerald-100');
+                        ytStat.textContent = 'Доступен';
+                        ytStat.className = `text-[10px] font-bold ${pingColor}`;
+                        ytPingEl.textContent = data.youtube.ping + 'ms';
+                        ytPingEl.className = `text-[10px] font-bold mb-1.5 ${pingColor}`;
+                        line2.className = "absolute inset-0 bg-emerald-400 transition-all";
+                    } else {
+                        ytIco.classList.add('grayscale', 'opacity-50');
+                        ytIco.classList.remove('bg-emerald-50', 'border-emerald-100');
+                        ytStat.textContent = 'Заблокирован';
+                        ytStat.className = "text-[10px] font-bold text-red-500";
+                        ytPingEl.textContent = 'ERR';
+                        ytPingEl.className = "text-[10px] font-bold mb-1.5 text-red-500";
+                        line2.className = "absolute inset-0 bg-red-400 transition-all";
+                    }
+
+                    // Обновление динамического блока РКН (если бэкенд отдает список, можно рендерить динамически)
+                    // Пока симулируем логику на фронте
+                    const trafficBox = document.getElementById('trafficInspectionBox');
+                    if (data.tunnel.status === 'ok' && data.youtube.status === 'ok') {
+                        trafficBox.innerHTML = `
+                            <div class="bg-red-50/50 border border-red-100 rounded-lg p-2.5 flex justify-between items-center col-span-2 sm:col-span-1">
+                                <span class="text-xs font-medium text-slate-600 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>DPI Провайдера</span>
+                                <span class="text-[10px] font-bold text-red-500 bg-white px-1.5 py-0.5 rounded shadow-sm">Drop (youtube.com)</span>
+                            </div>
+                            <div class="bg-emerald-50/50 border border-emerald-100 rounded-lg p-2.5 flex justify-between items-center col-span-2 sm:col-span-1">
+                                <span class="text-xs font-medium text-slate-600 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>GSG Туннель</span>
+                                <span class="text-[10px] font-bold ${pingColor} bg-white px-1.5 py-0.5 rounded shadow-sm">Bypass (${data.youtube.ping}ms)</span>
+                            </div>
+                        `;
+                    }
+                },
+
+                renderMetrics: (data) => {
+                    if(!data) return;
+                    document.getElementById('systemMetrics').innerHTML = `
+                        <div class="flex justify-between items-center"><span class="text-slate-500">CPU:</span> <span class="font-bold ${data.cpu_percent > 80 ? 'text-red-400' : 'text-emerald-400'}">${data.cpu_percent}%</span></div>
+                        <div class="flex justify-between items-center"><span class="text-slate-500">RAM:</span> <span class="font-bold text-blue-400">${Math.round(data.memory_used/1024/1024)}MB</span></div>
+                        <div class="flex justify-between items-center"><span class="text-slate-500">Temp:</span> <span class="font-bold ${data.temperature > 70 ? 'text-red-400' : 'text-amber-400'}">${data.temperature}°C</span></div>
+                    `;
+                }
+            };
+
+            const actions = {
+                updateDeviceSettings: utils.debounce(async (ip, mode, assignedNode) => {
+                    const result = await utils.apiCall(`/devices/${ip}`, { method: 'PUT', body: JSON.stringify({ mode, assigned_node: assignedNode }) });
+                    if (result) actions.fetchData();
+                }, 400),
+
+                setGlobalNode: async (tag) => {
+                    state.globalNode = tag;
+                    ui.renderNodes();
+                    await utils.apiCall('/subscription/node', { method: 'PUT', body: JSON.stringify({global_node: tag}) });
+                    actions.fetchNodes();
+                    actions.fetchData();
+                },
+
+                fetchNodes: async () => {
+                    const nodes = await utils.apiCall('/nodes/dashboard');
+                    const subData = await utils.apiCall('/subscription');
+                    if (nodes) state.nodes = nodes;
+                    if (subData) state.globalNode = subData.global_node || 'auto';
+                    ui.renderNodes();
+                },
+
+                fetchData: async () => {
+                    const [status, network, devices] = await Promise.all([
+                        utils.apiCall('/status'),
+                        utils.apiCall('/network-status'),
+                        utils.apiCall('/devices')
+                    ]);
+                    
+                    ui.renderMetrics(status);
+                    ui.renderNetworkStatus(network);
+                    if (devices) {
+                        state.devices = devices;
+                        ui.renderDevices(devices);
+                    }
+                },
+
+                fetchInitialStaticData: async () => {
+                    const dhcp = await utils.apiCall('/dhcp');
+                    if (dhcp) {
+                        document.getElementById('dhcpGateway').value = dhcp.gateway || '';
+                        document.getElementById('dhcpStart').value = dhcp.pool_start || '';
+                        document.getElementById('dhcpEnd').value = dhcp.pool_end || '';
+                        document.getElementById('dhcpDns').value = dhcp.dns || '';
+                    }
+                    const sub = await utils.apiCall('/subscription');
+                    if (sub && sub.url) document.getElementById('subUrlInput').value = sub.url;
+                },
+
+                fetchLogs: async () => {
+                    if(!state.expertMode) return;
+                    const logs = await utils.apiCall('/logs');
+                    const logBox = document.getElementById('systemLogsBox');
+                    if(logBox && logs) {
+                        const isScrolled = logBox.scrollHeight - logBox.clientHeight <= logBox.scrollTop + 10;
+                        logBox.innerHTML = logs.map(l => `<div class="hover:bg-slate-800/50 px-1 -mx-1 rounded">${l}</div>`).join('') + '<div class="mt-2 text-emerald-500"><span class="animate-pulse">_</span></div>';
+                        if(isScrolled) logBox.scrollTop = logBox.scrollHeight;
+                    }
+                }
+            };
+
+            const init = () => {
+                ui.renderSkeletons();
+
+                const sidebar = document.getElementById('sidebar');
+                const backdrop = document.getElementById('mobileBackdrop');
+                const toggleMenu = () => {
+                    sidebar.classList.toggle('-translate-x-full');
+                    backdrop.classList.toggle('hidden');
+                };
+                document.getElementById('mobileMenuBtn')?.addEventListener('click', toggleMenu);
+                backdrop?.addEventListener('click', toggleMenu);
+
+                document.getElementById('devicesTableBody')?.addEventListener('change', (e) => {
+                    const ip = e.target.dataset.ip;
+                    if (!ip) return;
+                    const row = e.target.closest('tr');
+                    
+                    if (e.target.classList.contains('device-toggle')) {
+                        const mode = e.target.checked ? 'smart' : 'bypass';
+                        actions.updateDeviceSettings(ip, mode, 'auto');
+                    } else if (e.target.classList.contains('device-mode-select') || e.target.classList.contains('device-node-select')) {
+                        const mode = row.querySelector('.device-mode-select').value;
+                        const node = row.querySelector('.device-node-select').value;
+                        actions.updateDeviceSettings(ip, mode, node);
+                    }
+                });
+
+                document.getElementById('modeToggle')?.addEventListener('change', (e) => {
+                    state.expertMode = e.target.checked;
+                    ui.updateVisibility();
+                    ui.renderDevices(state.devices);
+                });
+
+                document.getElementById('saveSubBtn')?.addEventListener('click', async () => {
+                    const btn = document.getElementById('saveSubBtn');
+                    const origText = btn.textContent;
+                    btn.textContent = 'Ожидайте...';
+                    await utils.apiCall('/subscription', { method: 'PUT', body: JSON.stringify({ url: document.getElementById('subUrlInput').value }) });
+                    btn.textContent = 'Готово!';
+                    setTimeout(() => { btn.textContent = origText; actions.fetchNodes(); }, 2000);
+                });
+
+                actions.fetchInitialStaticData();
+                actions.fetchNodes();
+
+                const pollingLoop = async () => {
+                    await actions.fetchData();
+                    setTimeout(pollingLoop, 5000); 
+                };
+                setTimeout(pollingLoop, 300);
+
+                const logsLoop = async () => {
+                    await actions.fetchLogs();
+                    setTimeout(logsLoop, 3000);
+                };
+                logsLoop();
+            };
+
+            return { init, state, ui, actions };
+        })();
+
+        document.addEventListener('DOMContentLoaded', GatewayApp.init);
+    </script>
+</body>
+</html>
