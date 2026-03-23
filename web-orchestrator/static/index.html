@@ -686,6 +686,38 @@
                 </div>
             </div>
 
+            <!-- Traffic summary bar -->
+            <div id="trafficSummaryBar" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+                <div class="glass" style="padding:14px 18px;display:flex;flex-direction:column;gap:3px;">
+                    <span style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Сегодня</span>
+                    <div style="display:flex;gap:10px;align-items:baseline;">
+                        <span id="summaryTodayDown" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:#34d399;">—</span>
+                        <span id="summaryTodayUp" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#60a5fa;">—</span>
+                    </div>
+                </div>
+                <div class="glass" style="padding:14px 18px;display:flex;flex-direction:column;gap:3px;">
+                    <span style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Этот месяц</span>
+                    <div style="display:flex;gap:10px;align-items:baseline;">
+                        <span id="summaryMonthDown" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:#34d399;">—</span>
+                        <span id="summaryMonthUp" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#60a5fa;">—</span>
+                    </div>
+                </div>
+                <div class="glass" style="padding:14px 18px;display:flex;flex-direction:column;gap:3px;">
+                    <span style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">За всё время</span>
+                    <div style="display:flex;gap:10px;align-items:baseline;">
+                        <span id="summaryAllDown" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:#34d399;">—</span>
+                        <span id="summaryAllUp" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#60a5fa;">—</span>
+                    </div>
+                </div>
+                <div class="glass" style="padding:14px 18px;display:flex;flex-direction:column;gap:3px;">
+                    <span style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Пиковая скорость</span>
+                    <div style="display:flex;gap:10px;align-items:baseline;">
+                        <span id="summaryPeakDown" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:#fbbf24;">—</span>
+                        <span style="font-size:10px;color:var(--muted);">↓/с</span>
+                    </div>
+                </div>
+            </div>
+
             <!-- Devices tab -->
             <div id="tab-devices" class="tab-content active reveal reveal-2">
                 <div class="glass" style="overflow:hidden;">
@@ -1376,45 +1408,26 @@
                     ? `<img src="https://flagcdn.com/20x15/${providerCc}.png" width="20" height="15" style="border-radius:2px;vertical-align:middle;object-fit:cover;" onerror="this.style.display='none'">`
                     : '🌐';
 
-                const totalNodeDown = Object.values(state.nodeTraffic).reduce((s,v) => s+(v.total_down||0), 0);
-                const totalNodeUp   = Object.values(state.nodeTraffic).reduce((s,v) => s+(v.total_up||0), 0);
-
                 const today = new Date().toISOString().slice(0, 10);
-                const nodesHtml = state.nodes.length
-                    ? state.nodes.map(n => {
-                        const online = n.status === 'online';
-                        const nh = state.nodeHistory[n.tag];
-                        const todayD = nh?.daily?.[today] || {up:0, down:0};
-                        const todayTotal = todayD.down + todayD.up;
-                        const flag = utils.getFlagEmoji(n.tag);
-                        return `<div style="display:flex;align-items:center;gap:5px;padding:2px 0;">
-                            <div style="width:5px;height:5px;border-radius:50%;background:${online?'#34d399':'rgba(239,68,68,0.5)'};flex-shrink:0;${online?'box-shadow:0 0 4px #34d399;':''}"></div>
-                            <span style="font-size:10px;color:${online?'#e2e8f0':'var(--muted)'};font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${n.tag}</span>
-                            <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:${todayTotal>0?'#34d399':'rgba(100,116,139,0.4)'};flex-shrink:0;">
-                                ${todayTotal > 0 ? utils.formatBytes(todayTotal) : '—'}
-                            </span>
-                        </div>`;
-                    }).join('')
-                    + (totalNodeDown + totalNodeUp > 0 ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06);display:flex;gap:8px;">
-                        <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#34d399;">↓ ${utils.formatBytes(totalNodeDown)}</span>
-                        <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#60a5fa;">↑ ${utils.formatBytes(totalNodeUp)}</span>
-                    </div>` : '')
-                    : `<div style="font-size:10px;color:var(--muted);font-style:italic;">Нет узлов</div>`;
+                // Today's total across all nodes from persistent history
+                const todayNodeDown = Object.values(state.nodeHistory).reduce((s, nh) => s + (nh?.daily?.[today]?.down || 0), 0);
+                const todayNodeUp   = Object.values(state.nodeHistory).reduce((s, nh) => s + (nh?.daily?.[today]?.up   || 0), 0);
+                const onlineCount = state.nodes.filter(n => n.status === 'online').length;
 
                 el.innerHTML = `
                     <div class="metric-pill">
                         <span style="color:var(--muted);">Провайдер</span>
                         <span style="font-weight:700;color:#f1f5f9;font-family:'JetBrains Mono',monospace;font-size:11px;">${providerFlag} ${providerIp}</span>
                     </div>
-                    <div class="metric-pill" style="flex-direction:column;align-items:flex-start;gap:5px;padding:8px 10px;">
-                        <span style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:0.06em;font-weight:700;">Узлы</span>
-                        <div style="width:100%;">${nodesHtml}</div>
+                    <div class="metric-pill">
+                        <span style="color:var(--muted);">Узлы</span>
+                        <span style="font-weight:700;color:${onlineCount>0?'#34d399':'#ef4444'};font-size:11px;">${onlineCount}/${state.nodes.length} онлайн</span>
                     </div>
-                    <div class="metric-pill" style="flex-direction:column;align-items:flex-start;gap:2px;padding:7px 10px;">
-                        <span style="color:var(--muted);font-size:10px;">Сессия</span>
+                    <div class="metric-pill" style="flex-direction:column;align-items:flex-start;gap:3px;padding:7px 10px;">
+                        <span style="color:var(--muted);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Трафик сегодня</span>
                         <div style="display:flex;gap:10px;">
-                            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#34d399;">↓ ${utils.formatBytes(state.sessionStats.totalDown)}</span>
-                            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#60a5fa;">↑ ${utils.formatBytes(state.sessionStats.totalUp)}</span>
+                            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#34d399;">↓ ${utils.formatBytes(todayNodeDown||state.sessionStats.totalDown)}</span>
+                            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#60a5fa;">↑ ${utils.formatBytes(todayNodeUp||state.sessionStats.totalUp)}</span>
                         </div>
                     </div>`;
             },
@@ -1437,16 +1450,23 @@
                         </div>
                     </div>`;
 
+                const today = new Date().toISOString().slice(0, 10);
                 html += state.nodes.map(n => {
                     const isSelected = state.globalNode === n.tag;
                     const pingClass = utils.getPingClass(n.ping);
+                    const nh = state.nodeHistory[n.tag];
+                    const todayD = nh?.daily?.[today] || {up:0, down:0};
+                    const todayTotal = todayD.down + todayD.up;
                     return `
                     <div class="node-card ${isSelected ? 'selected' : ''}" onclick="GatewayApp.actions.setGlobalNode('${n.tag}')">
-                        <div style="display:flex;align-items:center;gap:8px;overflow:hidden;">
+                        <div style="display:flex;align-items:center;gap:8px;overflow:hidden;min-width:0;">
                             <span style="font-size:18px;flex-shrink:0;">${utils.getFlagEmoji(n.tag)}</span>
-                            <div style="overflow:hidden;">
+                            <div style="overflow:hidden;min-width:0;">
                                 <div style="font-size:12px;font-weight:700;color:${isSelected?'#93c5fd':'#f1f5f9'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${n.tag}</div>
-                                <div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;text-transform:uppercase;">${n.type}</div>
+                                <div style="display:flex;align-items:center;gap:6px;">
+                                    <span style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;text-transform:uppercase;">${n.type}</span>
+                                    ${todayTotal > 0 ? `<span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(52,211,153,0.7);">${utils.formatBytes(todayTotal)}</span>` : ''}
+                                </div>
                             </div>
                         </div>
                         <div style="flex-shrink:0;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;" class="${pingClass}">
@@ -1714,6 +1734,28 @@
                         <span style="font-size:10px;color:var(--muted);">Пик</span>
                         <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#fbbf24;">${utils.formatBytes(s.peakDown)}/s ↓</span>
                     </div>`;
+            },
+
+            updateTrafficSummary: () => {
+                const h = state.deviceHistory;
+                if (!h || !Object.keys(h).length) return;
+                const today = new Date().toISOString().slice(0, 10);
+                const thisMonth = today.slice(0, 7);
+                let todayDown=0, todayUp=0, monthDown=0, monthUp=0, allDown=0, allUp=0;
+                Object.values(h).forEach(d => {
+                    todayDown += d.daily?.[today]?.down  || 0;
+                    todayUp   += d.daily?.[today]?.up    || 0;
+                    monthDown += d.monthly?.[thisMonth]?.down || 0;
+                    monthUp   += d.monthly?.[thisMonth]?.up   || 0;
+                    allDown   += d.alltime_down || 0;
+                    allUp     += d.alltime_up   || 0;
+                });
+                const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v > 0 ? utils.formatBytes(v) : '—'; };
+                set('summaryTodayDown', todayDown); set('summaryTodayUp',  todayUp);
+                set('summaryMonthDown', monthDown); set('summaryMonthUp',  monthUp);
+                set('summaryAllDown',   allDown);   set('summaryAllUp',    allUp);
+                const peakEl = document.getElementById('summaryPeakDown');
+                if (peakEl) peakEl.textContent = utils.formatBytes(state.sessionStats.peakDown) + '/с';
             },
 
             showToast: (msg) => {
@@ -2013,6 +2055,8 @@
                     if (timeEl) timeEl.value = sched.time || '00:00';
                     ui.updateTrafficDOM(); // refresh today totals from history
                     ui.updateSidebarNetStats();
+                    ui.updateTrafficSummary();
+                    ui.renderNodes(); // refresh node cards with daily traffic
                 }
             },
 
