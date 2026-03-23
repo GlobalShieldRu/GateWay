@@ -95,51 +95,60 @@ monitor = TrafficMonitor()
 class TrafficHistory:
     def __init__(self):
         self.data: dict = {}   # ip -> {alltime_up, alltime_down, yearly, monthly, daily}
+        self.nodes: dict = {}  # tag -> {alltime_up, alltime_down, yearly, monthly, daily}
         self.schedule: dict = {"type": "never", "time": "00:00"}
-        self._snapshots: dict = {}  # ip -> {up, down} of last saved session totals
+        self._snapshots: dict = {}       # ip -> {up, down}
+        self._node_snapshots: dict = {}  # tag -> {up, down}
 
     async def load(self):
         raw = await read_json(GSG_TRAFFIC_HISTORY_FILE, {})
         self.data = raw.get("devices", {})
+        self.nodes = raw.get("nodes", {})
         self.schedule = raw.get("schedule", {"type": "never", "time": "00:00"})
         self._snapshots = {}
+        self._node_snapshots = {}
 
     async def save(self):
         try:
-            raw = {"devices": self.data, "schedule": self.schedule}
+            raw = {"devices": self.data, "nodes": self.nodes, "schedule": self.schedule}
             async with aiofiles.open(GSG_TRAFFIC_HISTORY_FILE, 'w') as f:
                 await f.write(json.dumps(raw, indent=2))
         except Exception:
             pass
 
-    def flush(self, session_stats: dict):
+    def _flush_bucket(self, store: dict, snapshots: dict, key: str, stat: dict):
+        """Flush one entity (ip or node tag) into the given store."""
         now = datetime.now()
-        day_key = now.strftime("%Y-%m-%d")
-        month_key = now.strftime("%Y-%m")
-        year_key = now.strftime("%Y")
+        cur_up = stat.get('total_up', 0)
+        cur_down = stat.get('total_down', 0)
+        prev = snapshots.get(key, {'up': 0, 'down': 0})
+        delta_up = max(0, cur_up - prev['up'])
+        delta_down = max(0, cur_down - prev['down'])
+        snapshots[key] = {'up': cur_up, 'down': cur_down}
+        if delta_up == 0 and delta_down == 0:
+            return
+        if key not in store:
+            store[key] = {'alltime_up': 0, 'alltime_down': 0,
+                          'yearly': {}, 'monthly': {}, 'daily': {}}
+        d = store[key]
+        d['alltime_up'] += delta_up
+        d['alltime_down'] += delta_down
+        for scope, period_key in [
+            ('yearly',  now.strftime("%Y")),
+            ('monthly', now.strftime("%Y-%m")),
+            ('daily',   now.strftime("%Y-%m-%d")),
+        ]:
+            if period_key not in d[scope]:
+                d[scope][period_key] = {'up': 0, 'down': 0}
+            d[scope][period_key]['up'] += delta_up
+            d[scope][period_key]['down'] += delta_down
 
+    def flush(self, session_stats: dict, node_stats: dict = None):
         for ip, stat in session_stats.items():
-            cur_up = stat.get('total_up', 0)
-            cur_down = stat.get('total_down', 0)
-            prev = self._snapshots.get(ip, {'up': 0, 'down': 0})
-            delta_up = max(0, cur_up - prev['up'])
-            delta_down = max(0, cur_down - prev['down'])
-            self._snapshots[ip] = {'up': cur_up, 'down': cur_down}
-
-            if delta_up == 0 and delta_down == 0:
-                continue
-
-            if ip not in self.data:
-                self.data[ip] = {'alltime_up': 0, 'alltime_down': 0,
-                                  'yearly': {}, 'monthly': {}, 'daily': {}}
-            d = self.data[ip]
-            d['alltime_up'] += delta_up
-            d['alltime_down'] += delta_down
-            for scope, key in [('yearly', year_key), ('monthly', month_key), ('daily', day_key)]:
-                if key not in d[scope]:
-                    d[scope][key] = {'up': 0, 'down': 0}
-                d[scope][key]['up'] += delta_up
-                d[scope][key]['down'] += delta_down
+            self._flush_bucket(self.data, self._snapshots, ip, stat)
+        if node_stats:
+            for tag, stat in node_stats.items():
+                self._flush_bucket(self.nodes, self._node_snapshots, tag, stat)
 
     def reset(self, scope: str, ip: str = None):
         now = datetime.now()
@@ -151,13 +160,11 @@ class TrafficHistory:
             if scope == 'all':
                 self.data[t] = {'alltime_up': 0, 'alltime_down': 0,
                                  'yearly': {}, 'monthly': {}, 'daily': {}}
-                # Advance snapshots so next flush starts from current session values
                 if t in self._snapshots:
                     s = self._snapshots[t]
                     self._snapshots[t] = {'up': s['up'], 'down': s['down']}
             elif scope == 'daily':
-                today = now.strftime("%Y-%m-%d")
-                d['daily'].pop(today, None)
+                d['daily'].pop(now.strftime("%Y-%m-%d"), None)
             elif scope == 'monthly':
                 d['monthly'].pop(now.strftime("%Y-%m"), None)
             elif scope == 'yearly':
@@ -169,7 +176,7 @@ class TrafficHistory:
         while True:
             await asyncio.sleep(60)
             try:
-                self.flush(dict(mon.stats))
+                self.flush(dict(mon.stats), dict(mon.node_stats))
                 await self.save()
                 now = datetime.now()
                 sched_type = self.schedule.get("type", "never")
@@ -226,7 +233,7 @@ async def get_traffic_nodes():
 
 @app.get("/api/traffic/history")
 async def get_traffic_history():
-    return {"devices": traffic_history.data, "schedule": traffic_history.schedule}
+    return {"devices": traffic_history.data, "nodes": traffic_history.nodes, "schedule": traffic_history.schedule}
 
 class TrafficResetRequest(BaseModel):
     scope: str  # all, daily, monthly, yearly

@@ -255,7 +255,7 @@
         /* Device row grid (desktop) */
         .dev-row-grid {
             display: grid;
-            grid-template-columns: minmax(160px,220px) 120px 80px 1fr 200px 250px;
+            grid-template-columns: minmax(160px,220px) 120px 160px 1fr 200px 250px;
             align-items: center;
             gap: 14px;
             padding: 14px 20px;
@@ -720,10 +720,10 @@
                         </div>
                     </div>
                     <!-- Desktop table header -->
-                    <div class="dev-table-hdr" style="display:grid;grid-template-columns:minmax(160px,220px) 120px 80px 1fr 200px 250px;gap:14px;padding:8px 20px;border-bottom:1px solid rgba(255,255,255,0.04);align-items:center;">
+                    <div class="dev-table-hdr" style="display:grid;grid-template-columns:minmax(160px,220px) 120px 160px 1fr 200px 250px;gap:14px;padding:8px 20px;border-bottom:1px solid rgba(255,255,255,0.04);align-items:center;">
                         <div class="section-label sort-hdr" onclick="GatewayApp.ui.setSort('hostname')" style="cursor:pointer;user-select:none;display:flex;align-items:center;gap:3px;white-space:nowrap;">Клиент <span id="sort-ind-hostname" style="font-size:9px;"></span></div>
                         <div class="section-label" style="white-space:nowrap;">Активность</div>
-                        <div class="section-label sort-hdr" onclick="GatewayApp.ui.setSort('traffic')" style="cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:flex-end;gap:3px;white-space:nowrap;"><span id="sort-ind-traffic" style="font-size:9px;"></span>Трафик</div>
+                        <div class="section-label sort-hdr" onclick="GatewayApp.ui.setSort('traffic')" style="cursor:pointer;user-select:none;display:flex;align-items:center;gap:3px;white-space:nowrap;"><span id="sort-ind-traffic" style="font-size:9px;"></span>Трафик</div>
                         <div class="section-label sort-hdr" onclick="GatewayApp.ui.setSort('ip')" style="cursor:pointer;user-select:none;display:flex;align-items:center;gap:3px;white-space:nowrap;">Маршрут <span id="sort-ind-ip" style="font-size:9px;"></span></div>
                         <div class="section-label" style="white-space:nowrap;">Приложения</div>
                         <div class="section-label sort-hdr" onclick="GatewayApp.ui.setSort('mode')" style="cursor:pointer;user-select:none;display:flex;align-items:center;gap:3px;white-space:nowrap;">Режим/Узел <span id="sort-ind-mode" style="font-size:9px;"></span></div>
@@ -1008,6 +1008,7 @@
             deviceTrafficHistory: {},
             nodeTraffic: {},
             deviceHistory: {},
+            nodeHistory: {},
             sortBy: 'hostname',
             sortDir: 1
         };
@@ -1233,10 +1234,27 @@
                             ${ui.makeSparkBars(state.deviceTrafficHistory[dev.ip] || [])}
                         </div>
                         <!-- Col 3: TRAFFIC -->
-                        <div class="dev-col-trafik" style="text-align:right;">
-                            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#34d399;"><span class="traffic-down" data-ip="${dev.ip}">0 B/s</span> ↓</div>
-                            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#60a5fa;margin-top:1px;"><span class="traffic-up" data-ip="${dev.ip}">0 B/s</span> ↑</div>
-                            <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);margin-top:1px;" class="traffic-total" data-ip="${dev.ip}">0 B</div>
+                        <div class="dev-col-trafik">
+                            <!-- Live speed -->
+                            <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;">
+                                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#34d399;"><span class="traffic-down" data-ip="${dev.ip}">0 B/s</span> ↓</span>
+                                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#60a5fa;"><span class="traffic-up" data-ip="${dev.ip}">0 B/s</span> ↑</span>
+                            </div>
+                            <!-- Persistent stats -->
+                            <div style="display:flex;flex-direction:column;gap:2px;">
+                                <div style="display:flex;justify-content:space-between;align-items:center;">
+                                    <span style="font-size:9px;color:rgba(100,116,139,0.5);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">Сегодня</span>
+                                    <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(52,211,153,0.7);" class="dev-hist-day" data-ip="${dev.ip}">—</span>
+                                </div>
+                                <div style="display:flex;justify-content:space-between;align-items:center;">
+                                    <span style="font-size:9px;color:rgba(100,116,139,0.5);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">Месяц</span>
+                                    <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(96,165,250,0.7);" class="dev-hist-month" data-ip="${dev.ip}">—</span>
+                                </div>
+                                <div style="display:flex;justify-content:space-between;align-items:center;">
+                                    <span style="font-size:9px;color:rgba(100,116,139,0.5);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">Всего</span>
+                                    <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(167,139,250,0.7);" class="dev-hist-all" data-ip="${dev.ip}">—</span>
+                                </div>
+                            </div>
                         </div>
                         <!-- Col 4: ROUTE -->
                         <div class="dev-col-route">${routeHtml}</div>
@@ -1291,6 +1309,20 @@
                     const showUp   = todayH ? todayH.up   : data.total_up;
                     if (tdEl) tdEl.textContent = showDown > 0 ? '↓ ' + utils.formatBytes(showDown) : '';
                     if (tuEl) tuEl.textContent = showUp   > 0 ? '↑ ' + utils.formatBytes(showUp)   : '';
+                    // Update persistent history columns
+                    if (hd) {
+                        const thisMonth = today.slice(0, 7);
+                        const monthH = hd.monthly?.[thisMonth] || {down:0, up:0};
+                        const dayEl   = document.querySelector(`.dev-hist-day[data-ip="${ip}"]`);
+                        const monEl   = document.querySelector(`.dev-hist-month[data-ip="${ip}"]`);
+                        const allEl   = document.querySelector(`.dev-hist-all[data-ip="${ip}"]`);
+                        const dayTot  = todayH ? todayH.down + todayH.up : showDown + showUp;
+                        const monTot  = monthH.down + monthH.up;
+                        const allTot  = (hd.alltime_down||0) + (hd.alltime_up||0);
+                        if (dayEl)  dayEl.textContent  = dayTot  > 0 ? utils.formatBytes(dayTot)  : '—';
+                        if (monEl)  monEl.textContent  = monTot  > 0 ? utils.formatBytes(monTot)  : '—';
+                        if (allEl)  allEl.textContent  = allTot  > 0 ? utils.formatBytes(allTot)  : '—';
+                    }
                     // Update sparkbar
                     if (!state.deviceTrafficHistory[ip]) state.deviceTrafficHistory[ip] = [];
                     state.deviceTrafficHistory[ip].push(data.speed_down || 0);
@@ -1344,19 +1376,20 @@
                 const totalNodeDown = Object.values(state.nodeTraffic).reduce((s,v) => s+(v.total_down||0), 0);
                 const totalNodeUp   = Object.values(state.nodeTraffic).reduce((s,v) => s+(v.total_up||0), 0);
 
+                const today = new Date().toISOString().slice(0, 10);
                 const nodesHtml = state.nodes.length
                     ? state.nodes.map(n => {
-                        const nt = state.nodeTraffic[n.tag] || {};
-                        const total = (nt.total_down || 0) + (nt.total_up || 0);
                         const online = n.status === 'online';
-                        const pingColor = online ? (n.ping < 100 ? '#34d399' : n.ping < 250 ? '#f59e0b' : '#ef4444') : 'rgba(239,68,68,0.5)';
+                        const nh = state.nodeHistory[n.tag];
+                        const todayD = nh?.daily?.[today] || {up:0, down:0};
+                        const todayTotal = todayD.down + todayD.up;
+                        const flag = utils.getFlagEmoji(n.tag);
                         return `<div style="display:flex;align-items:center;gap:5px;padding:2px 0;">
-                            <div style="width:5px;height:5px;border-radius:50%;background:${online?'#34d399':'rgba(239,68,68,0.5)'};flex-shrink:0;"></div>
+                            <div style="width:5px;height:5px;border-radius:50%;background:${online?'#34d399':'rgba(239,68,68,0.5)'};flex-shrink:0;${online?'box-shadow:0 0 4px #34d399;':''}"></div>
                             <span style="font-size:10px;color:${online?'#e2e8f0':'var(--muted)'};font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${n.tag}</span>
-                            <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
-                                ${total>0?`<span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(100,116,139,0.6);">${utils.formatBytes(total)}</span>`:''}
-                                <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:${pingColor};">${online?n.ping+'ms':'—'}</span>
-                            </div>
+                            <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:${todayTotal>0?'#34d399':'rgba(100,116,139,0.4)'};flex-shrink:0;">
+                                ${todayTotal > 0 ? utils.formatBytes(todayTotal) : '—'}
+                            </span>
                         </div>`;
                     }).join('')
                     + (totalNodeDown + totalNodeUp > 0 ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06);display:flex;gap:8px;">
@@ -1966,12 +1999,14 @@
                 const data = await utils.apiCall('/traffic/history');
                 if (data) {
                     state.deviceHistory = data.devices || {};
+                    state.nodeHistory   = data.nodes   || {};
                     const sched = data.schedule || {};
                     const typeEl = document.getElementById('scheduleTypeSelect');
                     if (typeEl) typeEl.value = sched.type || 'never';
                     const timeEl = document.getElementById('scheduleTimeInput');
                     if (timeEl) timeEl.value = sched.time || '00:00';
                     ui.updateTrafficDOM(); // refresh today totals from history
+                    ui.updateSidebarNetStats();
                 }
             },
 
