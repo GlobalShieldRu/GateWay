@@ -330,6 +330,7 @@ class DeviceUpdate(BaseModel):
     mode: str
     assigned_node: str
     tiktok_node: str = "auto"
+    custom_name: str = ""
 
 class RulesUpdate(BaseModel):
     direct: List[str]
@@ -417,14 +418,15 @@ async def get_devices():
             **d,
             "mode": conf.get("mode", "smart"),
             "assigned_node": conf.get("assigned_node", "auto"),
-            "tiktok_node": conf.get("tiktok_node", "auto")
+            "tiktok_node": conf.get("tiktok_node", "auto"),
+            "custom_name": conf.get("custom_name", "")
         })
     return result
 
 @app.put("/api/devices/{ip}")
 async def update_device(ip: str, data: DeviceUpdate):
     configs = await read_json(GSG_DEVICES_FILE, {})
-    configs[ip] = {"mode": data.mode, "assigned_node": data.assigned_node, "tiktok_node": data.tiktok_node}
+    configs[ip] = {"mode": data.mode, "assigned_node": data.assigned_node, "tiktok_node": data.tiktok_node, "custom_name": data.custom_name}
     async with aiofiles.open(GSG_DEVICES_FILE, 'w') as f:
         await f.write(json.dumps(configs, indent=2))
     async with aiofiles.open(GSG_CONFIG_DIR / ".reload_nftables", 'w') as f:

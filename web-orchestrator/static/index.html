@@ -453,6 +453,11 @@
         .skel { background: rgba(255,255,255,0.06); border-radius: 6px; animation: skelPulse 1.5s ease-in-out infinite; }
         @keyframes skelPulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
 
+        /* Inline rename */
+        .rename-btn { background: none; border: none; color: var(--muted); cursor: pointer; padding: 2px 4px; border-radius: 4px; font-size: 11px; opacity: 0; transition: opacity 0.15s; line-height: 1; flex-shrink: 0; }
+        *:hover > .rename-btn, .rename-btn:focus { opacity: 1; }
+        .rename-input { background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.4); border-radius: 6px; color: #f1f5f9; font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; padding: 2px 6px; outline: none; max-width: 180px; }
+
         /* ─── Mobile ≤ 768px ────────────────────────────────── */
         @media (max-width: 768px) {
             body { overflow: auto; }
@@ -1290,9 +1295,11 @@
                     const ist = ICON_STYLE[deviceType] || ICON_STYLE.unknown;
                     const brandLogoHtml = getBrandLogoHtml(cachedVendor, ist.color);
                     const brandBadge = '';
-                    const displayName = (dev.hostname === 'Устройство' || dev.hostname === 'Unknown' || dev.hostname === 'устройство') && cachedVendor
+                    const autoName = (dev.hostname === 'Устройство' || dev.hostname === 'Unknown' || dev.hostname === 'устройство') && cachedVendor
                         ? cachedVendor : dev.hostname;
-                    const vendorLabel = (cachedVendor && displayName !== cachedVendor)
+                    const displayName = dev.custom_name || autoName;
+                    const isCustom = !!dev.custom_name;
+                    const vendorLabel = (cachedVendor && autoName !== cachedVendor)
                         ? `<div style="font-size:10px;color:rgba(100,116,139,0.5);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${cachedVendor}">${cachedVendor}</div>`
                         : '';
 
@@ -1357,7 +1364,11 @@
                             </div>
                             <div style="min-width:0;flex:1;">
                                 <div style="display:flex;align-items:center;gap:6px;">
-                                    <div style="font-size:13px;font-weight:700;color:${isBlocked ? '#f87171' : '#f1f5f9'};${isBlocked ? 'text-decoration:line-through;' : ''}white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${displayName}</div>
+                                    <span class="dev-display-name" data-ip="${dev.ip}" style="font-size:13px;font-weight:700;color:${isBlocked ? '#f87171' : (isCustom ? '#93c5fd' : '#f1f5f9')};${isBlocked ? 'text-decoration:line-through;' : ''}white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${displayName}</span>
+                                    <input class="rename-input" data-ip="${dev.ip}" data-orig="${displayName}" value="${displayName}" style="display:none;" maxlength="32">
+                                    <button class="rename-btn" data-ip="${dev.ip}" title="Переименовать" onclick="event.stopPropagation();GatewayApp.ui.startRename('${dev.ip}')">
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                    </button>
                                     <button onclick="event.stopPropagation();GatewayApp.ui.openHistoryModal('${dev.ip}')" title="История трафика" style="width:18px;height:18px;border-radius:5px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:10px;padding:0;" onmouseover="this.style.borderColor='rgba(59,130,246,0.4)';this.style.color='#93c5fd'" onmouseout="this.style.borderColor='rgba(255,255,255,0.1)';this.style.color='var(--muted)'">
                                         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                                     </button>
@@ -1991,7 +2002,7 @@
                     </div>`;
                 }).join('');
 
-                const name = dev ? (dev.hostname === 'Устройство' ? dev.ip : dev.hostname) : ip;
+                const name = dev ? (dev.custom_name || (dev.hostname === 'Устройство' ? dev.ip : dev.hostname)) : ip;
 
                 const modal = document.getElementById('historyModal');
                 document.getElementById('historyModalTitle').textContent = name;
@@ -2005,6 +2016,46 @@
                 document.getElementById('historyModalIpStore').value = ip;
                 modal.style.display = 'flex';
                 setTimeout(() => { modal.style.opacity = '1'; }, 10);
+            },
+
+            startRename: (ip) => {
+                const nameEl = document.querySelector(`.dev-display-name[data-ip="${ip}"]`);
+                const inputEl = document.querySelector(`.rename-input[data-ip="${ip}"]`);
+                const btnEl = document.querySelector(`.rename-btn[data-ip="${ip}"]`);
+                if (!nameEl || !inputEl) return;
+                nameEl.style.display = 'none';
+                if (btnEl) btnEl.style.display = 'none';
+                inputEl.style.display = 'inline-block';
+                inputEl.focus();
+                inputEl.select();
+                inputEl.onblur = () => ui.commitRename(ip);
+                inputEl.onkeydown = (e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); inputEl.blur(); }
+                    if (e.key === 'Escape') { inputEl.value = inputEl.dataset.orig; inputEl.blur(); }
+                };
+            },
+
+            commitRename: async (ip) => {
+                const nameEl = document.querySelector(`.dev-display-name[data-ip="${ip}"]`);
+                const inputEl = document.querySelector(`.rename-input[data-ip="${ip}"]`);
+                const btnEl = document.querySelector(`.rename-btn[data-ip="${ip}"]`);
+                if (!nameEl || !inputEl) return;
+                const newName = inputEl.value.trim();
+                inputEl.style.display = 'none';
+                if (btnEl) btnEl.style.display = '';
+                nameEl.style.display = '';
+                if (newName && newName !== inputEl.dataset.orig) {
+                    nameEl.textContent = newName;
+                    nameEl.style.color = '#93c5fd';
+                    const dev = state.devices.find(d => d.ip === ip);
+                    if (dev) await utils.apiCall(`/devices/${ip}`, { method: 'PUT', body: JSON.stringify({ mode: dev.mode, assigned_node: dev.assigned_node || 'auto', tiktok_node: dev.tiktok_node || 'auto', custom_name: newName }) });
+                } else if (!newName) {
+                    // Clear custom name
+                    nameEl.textContent = inputEl.dataset.orig;
+                    nameEl.style.color = '#f1f5f9';
+                    const dev = state.devices.find(d => d.ip === ip);
+                    if (dev) await utils.apiCall(`/devices/${ip}`, { method: 'PUT', body: JSON.stringify({ mode: dev.mode, assigned_node: dev.assigned_node || 'auto', tiktok_node: dev.tiktok_node || 'auto', custom_name: '' }) });
+                }
             },
 
             closeHistoryModal: () => {
