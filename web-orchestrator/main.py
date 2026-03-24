@@ -655,14 +655,98 @@ async def post_feedback(req: FeedbackRequest):
     tg_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
     tg_chat  = os.getenv("TELEGRAM_NOTIFY_USERS_CHAT_ID", "").strip()
     if tg_token and tg_chat:
-        name_part = f"👤 {entry['name']}\n" if entry['name'] else ""
-        text = f"📬 *Обратная связь GSG*\n{name_part}💬 {entry['message']}"
+        import platform
+
+        # Железо: модель платы + arch + RAM
+        board = "–"
         try:
-            async with httpx.AsyncClient() as client:
+            board = open("/proc/device-tree/model").read().replace("\x00", "").strip()
+        except Exception:
+            try:
+                for line in open("/proc/cpuinfo"):
+                    if line.lower().startswith("model name") or line.lower().startswith("hardware"):
+                        board = line.split(":", 1)[1].strip()
+                        break
+            except Exception:
+                pass
+        arch = platform.machine()
+        ram_gb = "–"
+        try:
+            for line in open("/proc/meminfo"):
+                if line.startswith("MemTotal"):
+                    ram_gb = f"{round(int(line.split()[1]) / 1024 / 1024, 1)} GB"
+                    break
+        except Exception:
+            pass
+
+        # Регион и провайдер по внешнему IP (без прокси — нужен реальный IP)
+        ext_ip = isp = region = "–"
+        try:
+            async with httpx.AsyncClient() as geo:
+                gr = await geo.get(
+                    "http://ip-api.com/json/?fields=query,isp,country,regionName",
+                    timeout=4.0
+                )
+                if gr.status_code == 200:
+                    gd = gr.json()
+                    ext_ip = gd.get("query", "–")
+                    isp    = gd.get("isp", "–")
+                    region = f"{gd.get('regionName', '')}, {gd.get('country', '')}".strip(", ")
+        except Exception:
+            pass
+
+        device_id = "–"
+        device_token = ""
+        try:
+            async with aiofiles.open(GSG_DEVICE_FILE, 'r') as f:
+                _dev = json.loads(await f.read())
+                device_id    = _dev.get("device_id", "–")
+                device_token = _dev.get("device_token", "")
+        except Exception:
+            pass
+
+        # Пробуем получить Telegram ID пользователя по токену подписки
+        tg_user_line = ""
+        try:
+            sub_data = json.loads(open(GSG_SUBSCRIPTION_FILE).read())
+            sub_url = sub_data.get("url", "")
+            sub_token = sub_url.rstrip("/").split("/")[-1] if sub_url else ""
+            if sub_token:
+                async with httpx.AsyncClient(timeout=5.0) as cl:
+                    resolve_resp = await cl.get(
+                        f"{GLOBALSHIELD_API}/devices/resolve-user",
+                        params={"token": sub_token},
+                        headers={"X-Device-ID": device_id, "X-Device-Token": device_token},
+                    )
+                    if resolve_resp.status_code == 200:
+                        tg_uid = resolve_resp.json().get("telegram_id")
+                        if tg_uid:
+                            tg_user_line = f"📱 <a href='tg://user?id={tg_uid}'>Написать в Telegram</a>\n"
+        except Exception:
+            pass
+
+        name_part = entry['name'] if entry['name'] else "Аноним"
+        text = (
+            f"📬 <b>Обратная связь GSG</b>\n"
+            f"➖➖➖➖➖➖➖➖➖\n"
+            f"👤 {name_part}\n"
+            f"{tg_user_line}"
+            f"💬 {entry['message']}\n"
+            f"➖➖➖➖➖➖➖➖➖\n"
+            f"💻 {board} | {arch} | {ram_gb}\n"
+            f"🌐 {ext_ip} — {isp}\n"
+            f"📍 {region}\n"
+            f"🆔 <code>{device_id}</code>\n"
+            f"🕐 {entry['ts'][:16].replace('T', ' ')}\n"
+            f"#feedback"
+        )
+        try:
+            # Роутим через локальный Mihomo-прокси (порт 2080) — Telegram заблокирован в РФ
+            async with httpx.AsyncClient(proxy="http://127.0.0.1:2080") as client:
                 await client.post(
                     f"https://api.telegram.org/bot{tg_token}/sendMessage",
-                    json={"chat_id": tg_chat, "text": text, "parse_mode": "Markdown"},
-                    timeout=5.0
+                    json={"chat_id": tg_chat, "text": text, "parse_mode": "HTML"},
+                    timeout=10.0
                 )
         except Exception: pass
 

@@ -54,10 +54,17 @@ table inet gsg {{
 class NetEnforcer:
     async def setup_os_routing(self):
         os.system("sysctl -w net.ipv4.ip_forward=1")
+        # Отключаем ICMP redirect — иначе bypass-клиенты получат редирект и обойдут GSG
+        os.system("sysctl -w net.ipv4.conf.all.send_redirects=0")
+        os.system("sysctl -w net.ipv4.conf.eth0.send_redirects=0")
         os.system("ip rule del fwmark 1 lookup 100 2>/dev/null || true")
         os.system("ip route flush table 100 2>/dev/null || true")
         os.system("ip rule add fwmark 1 lookup 100")
         os.system("ip route add local 0.0.0.0/0 dev lo table 100")
+        # Docker ставит FORWARD policy=DROP; bypass-трафик идёт через kernel forwarding —
+        # добавляем явный ACCEPT для LAN, если правила ещё нет
+        os.system("iptables -C FORWARD -s 10.0.0.0/8 -j ACCEPT 2>/dev/null || iptables -I FORWARD 1 -s 10.0.0.0/8 -j ACCEPT")
+        os.system("iptables -C FORWARD -d 10.0.0.0/8 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || iptables -I FORWARD 2 -d 10.0.0.0/8 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT")
 
     async def apply(self):
         await self.setup_os_routing()

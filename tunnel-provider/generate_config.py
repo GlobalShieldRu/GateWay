@@ -185,6 +185,8 @@ def main():
                 device_sub.append(f"GEOSITE,instagram,{target}")
                 device_sub.append(f"GEOSITE,twitter,{target}")
                 device_sub.append(f"GEOSITE,telegram,{target}")
+                device_sub.append(f"GEOIP,telegram,{target}")
+                device_sub.append(f"IP-CIDR,5.28.192.0/18,{target}")
                 device_sub.append(f"RULE-SET,rkn-domains,{target}")
 
             device_sub.append("MATCH,DIRECT")
