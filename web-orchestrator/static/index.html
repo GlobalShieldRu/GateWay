@@ -616,6 +616,7 @@
                 <div class="metric-pill skel" style="height:28px;"></div>
                 <div class="metric-pill skel" style="height:28px;"></div>
             </div>
+            <div id="sidebarProviderInfo" style="display:flex;flex-direction:column;gap:4px;margin-top:4px;"></div>
         </div>
 
         <div id="sidebarNetStats" style="display:none;"></div>
@@ -1675,7 +1676,21 @@
                 });
             },
 
-            updateSidebarNetStats: () => {},
+            updateSidebarNetStats: () => {
+                const el = document.getElementById('sidebarProviderInfo');
+                if (!el) return;
+                const isp = state.networkData?.direct?.isp || '';
+                const ip  = state.networkData?.direct?.ip  || '';
+                const cc  = state.networkData?.direct?.country?.toLowerCase() || '';
+                if (!isp && !ip) { el.innerHTML = ''; return; }
+                const shortIsp = isp.replace(/\b(pjsc|ojsc|llc|ltd|inc|co\.|as|jsc|ao|oao|zao|msk|spb)\b\.?/gi,'').replace(/\s{2,}/g,' ').trim();
+                const flag = cc ? `<img src="https://flagcdn.com/16x12/${cc}.png" width="16" height="12" style="border-radius:2px;flex-shrink:0;" onerror="this.style.display='none'">` : '';
+                el.innerHTML = `<div class="metric-pill" style="flex-direction:column;align-items:flex-start;gap:2px;padding:6px 8px;">
+                    <span style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Провайдер</span>
+                    <span style="display:flex;align-items:center;gap:4px;min-width:0;">${flag}<span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#f1f5f9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${isp}">${shortIsp || ip}</span></span>
+                    ${ip ? `<span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(100,116,139,0.6);">${ip}</span>` : ''}
+                </div>`;
+            },
 
             renderNodes: () => {
                 const dash = document.getElementById('nodesDashboard');
@@ -1734,11 +1749,16 @@
                 state.networkData = data;
                 const badge = document.getElementById('globalProtectionBadge');
                 if (data.tunnel.status === 'ok') {
+                    state._tunnelOfflineCount = 0;
                     badge.className = 'status-badge online';
                     badge.innerHTML = '<div class="pulse-dot green"></div> Шлюз онлайн';
                 } else {
-                    badge.className = 'status-badge offline';
-                    badge.innerHTML = '<div class="pulse-dot red"></div> Туннель недоступен';
+                    state._tunnelOfflineCount = (state._tunnelOfflineCount || 0) + 1;
+                    // Show offline only after 2 consecutive failures to avoid flicker
+                    if (state._tunnelOfflineCount >= 2) {
+                        badge.className = 'status-badge offline';
+                        badge.innerHTML = '<div class="pulse-dot red"></div> Туннель недоступен';
+                    }
                 }
                 ui.renderRouteViz();
                 ui.updateSidebarNetStats();
@@ -2251,19 +2271,6 @@
                         <span style="color:var(--muted);">Аптайм</span>
                         <span style="font-weight:600;color:rgba(148,163,184,0.8);">${uptimeStr}</span>
                     </div>
-                    ${(() => {
-                        const isp = state.networkData?.direct?.isp || '';
-                        const ip  = state.networkData?.direct?.ip  || '';
-                        const cc  = state.networkData?.direct?.country?.toLowerCase() || '';
-                        if (!isp && !ip) return '';
-                        const shortIsp = isp.replace(/\b(pjsc|ojsc|llc|ltd|inc|co\.|as|jsc|ao|oao|zao|msk|spb)\b\.?/gi,'').replace(/\s{2,}/g,' ').trim();
-                        const flag = cc ? `<img src="https://flagcdn.com/16x12/${cc}.png" width="16" height="12" style="border-radius:2px;flex-shrink:0;" onerror="this.style.display='none'">` : '';
-                        return `<div class="metric-pill" style="flex-direction:column;align-items:flex-start;gap:2px;padding:6px 8px;">
-                            <span style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Провайдер</span>
-                            <span style="display:flex;align-items:center;gap:4px;min-width:0;">${flag}<span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#f1f5f9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${isp}">${shortIsp || ip}</span></span>
-                            ${ip ? `<span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(100,116,139,0.6);">${ip}</span>` : ''}
-                        </div>`;
-                    })()}
                 `;
             }
         };
