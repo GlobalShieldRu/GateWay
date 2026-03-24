@@ -1684,10 +1684,12 @@
                 const cc  = state.networkData?.direct?.country?.toLowerCase() || '';
                 if (!isp && !ip) { el.innerHTML = ''; return; }
                 const shortIsp = isp.replace(/\b(pjsc|ojsc|llc|ltd|inc|co\.|as|jsc|ao|oao|zao|msk|spb)\b\.?/gi,'').replace(/\s{2,}/g,' ').trim();
-                const flag = cc ? `<img src="https://flagcdn.com/16x12/${cc}.png" width="16" height="12" style="border-radius:2px;flex-shrink:0;" onerror="this.style.display='none'">` : '';
+                const visual = state.providerLogo
+                    ? `<img src="${state.providerLogo}" height="16" style="border-radius:3px;object-fit:contain;background:rgba(255,255,255,0.06);padding:1px 3px;max-width:60px;flex-shrink:0;" onerror="this.outerHTML='${cc ? `<img src=\\'https://flagcdn.com/16x12/${cc}.png\\' width=\\'16\\' height=\\'12\\' style=\\'border-radius:2px;flex-shrink:0;\\'>`  : ''}';">`
+                    : (cc ? `<img src="https://flagcdn.com/16x12/${cc}.png" width="16" height="12" style="border-radius:2px;flex-shrink:0;">` : '');
                 el.innerHTML = `<div class="metric-pill" style="flex-direction:column;align-items:flex-start;gap:2px;padding:6px 8px;">
                     <span style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Провайдер</span>
-                    <span style="display:flex;align-items:center;gap:4px;min-width:0;">${flag}<span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#f1f5f9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${isp}">${shortIsp || ip}</span></span>
+                    <span style="display:flex;align-items:center;gap:4px;min-width:0;">${visual}<span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#f1f5f9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${isp}">${shortIsp || ip}</span></span>
                     ${ip ? `<span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(100,116,139,0.6);">${ip}</span>` : ''}
                 </div>`;
             },
