@@ -1,9 +1,17 @@
+# ── Stage 1: Компиляция generate_config.py в бинарник ────────
+FROM python:3.11-slim AS builder
+WORKDIR /build
+RUN pip install --no-cache-dir pyinstaller httpx PyYAML
+COPY generate_config.py .
+RUN pyinstaller --onefile --name generate_config generate_config.py
+
+# ── Stage 2: Runtime ──────────────────────────────────────────
 FROM debian:bookworm-slim
 ARG DEBIAN_FRONTEND=noninteractive
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl ca-certificates python3 python3-yaml python3-httpx inotify-tools gzip \
+    curl ca-certificates python3 inotify-tools gzip \
     && rm -rf /var/lib/apt/lists/*
 
 # Поднимаем версию до максимально стабильной из ветки 1.18
@@ -18,6 +26,9 @@ RUN ARCH=$(uname -m) && \
     chmod +x /usr/local/bin/mihomo && \
     mkdir -p /etc/mihomo
 
-COPY . .
+# Бинарник из builder-стадии (исходник generate_config.py в runtime не попадает)
+COPY --from=builder /build/dist/generate_config /usr/local/bin/generate_config
+
+COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh
 ENTRYPOINT ["./entrypoint.sh"]

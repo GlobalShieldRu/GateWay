@@ -15,6 +15,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
+GSG_VERSION = "1.1.0"
+
 app = FastAPI(title="GSG Smart Gateway API")
 
 GSG_CONFIG_DIR = Path("/etc/gsg")
@@ -25,7 +27,12 @@ GSG_RULES_FILE = GSG_CONFIG_DIR / "rules.json"
 GSG_DHCP_FILE = GSG_CONFIG_DIR / "dhcp.json"
 GSG_LOG_FILE = GSG_CONFIG_DIR / "sing-box.log"
 GSG_TRAFFIC_HISTORY_FILE = GSG_CONFIG_DIR / "traffic_history.json"
+GSG_FEEDBACK_FILE = GSG_CONFIG_DIR / "feedback.json"
+GSG_DEVICE_FILE = GSG_CONFIG_DIR / "device.json"
 DNSMASQ_LEASES = Path("/var/lib/misc/dnsmasq.leases")
+
+GLOBALSHIELD_DOMAIN = "globalshield.ru"
+GLOBALSHIELD_API = "https://api.globalshield.ru/v1"
 
 GATEWAY_IP = os.getenv("GSG_GATEWAY_IP", "10.10.1.139")
 socket.setdefaulttimeout(0.3)
@@ -35,6 +42,7 @@ class TrafficMonitor:
         self.active_conns = {}
         self.stats = defaultdict(lambda: {'total_up': 0, 'total_down': 0, 'speed_up': 0, 'speed_down': 0})
         self.node_stats = defaultdict(lambda: {'total_up': 0, 'total_down': 0, 'speed_up': 0, 'speed_down': 0})
+        self.device_chains = defaultdict(lambda: defaultdict(lambda: {'speed_down': 0, 'speed_up': 0, 'total_down': 0, 'total_up': 0}))
 
     async def poll_mihomo(self):
         async with httpx.AsyncClient() as client:
@@ -51,6 +59,10 @@ class TrafficMonitor:
                         for node in self.node_stats:
                             self.node_stats[node]['speed_up'] = 0
                             self.node_stats[node]['speed_down'] = 0
+                        for ip_key in self.device_chains:
+                            for ch in self.device_chains[ip_key]:
+                                self.device_chains[ip_key][ch]['speed_down'] = 0
+                                self.device_chains[ip_key][ch]['speed_up'] = 0
 
                         current_active_ids = set()
 
@@ -83,6 +95,12 @@ class TrafficMonitor:
                                 self.node_stats[node]['speed_down'] += delta_down
 
                             self.active_conns[uid] = {'up': up, 'down': down}
+
+                            chain_label = node if node else 'DIRECT'
+                            self.device_chains[ip][chain_label]['speed_down'] += delta_down
+                            self.device_chains[ip][chain_label]['speed_up'] += delta_up
+                            self.device_chains[ip][chain_label]['total_down'] += delta_down
+                            self.device_chains[ip][chain_label]['total_up'] += delta_up
 
                         self.active_conns = {k: v for k, v in self.active_conns.items() if k in current_active_ids}
                 except Exception:
@@ -363,8 +381,18 @@ async def get_status():
         "uptime": int(psutil.boot_time())
     }
 
+_net_cache: dict = {"data": None, "ts": 0}
+_NET_CACHE_TTL = 300  # ip-api.com: обновлять раз в 5 минут
+
 @app.get("/api/network-status")
 async def get_network_status():
+    global _net_cache
+    now = time.time()
+
+    # Отдаём кэш если он свежий — не долбим ip-api.com каждые 5 секунд
+    if _net_cache["data"] and (now - _net_cache["ts"]) < _NET_CACHE_TTL:
+        return _net_cache["data"]
+
     direct = {"ip": "Оффлайн", "country": "-", "status": "error"}
     tunnel = {"ip": "Оффлайн", "country": "-", "status": "error"}
     youtube = {"status": "error", "ping": 0}
@@ -393,17 +421,61 @@ async def get_network_status():
     except Exception:
         pass
 
-    return {"direct": direct, "tunnel": tunnel, "youtube": youtube}
+    result = {"direct": direct, "tunnel": tunnel, "youtube": youtube}
+    _net_cache = {"data": result, "ts": now}
+    return result
+
+@app.get("/api/nodes/ping")
+async def ping_nodes():
+    """Принудительно запускает тест задержек в Mihomo и возвращает результаты."""
+    data = await read_json(GSG_NODES_FILE, {"nodes": []})
+    nodes = data.get("nodes", [])
+    results = {}
+    async def measure(n):
+        tag = n.get("tag", "")
+        try:
+            async with httpx.AsyncClient(timeout=6.0) as client:
+                r = await client.get(
+                    f"http://127.0.0.1:9090/proxies/{tag}/delay",
+                    params={"url": "https://www.google.com/", "timeout": 5000}
+                )
+                if r.status_code == 200:
+                    results[tag] = r.json().get("delay", -1)
+                else:
+                    results[tag] = -1
+        except Exception:
+            results[tag] = -1
+    await asyncio.gather(*(measure(n) for n in nodes))
+    return results
 
 @app.get("/api/nodes/dashboard")
 async def get_nodes_dash():
     data = await read_json(GSG_NODES_FILE, {"nodes": []})
     nodes = data.get("nodes", [])
+
+    # Получаем задержки из Mihomo (реальный VLESS-латентность)
+    mihomo_delays = {}
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            r = await client.get("http://127.0.0.1:9090/proxies")
+            if r.status_code == 200:
+                for name, proxy in r.json().get("proxies", {}).items():
+                    hist = proxy.get("history", [])
+                    if hist:
+                        mihomo_delays[name] = hist[-1].get("delay", -1)
+    except Exception:
+        pass
+
     async def check(n):
-        p = await ping_tcp(n['server'], int(n['server_port']))
+        tag = n.get("tag", "")
+        if tag in mihomo_delays:
+            p = mihomo_delays[tag]
+        else:
+            p = await ping_tcp(n['server'], int(n['server_port']))
         n['ping'] = p
-        n['status'] = 'online' if p != -1 else 'offline'
+        n['status'] = 'online' if p > 0 else 'offline'
         return n
+
     res = await asyncio.gather(*(check(n) for n in nodes))
     return res
 
@@ -411,6 +483,14 @@ async def get_nodes_dash():
 async def get_devices():
     active_devices = await parse_arp_and_leases()
     configs = await read_json(GSG_DEVICES_FILE, {})
+    new_devices = [d for d in active_devices if d["ip"] not in configs]
+    if new_devices:
+        for d in new_devices:
+            configs[d["ip"]] = {"mode": "smart", "assigned_node": "auto", "tiktok_node": "auto", "custom_name": ""}
+        async with aiofiles.open(GSG_DEVICES_FILE, 'w') as f:
+            await f.write(json.dumps(configs, indent=2))
+        async with aiofiles.open(GSG_CONFIG_DIR / ".reload_singbox", 'w') as f:
+            await f.write("1")
     result = []
     for d in active_devices:
         conf = configs.get(d["ip"], {})
@@ -440,6 +520,18 @@ async def get_nodes():
     data = await read_json(GSG_NODES_FILE, {"nodes": []})
     return data.get("nodes", [])
 
+@app.get("/api/license")
+async def get_license():
+    device = await read_json(GSG_DEVICE_FILE, {})
+    nodes = await read_json(GSG_NODES_FILE, {})
+    error = nodes.get("error")
+    return {
+        "device_id": device.get("device_id", ""),
+        "has_token": bool(device.get("device_token", "")),
+        "registered_at": device.get("registered_at"),
+        "error": error,  # "unauthorized" | "invalid_domain" | None
+    }
+
 @app.get("/api/subscription")
 async def get_sub():
     return await read_json(GSG_SUBSCRIPTION_FILE, {"url": "", "global_node": "auto", "last_update": None})
@@ -449,6 +541,31 @@ async def update_sub(data: dict):
     url = data.get("url")
     if not url:
         raise HTTPException(400)
+
+    # Валидируем домен — только globalshield.ru
+    from urllib.parse import urlparse
+    host = urlparse(url).hostname or ""
+    if not (host == GLOBALSHIELD_DOMAIN or host.endswith("." + GLOBALSHIELD_DOMAIN)):
+        raise HTTPException(403, detail="invalid_domain")
+
+    # Если токена нет — попробуем получить его сейчас
+    device = await read_json(GSG_DEVICE_FILE, {})
+    if device.get("device_id") and not device.get("device_token"):
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                r = await client.post(f"{GLOBALSHIELD_API}/devices/register", json={
+                    "device_id": device["device_id"],
+                    "hostname": socket.gethostname(),
+                })
+                if r.status_code == 200:
+                    token = r.json().get("device_token", "")
+                    if token:
+                        device["device_token"] = token
+                        async with aiofiles.open(GSG_DEVICE_FILE, 'w') as f:
+                            await f.write(json.dumps(device))
+        except Exception:
+            pass
+
     sub = await read_json(GSG_SUBSCRIPTION_FILE, {})
     sub["url"] = url
     sub["last_update"] = datetime.now().isoformat()
@@ -513,6 +630,63 @@ async def get_logs():
             return [l.strip() for l in lines[-30:]]
     except Exception:
         return ["[ERROR] Не удалось прочитать лог"]
+
+class FeedbackRequest(BaseModel):
+    name: str = ""
+    message: str
+
+@app.post("/api/feedback")
+async def post_feedback(req: FeedbackRequest):
+    if not req.message.strip():
+        raise HTTPException(status_code=400, detail="Сообщение пустое")
+    entry = {"ts": datetime.utcnow().isoformat(), "name": req.name.strip(), "message": req.message.strip()}
+    try:
+        existing = []
+        try:
+            async with aiofiles.open(GSG_FEEDBACK_FILE, 'r') as f:
+                existing = json.loads(await f.read())
+        except: pass
+        existing.append(entry)
+        async with aiofiles.open(GSG_FEEDBACK_FILE, 'w') as f:
+            await f.write(json.dumps(existing, ensure_ascii=False, indent=2))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    tg_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    tg_chat  = os.getenv("TELEGRAM_NOTIFY_USERS_CHAT_ID", "").strip()
+    if tg_token and tg_chat:
+        name_part = f"👤 {entry['name']}\n" if entry['name'] else ""
+        text = f"📬 *Обратная связь GSG*\n{name_part}💬 {entry['message']}"
+        try:
+            async with httpx.AsyncClient() as client:
+                await client.post(
+                    f"https://api.telegram.org/bot{tg_token}/sendMessage",
+                    json={"chat_id": tg_chat, "text": text, "parse_mode": "Markdown"},
+                    timeout=5.0
+                )
+        except Exception: pass
+
+    return {"ok": True}
+
+@app.get("/api/version")
+async def get_version():
+    return {"version": GSG_VERSION}
+
+@app.get("/api/traffic/device-chains")
+async def get_device_chains():
+    result = {}
+    for ip, chains in monitor.device_chains.items():
+        active = {ch: dict(data) for ch, data in chains.items() if data['total_down'] > 0 or data['total_up'] > 0}
+        if active:
+            result[ip] = active
+    return result
+
+@app.get("/api/feedback")
+async def get_feedback():
+    try:
+        async with aiofiles.open(GSG_FEEDBACK_FILE, 'r') as f:
+            return json.loads(await f.read())
+    except: return []
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 

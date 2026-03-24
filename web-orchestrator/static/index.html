@@ -258,7 +258,7 @@
         /* Device row grid (desktop) */
         .dev-row-grid {
             display: grid;
-            grid-template-columns: minmax(160px,220px) 120px 160px 1fr 200px 250px;
+            grid-template-columns: minmax(220px,280px) 120px 190px 1fr 200px 250px;
             align-items: center;
             gap: 14px;
             padding: 14px 20px;
@@ -594,10 +594,16 @@
         <!-- Logo -->
         <div style="padding:16px 18px;border-bottom:1px solid var(--card-border);background:linear-gradient(180deg,rgba(201,168,76,0.04) 0%,transparent 100%);">
             <div style="display:flex;align-items:center;gap:12px;">
-                <img src="/static/logo.png" alt="GlobalShield" style="width:42px;height:42px;border-radius:10px;object-fit:cover;flex-shrink:0;box-shadow:0 4px 16px rgba(201,168,76,0.25);border:1px solid var(--gold-border);">
-                <div>
+                <img src="/static/logo.png" alt="GlobalShield" style="width:58px;height:58px;border-radius:13px;object-fit:cover;flex-shrink:0;box-shadow:0 4px 20px rgba(201,168,76,0.35);border:1px solid var(--gold-border);">
+                <div style="min-width:0;flex:1;">
                     <div style="font-size:14px;font-weight:800;color:#f1f5f9;line-height:1.1;letter-spacing:0.02em;">GlobalShield</div>
                     <div style="font-size:10px;color:var(--gold);font-weight:600;letter-spacing:0.08em;text-transform:uppercase;">Gateway</div>
+                    <div style="display:flex;align-items:center;justify-content:flex-end;gap:4px;margin-top:5px;">
+                        <span style="font-size:9px;color:var(--gold);font-family:'JetBrains Mono',monospace;font-weight:700;text-shadow:0 0 8px rgba(201,168,76,0.4);">v<span id="gsgVersion">...</span></span>
+                        <button id="gsgUpdateBtn" onclick="GatewayApp.actions.checkUpdate()" style="display:flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.25);cursor:pointer;color:var(--gold);padding:0;" title="Обновить GSG">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4"/></svg>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -612,12 +618,32 @@
             </div>
         </div>
 
-        <!-- Network info -->
+        <div id="sidebarNetStats" style="display:none;"></div>
+
+        <!-- Traffic stats -->
         <div style="padding:10px 14px 12px;border-bottom:1px solid var(--card-border);">
-            <div class="section-label" style="margin-bottom:8px;">Сеть</div>
-            <div id="sidebarNetStats" style="display:flex;flex-direction:column;gap:4px;">
-                <div class="metric-pill skel" style="height:28px;"></div>
-                <div class="metric-pill skel" style="height:28px;"></div>
+            <div class="section-label" style="margin-bottom:8px;">Трафик</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
+                <div class="metric-pill" style="flex-direction:column;align-items:flex-start;gap:1px;padding:6px 8px;">
+                    <span style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Сегодня</span>
+                    <span id="summaryTodayDown" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#34d399;">—</span>
+                    <span id="summaryTodayUp" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#60a5fa;">—</span>
+                </div>
+                <div class="metric-pill" style="flex-direction:column;align-items:flex-start;gap:1px;padding:6px 8px;">
+                    <span style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Месяц</span>
+                    <span id="summaryMonthDown" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#34d399;">—</span>
+                    <span id="summaryMonthUp" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#60a5fa;">—</span>
+                </div>
+                <div class="metric-pill" style="flex-direction:column;align-items:flex-start;gap:1px;padding:6px 8px;">
+                    <span style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Всё время</span>
+                    <span id="summaryAllDown" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#34d399;">—</span>
+                    <span id="summaryAllUp" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#60a5fa;">—</span>
+                </div>
+                <div class="metric-pill" style="flex-direction:column;align-items:flex-start;gap:1px;padding:6px 8px;">
+                    <span style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Пик</span>
+                    <span id="summaryPeakDown" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#fbbf24;">—</span>
+                    <span style="font-size:9px;color:var(--muted);">↓/с</span>
+                </div>
             </div>
         </div>
 
@@ -653,7 +679,42 @@
                 Прокси и Логи
             </div>
         </nav>
+
+        <!-- Feedback -->
+        <div style="padding:10px 14px 16px;margin-top:auto;">
+            <button onclick="GatewayApp.ui.openFeedback()" style="width:100%;display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:10px;background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.15);color:var(--muted);cursor:pointer;font-family:'Syne',sans-serif;font-size:12px;font-weight:600;transition:all 0.18s ease;" onmouseover="this.style.background='rgba(59,130,246,0.12)';this.style.color='#93c5fd';" onmouseout="this.style.background='rgba(59,130,246,0.06)';this.style.color='var(--muted)';">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                Обратная связь
+            </button>
+        </div>
     </aside>
+
+    <!-- Feedback Modal -->
+    <div id="feedbackModal" onclick="if(event.target===this)GatewayApp.ui.closeFeedback()" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);align-items:center;justify-content:center;">
+        <div class="glass" style="width:min(460px,calc(100vw - 32px));padding:28px;position:relative;animation:fadeSlideUp 0.25s ease both;">
+            <button onclick="GatewayApp.ui.closeFeedback()" style="position:absolute;top:14px;right:14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:7px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+            <div style="margin-bottom:20px;">
+                <div style="font-size:16px;font-weight:800;color:#f1f5f9;margin-bottom:4px;">Обратная связь</div>
+                <div style="font-size:12px;color:var(--muted);">Предложения, вопросы или пожелания</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:12px;">
+                <div>
+                    <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:5px;">Ваше имя (необязательно)</label>
+                    <input id="feedbackName" type="text" placeholder="Имя или оставьте пустым" class="gsg-input" style="width:100%;padding:9px 12px;">
+                </div>
+                <div>
+                    <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:5px;">Сообщение</label>
+                    <textarea id="feedbackText" placeholder="Напишите ваше предложение или вопрос..." class="gsg-input" style="width:100%;padding:9px 12px;height:110px;resize:vertical;font-family:'Syne',sans-serif;"></textarea>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+                    <span id="feedbackStatus" style="font-size:12px;color:var(--muted);"></span>
+                    <button id="feedbackSubmitBtn" onclick="GatewayApp.actions.submitFeedback()" style="padding:9px 22px;background:linear-gradient(135deg,#3b82f6,#2563eb);border:none;border-radius:9px;color:#fff;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:opacity 0.15s;">Отправить</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- MAIN -->
     <div style="flex:1;display:flex;flex-direction:column;min-width:0;height:100vh;height:100dvh;">
@@ -684,7 +745,7 @@
             <div style="text-align:center;padding:8px 0 4px;position:relative;">
                 <div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:0.18em;text-transform:uppercase;display:flex;align-items:center;justify-content:center;gap:10px;">
                     <span style="display:inline-block;width:32px;height:1px;background:linear-gradient(to right,transparent,rgba(201,168,76,0.4));"></span>
-                    <span style="color:var(--gold);opacity:0.7;">GlobalShield</span>
+                    <span style="color:var(--gold);opacity:0.7;">GlobalShieldGateway</span>
                     <span style="opacity:0.4;">·</span>
                     <span style="opacity:0.55;">Шлюз в безопасный интернет за пределами ограничений</span>
                     <span style="display:inline-block;width:32px;height:1px;background:linear-gradient(to left,transparent,rgba(201,168,76,0.4));"></span>
@@ -743,8 +804,14 @@
                         <div style="font-size:16px;font-weight:800;color:#f1f5f9;margin-bottom:16px;">Подписка</div>
                         <div class="section-label" style="margin-bottom:6px;">URL провайдера (V2Ray / Clash)</div>
                         <div style="display:flex;gap:8px;">
-                            <input type="text" id="subUrlInput" class="gsg-input" placeholder="https://...">
+                            <input type="text" id="subUrlInput" class="gsg-input" placeholder="https://subscribe.globalshield.ru/...">
                             <button id="saveSubBtn" class="btn-primary">Обновить</button>
+                        </div>
+                        <div id="licenseStatus" style="margin-top:8px;display:none;"></div>
+                        <div style="margin-top:10px;display:flex;align-items:center;gap:8px;">
+                            <span class="section-label" style="white-space:nowrap;">ID устройства:</span>
+                            <span id="deviceIdValue" style="font-family:monospace;font-size:11px;color:#94a3b8;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">—</span>
+                            <button onclick="navigator.clipboard.writeText(document.getElementById('deviceIdValue').textContent)" style="background:none;border:none;cursor:pointer;padding:2px 4px;color:#64748b;font-size:11px;" title="Скопировать">📋</button>
                         </div>
                     </div>
 
@@ -754,7 +821,7 @@
                                 <div class="section-label">УЗЛЫ</div>
                                 <span id="nodesOnlineCount" style="font-size:10px;font-weight:700;color:#34d399;"></span>
                             </div>
-                            <button class="btn-ghost" onclick="GatewayApp.actions.fetchNodes()">
+                            <button class="btn-ghost" id="pingBtn" onclick="GatewayApp.actions.pingNodes()">
                                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:inline;margin-right:4px;"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                                 Пинг
                             </button>
@@ -764,51 +831,22 @@
                 </div>
             </div>
 
-            <!-- Traffic summary bar -->
-            <div id="trafficSummaryBar" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
-                <div class="glass" style="padding:14px 18px;display:flex;flex-direction:column;gap:3px;">
-                    <span style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Сегодня</span>
-                    <div style="display:flex;gap:10px;align-items:baseline;">
-                        <span id="summaryTodayDown" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:#34d399;">—</span>
-                        <span id="summaryTodayUp" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#60a5fa;">—</span>
-                    </div>
-                </div>
-                <div class="glass" style="padding:14px 18px;display:flex;flex-direction:column;gap:3px;">
-                    <span style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Этот месяц</span>
-                    <div style="display:flex;gap:10px;align-items:baseline;">
-                        <span id="summaryMonthDown" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:#34d399;">—</span>
-                        <span id="summaryMonthUp" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#60a5fa;">—</span>
-                    </div>
-                </div>
-                <div class="glass" style="padding:14px 18px;display:flex;flex-direction:column;gap:3px;">
-                    <span style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">За всё время</span>
-                    <div style="display:flex;gap:10px;align-items:baseline;">
-                        <span id="summaryAllDown" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:#34d399;">—</span>
-                        <span id="summaryAllUp" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#60a5fa;">—</span>
-                    </div>
-                </div>
-                <div class="glass" style="padding:14px 18px;display:flex;flex-direction:column;gap:3px;">
-                    <span style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Пиковая скорость</span>
-                    <div style="display:flex;gap:10px;align-items:baseline;">
-                        <span id="summaryPeakDown" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:#fbbf24;">—</span>
-                        <span style="font-size:10px;color:var(--muted);">↓/с</span>
-                    </div>
-                </div>
-            </div>
 
             <!-- Devices tab -->
             <div id="tab-devices" class="tab-content active reveal reveal-2">
                 <div class="glass" style="overflow:hidden;">
                     <div style="padding:18px 20px;border-bottom:1px solid var(--card-border);display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
                         <div>
-                            <div style="font-size:15px;font-weight:800;color:#f1f5f9;">Устройства в сети</div>
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <div style="font-size:15px;font-weight:800;color:#f1f5f9;">Устройства в сети</div>
+                                <div id="devicesCounter" style="display:flex;align-items:center;gap:5px;padding:2px 8px;border-radius:20px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);">
+                                    <div class="pulse-dot green"></div>
+                                    <span style="font-size:11px;font-weight:700;color:#93c5fd;" id="devicesCount">0</span>
+                                </div>
+                            </div>
                             <div style="font-size:11px;color:var(--muted);margin-top:2px;">Активные клиенты локальной сети</div>
                         </div>
                         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                            <div id="devicesCounter" style="display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);flex-shrink:0;">
-                                <div class="pulse-dot green"></div>
-                                <span style="font-size:11px;font-weight:700;color:#93c5fd;" id="devicesCount">0</span>
-                            </div>
                             <!-- Traffic reset controls -->
                             <div id="devicesHeader-controls" style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
                                 <select id="scheduleTypeSelect" onchange="GatewayApp.actions.updateSchedule()" class="gsg-select" style="font-size:11px;padding:4px 8px;" title="Автосброс трафика">
@@ -830,7 +868,7 @@
                         </div>
                     </div>
                     <!-- Desktop table header -->
-                    <div class="dev-table-hdr" style="display:grid;grid-template-columns:minmax(160px,220px) 120px 160px 1fr 200px 250px;gap:14px;padding:8px 20px;border-bottom:1px solid rgba(255,255,255,0.04);align-items:center;">
+                    <div class="dev-table-hdr" style="display:grid;grid-template-columns:minmax(220px,280px) 120px 190px 1fr 200px 250px;gap:14px;padding:8px 20px;border-bottom:1px solid rgba(255,255,255,0.04);align-items:center;">
                         <div class="section-label sort-hdr" onclick="GatewayApp.ui.setSort('hostname')" style="cursor:pointer;user-select:none;display:flex;align-items:center;gap:3px;white-space:nowrap;">Клиент <span id="sort-ind-hostname" style="font-size:9px;"></span></div>
                         <div class="section-label" style="white-space:nowrap;">Активность</div>
                         <div class="section-label sort-hdr" onclick="GatewayApp.ui.setSort('traffic')" style="cursor:pointer;user-select:none;display:flex;align-items:center;gap:3px;white-space:nowrap;"><span id="sort-ind-traffic" style="font-size:9px;"></span>Трафик</div>
@@ -983,7 +1021,7 @@
             tiktok:   `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></svg>`,
             youtube:  `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>`,
             gemini:   `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 1.5C12 1.5 8.504 8.504 1.5 12c7.004 3.496 10.5 10.5 10.5 10.5S15.496 15.496 22.5 12C15.496 8.504 12 1.5 12 1.5z"/></svg>`,
-            claude:   `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 3L3.5 19.5h17L12 3zm0 4.5l5.5 10.5h-11L12 7.5z"/></svg>`,
+            claude:   `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M13.827 3.39C10.563 3.39 7.88 5.355 6.676 8.13c-.87-.814-2.04-1.315-3.332-1.315C.599 6.815-1.354 9.394-.81 12.302c-.503.814-.793 1.776-.793 2.806 0 2.968 2.404 5.372 5.372 5.372.608 0 1.19-.1 1.736-.285 1.148 1.358 2.862 2.22 4.78 2.22 1.967 0 3.718-.907 4.865-2.328.498.152 1.025.234 1.572.234 2.968 0 5.372-2.404 5.372-5.372 0-1.045-.3-2.02-.82-2.842.478-2.875-1.468-5.433-4.248-5.433a4.384 4.384 0 0 0-.999.117C16.205 4.682 15.126 3.39 13.827 3.39zm-.242 2.226c.71 0 1.298.517 1.379 1.222l.007.166V8.15l1.208-.396a2.118 2.118 0 0 1 .66-.105c1.167 0 2.117.95 2.117 2.118 0 .272-.052.532-.146.77l-.423 1.082 1.164.206c.855.151 1.502.895 1.502 1.791 0 1.002-.812 1.814-1.814 1.814a1.81 1.81 0 0 1-.55-.084l-1.183-.375-.088 1.232c-.1 1.394-1.267 2.484-2.672 2.484-.918 0-1.748-.464-2.23-1.176l-.7-1.031-.823.944a2.117 2.117 0 0 1-1.594.726c-1.168 0-2.118-.95-2.118-2.118 0-.215.032-.423.09-.619l.33-1.128-1.17-.194A1.814 1.814 0 0 1 5.54 13.63c0-1.003.812-1.815 1.815-1.815.103 0 .204.009.303.025l1.17.195.008-1.185c.009-1.17.962-2.116 2.132-2.116.39 0 .757.105 1.07.29l1.033.614.245-1.183a1.388 1.388 0 0 1 1.27-1.038z"/></svg>`,
         };
         const APPS = [
             { id: 'telegram', title: 'Telegram', color: '#229ED9', us: false },
@@ -1003,6 +1041,7 @@
             gaming:  `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="12" x2="10" y2="12"/><line x1="8" y1="10" x2="8" y2="14"/><circle cx="15" cy="13" r="1" fill="currentColor" stroke="none"/><circle cx="17" cy="11" r="1" fill="currentColor" stroke="none"/><path d="M17 12a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5v-1a5 5 0 0 1 5-5h3a5 5 0 0 1 5 5v1z"/></svg>`,
             printer: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>`,
             watch:   `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="6"/><polyline points="12 9 12 12 13.5 13.5"/><path d="M16.51 17.35l-.35 3.83a2 2 0 0 1-2 1.82H9.83a2 2 0 0 1-2-1.82l-.35-3.83m.01-10.7l.35-3.83A2 2 0 0 1 9.83 1h4.35a2 2 0 0 1 2 1.82l.35 3.83"/></svg>`,
+            desktop: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>`,
             server:  `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6" stroke-width="3"/><line x1="6" y1="18" x2="6.01" y2="18" stroke-width="3"/></svg>`,
             iot:     `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>`,
             unknown: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="3"/><path d="M9 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17" stroke-width="3"/></svg>`,
@@ -1018,6 +1057,7 @@
             gaming:  { bg:'rgba(239,68,68,0.1)',     border:'rgba(239,68,68,0.25)',   color:'#f87171' },
             printer: { bg:'rgba(107,114,128,0.1)',   border:'rgba(107,114,128,0.25)', color:'#9ca3af' },
             watch:   { bg:'rgba(201,168,76,0.1)',    border:'rgba(201,168,76,0.25)',  color:'#c9a84c' },
+            desktop: { bg:'rgba(71,85,105,0.1)',     border:'rgba(71,85,105,0.25)',   color:'#94a3b8' },
             server:  { bg:'rgba(6,182,212,0.1)',     border:'rgba(6,182,212,0.25)',   color:'#22d3ee' },
             iot:     { bg:'rgba(16,185,129,0.08)',   border:'rgba(16,185,129,0.2)',   color:'#6ee7b7' },
             unknown: { bg:'rgba(100,116,139,0.08)',  border:'rgba(100,116,139,0.2)',  color:'#64748b' },
@@ -1027,21 +1067,36 @@
             const v = (vendor || '').toLowerCase();
             const h = (hostname || '').toLowerCase();
             if (/iphone|android/.test(h)) return 'phone';
-            if (/macbook|imac/.test(h)) return 'laptop';
+            if (/macbook/.test(h)) return 'laptop';
+            if (/imac|mac.?pro|mac.?mini|mac.?studio/.test(h)) return 'desktop';
+            if (/^desktop-|^pc-|^win-/.test(h)) return 'desktop';
             if (/apple.?tv|appletv|firetv|fire.?tv|roku|chromecast|shield/.test(h)) return 'tv';
+            if (/yandex/.test(h) || /yandex/.test(v)) return 'speaker';
+            // Samsung: TV если нет явных признаков мобильного, phone если есть
+            if (/samsung/.test(v) || /samsung/.test(h)) {
+                if (/tv|smarthub|tizen|webos|smart.?tv|\[tv\]/.test(h)) return 'tv';
+                if (/tv|smarthub|tizen/.test(v)) return 'tv';
+                // Мобильные Samsung: galaxy, sm-, gt-, a\d+, s\d+, note, fold, flip
+                if (/galaxy|sm-|gt-|fold|flip|note\d/.test(h)) return 'phone';
+                // Просто "Samsung" без уточнения — скорее TV
+                return 'tv';
+            }
             if (/watch/.test(h) && !/network|smart/.test(h)) return 'watch';
-            if (/ipad/.test(h)) return 'apple';
+            if (/ipad/.test(h)) return 'tablet';
             if (/apple/.test(v)) {
                 if (/tv/.test(h)) return 'tv';
+                if (/imac|mac.?pro|mac.?mini/.test(h)) return 'desktop';
                 if (/mac|book/.test(h)) return 'laptop';
                 if (/watch/.test(h)) return 'watch';
-                return 'apple';
+                if (/ipad/.test(h)) return 'tablet';
+                return 'phone';
             }
-            if (/samsung|huawei|xiaomi|oppo|vivo|realme|oneplus|motorola|zte|qualcomm|google llc|fairphone|wiko|meizu/.test(v)) return 'phone';
+            if (/huawei|xiaomi|oppo|vivo|realme|oneplus|motorola|zte|qualcomm|google llc|fairphone|wiko|meizu/.test(v)) return 'phone';
             if (/intel corp|dell|hp inc|hewlett|lenovo|asus tek|acer|msi|gigabyte|razer|microsoft|toshiba|panasonic/.test(v)) return 'laptop';
             if (/lg electronics|sony corp|philips|tcl|hisense|sharp|vizio|amazon.*fire|amazon tech/.test(v)) return 'tv';
             if (/tp-link|ubiquiti|mikrotik|netgear|linksys|d-link|zyxel|cisco|keenetic|eero|gl\.inet|sagemcom|asustek.*router/.test(v)) return 'router';
-            if (/amazon|sonos|bose|jbl|harman|anker/.test(v)) return 'speaker';
+            if (/sonos|bose|jbl|harman|anker/.test(v)) return 'speaker';
+            if (/amazon/.test(v)) return 'speaker';
             if (/sony interactive|nintendo|microsoft.*xbox|valve/.test(v)) return 'gaming';
             if (/canon|epson|brother|xerox|ricoh/.test(v)) return 'printer';
             if (/apple watch/.test(v) || /fossil|garmin|fitbit/.test(v)) return 'watch';
@@ -1053,15 +1108,16 @@
             return 'unknown';
         };
 
-        const getBrandLogoHtml = (vendor, color) => {
-            if (!vendor) return null;
-            const v = vendor.toLowerCase();
+        const getBrandLogoHtml = (vendor, color, hostname) => {
+            const v = (vendor || '').toLowerCase();
+            const h = (hostname || '').toLowerCase();
+            if (!v && !h) return null;
             let slug = null;
             if (v.includes('apple')) slug = 'apple';
-            else if (v.includes('samsung')) slug = 'samsung';
+            else if (v.includes('samsung') || h.includes('samsung')) slug = 'samsung';
             else if (v.includes('huawei')) slug = 'huawei';
             else if (v.includes('xiaomi')) slug = 'mi';
-            else if (v.startsWith('lg')) {
+            else if (v.startsWith('lg') || /\blg\b|lgwebos|lgtv/.test(h)) {
                 const hex = color.replace('#','');
                 return `<svg width="20" height="20" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" style="display:block;flex-shrink:0;">
                     <circle cx="100" cy="100" r="88" fill="none" stroke="${color}" stroke-width="14"/>
@@ -1094,13 +1150,15 @@
             else if (v.includes('sonos')) slug = 'sonos';
             else if (v.includes('netgear')) slug = 'netgear';
             else if (v.includes('espressif')) slug = 'espressif';
+            else if (/yandex/.test(v) || /yandex/.test(h)) slug = 'yandex';
             if (!slug) return null;
             const hex = color.replace('#', '');
-            return `<img src="https://cdn.simpleicons.org/${slug}/${hex}" width="20" height="20" style="display:block;object-fit:contain;flex-shrink:0;" loading="lazy" onerror="this.style.display='none';const fb=this.nextElementSibling;if(fb)fb.style.display='flex';" />`;
+            return `<img src="https://cdn.simpleicons.org/${slug}/${hex}" width="20" height="20" style="display:block;object-fit:contain;flex-shrink:0;" onerror="this.style.display='none';this.parentElement.querySelector('span')?.style.setProperty('display','flex');" />`;
         };
 
         const state = {
             isOnline: true,
+            _failCount: 0,
             expertMode: false,
             nodes: [],
             devices: [],
@@ -1119,6 +1177,7 @@
             nodeTraffic: {},
             deviceHistory: {},
             nodeHistory: {},
+            deviceChains: {},
             providerLogo: null,
             providerIsp: '',
             sortBy: 'hostname',
@@ -1133,18 +1192,26 @@
                     timeout = setTimeout(() => func(...args), wait);
                 };
             },
+            _lastError: null,
             apiCall: async (endpoint, options = {}) => {
+                const silent = options._silent === true;
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 6000);
                 try {
                     const response = await fetch(`/api${endpoint}`, { ...options, signal: controller.signal, headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } });
                     clearTimeout(timeoutId);
-                    if (!response.ok) throw new Error(`HTTP: ${response.status}`);
-                    if (!state.isOnline) ui.setConnectionStatus(true);
+                    if (!response.ok) {
+                        try { const errBody = await response.json(); utils._lastError = errBody.detail || null; } catch { utils._lastError = null; }
+                        throw new Error(`HTTP: ${response.status}`);
+                    }
+                    if (!silent) { state._failCount = 0; if (!state.isOnline) ui.setConnectionStatus(true); }
                     return await response.json();
                 } catch (error) {
                     clearTimeout(timeoutId);
-                    ui.setConnectionStatus(false);
+                    if (!silent) {
+                        state._failCount = (state._failCount || 0) + 1;
+                        if (state._failCount >= 3) ui.setConnectionStatus(false);
+                    }
                     return null;
                 }
             },
@@ -1169,23 +1236,29 @@
         };
 
         // Resolve ISP logo URL from ISP name (synchronous, domain-based)
-        const ISP_DOMAIN_MAP = [
-            [/rostelecom/i, 'rostelecom.ru'],
-            [/\bmts\b|mts pjsc/i, 'mts.ru'],
-            [/megafon/i, 'megafon.ru'],
-            [/veon|beeline/i, 'beeline.ru'],
-            [/ttk|transtelecom/i, 'ttk.ru'],
-            [/tele2|t2 mobile/i, 'tele2.ru'],
-            [/dom\.ru|ural/i, 'dom.ru'],
-            [/er-telecom|ertelecom/i, 'ertelecom.ru'],
-            [/skynet|skyne/i, 'skynet.ru'],
-            [/comcor|akado/i, 'akado.ru'],
-            [/wifire|netbynet/i, 'wifire.ru'],
+        // SVG-бейджи для российских ISP — без зависимости от внешних сервисов
+        const ISP_BADGE_MAP = [
+            [/veon|beeline|vimpelcom/i, null, null, null, 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDQiIGhlaWdodD0iNDQiIHZpZXdCb3g9IjAgMCA0NCA0NCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTIxLjk5NjQgNDMuOTk0OUMzNC4xNDMgNDMuOTk0OSA0My45ODk3IDM0LjE0NjMgNDMuOTg5NyAyMS45OTc1QzQzLjk4OTcgOS44NDg2IDM0LjE0MyAwIDIxLjk5NjQgMEM5Ljg0OTc2IDAgMC4wMDI5ODc2NyA5Ljg0ODYgMC4wMDI5ODc2NyAyMS45OTc1QzAuMDAyOTg3NjcgMzQuMTQ2MyA5Ljg0OTc2IDQzLjk5NDkgMjEuOTk2NCA0My45OTQ5WiIgZmlsbD0iI0ZGQzgwMCIvPjxwYXRoIGQ9Ik0zMS40NjEzIDM4LjM4NjdDMjMuOTkyMyA0Mi42OTc0IDE1Ljg5MTkgNDMuNDcgMTAuNzE3OCA0MC44ODc4QzE3LjM0MjIgNDQuODM1NyAyNS44NDc4IDQ1LjE3NzIgMzIuOTk2OSA0MS4wNUM0MC4xNDYxIDM2LjkxODUgNDQuMTA0NSAyOS4zODEyIDQzLjk5NzkgMjEuNjY4OEM0My42NDgxIDI3LjQ0MzUgMzguOTMwNCAzNC4wNzYgMzEuNDYxMyAzOC4zODY3WiIgZmlsbD0iIzFCMjQyQyIvPjxwYXRoIGQ9Ik0yNC43ODU3IDEuNjEzMzJDMjYuMyA0LjIzMzg5IDIyLjY0MDEgOS4xODQ4MiAxNi42MDg1IDEyLjY2MzNDMTAuNTc3IDE2LjE0MTcgNC40NjQ0MiAxNi44NDE3IDIuOTUwMTMgMTQuMjE2OEMyLjg4NjE1IDE0LjA5MzEgMi44MjY0MyAxMy45NTY1IDIuNzgzNzcgMTMuODE1NkMyLjM5MTM0IDEyLjU5NSAyLjg2MDU1IDExLjAxNTggMy45OTA5MyA5LjM1MTI3QzQuMTc0MzUgOS4wOTA5MiA0LjM2MjA0IDguODM0ODQgNC41NTM5OSA4LjU4MzAyQzYuMjYwMjMgNi4zNTkzOCA4LjQyMjg4IDQuNDMwMjIgMTAuOTk5MyAyLjk0NDk1QzEzLjU3NTcgMS40NTU0IDE2LjMyNyAwLjU1MDU3NyAxOS4xMDM5IDAuMTgzNTI2QzE5LjQyODEgMC4xMzY1NzggMTkuNzQzOCAwLjEwMjQzNCAyMC4wNTA5IDAuMDgxMDk0QzIyLjA1NTcgLTAuMDY4Mjg3MiAyMy42NTUzIDAuMzE1ODM2IDI0LjUxNjkgMS4yNjMzNEMyNC42MTkzIDEuMzc4NTggMjQuNzA4OSAxLjQ5MzgxIDI0Ljc4NTcgMS42MTMzMloiIGZpbGw9IiMxQjI0MkMiLz48cGF0aCBkPSJNMzQuMTM1OSA0LjQ1MTU2QzM2Ljc4MDUgOS4wMzExNyAzMS40NDQzIDE3LjA1OTMgMjIuMjIyMSAyMi4zODU5QzEyLjk5OTkgMjcuNzEyNCAzLjM3NjY5IDI4LjMxODQgMC43MzYyODcgMjMuNzM4OEMwLjI5NjkzMSAyMi45NzQ4IDAuMDYyMzI0MiAyMi4xMjU1IDAuMDE1NDAyNyAyMS4yMTIxQy0wLjA5OTc2ODIgMjQuMjg5NCAwLjQyOTE2NSAyNy40MTc5IDEuNjYxOTIgMzAuMzg4NEMxLjg0NTM0IDMwLjgzMjMgMi4wNDU4MiAzMS4yNzE5IDIuMjU5MSAzMS43MDcyQzIuMjY3NjMgMzEuNzI0MyAyLjI4MDQzIDMxLjc0NTcgMi4yODg5NiAzMS43NjI3QzMuMDg2NjMgMzMuMTQxMyA0LjI2MzkzIDM0LjIyNTQgNS43MzEyOSAzNS4wMTA3QzEwLjkwNTUgMzcuNzgwNyAxOS42NTQyIDM2LjgyODkgMjcuODM1NiAzMi4xMDQyQzM2LjAxMjcgMjcuMzc5NSA0MS4yMTI1IDIwLjI4MTcgNDEuNDA0NCAxNC40MTc0QzQxLjQ1OTkgMTIuNzYxNCA0MS4xMTQ0IDExLjIwMzYgNDAuMzI1MiA5LjgyNTAyQzQwLjAyNjYgOS4zNzY4OCAzOS43MTUyIDguOTM3MjcgMzkuMzg2OCA4LjUxOUMzNy40NDU5IDYuMDA5NCAzNS4wMzE2IDQuMDExOTUgMzIuMzQ4NiAyLjU4NjQzQzMzLjA5NSAzLjA3NzI1IDMzLjcwMDggMy42OTYxMiAzNC4xMzU5IDQuNDUxNTZaIiBmaWxsPSIjMUIyNDJDIi8+PC9zdmc+'],
+            [/rostelecom/i,              '#006529', '#fff',    'RT'],
+            [/\bmts\b|mts pjsc/i,        '#E30611', '#fff',    'MTS'],
+            [/megafon/i,                 '#00B140', '#fff',    'MF'],
+            [/ttk|transtelecom/i,        '#CC3300', '#fff',    'TTK'],
+            [/tele2|t2 mobile/i,         '#0F69AF', '#fff',    'T2'],
+            [/dom\.ru|ural/i,            '#FF6600', '#fff',    'DOM'],
+            [/er-telecom|ertelecom/i,    '#0055A5', '#fff',    'ER'],
+            [/wifire|netbynet/i,         '#6C3FC5', '#fff',    'WF'],
+            [/akado|comcor/i,            '#E83030', '#fff',    'AK'],
         ];
         const getIspLogoUrl = (ispName) => {
             if (!ispName) return null;
-            for (const [re, domain] of ISP_DOMAIN_MAP) {
-                if (re.test(ispName)) return `https://logo.clearbit.com/${domain}`;
+            const n = ispName.toLowerCase();
+            for (const [re, bg, fg, abbr, dataUri] of ISP_BADGE_MAP) {
+                if (re.test(n)) {
+                    if (dataUri) return dataUri;
+                    const fs = abbr.length > 2 ? 13 : 16;
+                    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44"><rect width="44" height="44" rx="10" fill="${bg}"/><text x="22" y="30" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-size="${fs}" fill="${fg}">${abbr}</text></svg>`;
+                    return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+                }
             }
             return null;
         };
@@ -1288,12 +1361,16 @@
                     const isProtected = dev.mode !== 'bypass' && !isBlocked;
                     const statusColor = isBlocked ? '#ef4444' : (isProtected ? '#10b981' : '#f59e0b');
 
+                    const isLocalMAC = (mac) => (parseInt((mac||'').split(':')[0], 16) & 0x02) !== 0;
                     const cachedVendor = state.vendorCache[dev.mac];
-                    const deviceType = cachedVendor !== undefined
-                        ? vendorToType(cachedVendor, dev.hostname)
+                    // Рандомные MAC не имеют OUI — сразу определяем тип по hostname
+                    const effectiveVendor = cachedVendor !== undefined ? cachedVendor
+                        : (isLocalMAC(dev.mac) ? '' : undefined);
+                    const deviceType = effectiveVendor !== undefined
+                        ? vendorToType(effectiveVendor, dev.hostname)
                         : (dev.hostname.toLowerCase().includes('tv') ? 'tv' : 'unknown');
                     const ist = ICON_STYLE[deviceType] || ICON_STYLE.unknown;
-                    const brandLogoHtml = getBrandLogoHtml(cachedVendor, ist.color);
+                    const brandLogoHtml = getBrandLogoHtml(effectiveVendor, ist.color, dev.hostname);
                     const brandBadge = '';
                     const autoName = (dev.hostname === 'Устройство' || dev.hostname === 'Unknown' || dev.hostname === 'устройство') && cachedVendor
                         ? cachedVendor : dev.hostname;
@@ -1303,7 +1380,7 @@
                         ? `<div style="font-size:10px;color:rgba(100,116,139,0.5);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${cachedVendor}">${cachedVendor}</div>`
                         : '';
 
-                    const TYPE_LABELS = {phone:'Смартфон',laptop:'Ноутбук',tv:'Телевизор',router:'Роутер',speaker:'Колонка',gaming:'Игровая',iot:'IoT',tablet:'Планшет',unknown:''};
+                    const TYPE_LABELS = {phone:'Смартфон',laptop:'Ноутбук',desktop:'Компьютер',tv:'Телевизор',router:'Роутер',speaker:'Колонка',gaming:'Игровая',iot:'IoT',tablet:'Планшет',unknown:''};
                     const typeLabel = (cachedVendor !== undefined && deviceType !== 'unknown')
                         ? `<span style="display:inline-flex;align-items:center;gap:3px;margin-top:4px;padding:1px 6px;border-radius:4px;background:${ist.bg};border:1px solid ${ist.border};font-size:9px;font-weight:700;color:${ist.color};letter-spacing:0.04em;text-transform:uppercase;">${TYPE_LABELS[deviceType]||deviceType}</span>`
                         : '';
@@ -1346,8 +1423,10 @@
                         const rflag = utils.getFlagEmoji(rn.tag);
                         const rpingColor = rn.ping < 100 ? '#34d399' : rn.ping < 250 ? '#f59e0b' : '#ef4444';
                         const ronline = rn.status === 'online';
-                        const smartBadge = dev.mode === 'smart' ? `<span style="font-size:9px;color:#60a5fa;font-weight:700;background:rgba(59,130,246,0.12);padding:1px 5px;border-radius:3px;margin-left:4px;">Smart</span>` : '';
-                        routeHtml = `<div style="display:flex;align-items:center;gap:8px;min-width:0;"><span style="font-size:22px;flex-shrink:0;">${rflag}</span><div style="min-width:0;"><div style="font-size:12px;font-weight:700;color:${ronline?'#f1f5f9':'var(--muted)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${rn.tag}${smartBadge}</div><div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:${ronline?rpingColor:'#ef4444'};">${ronline?rn.ping+'ms':'Недоступен'}</div></div></div>`;
+                        const modeBadge = dev.mode === 'smart'
+                            ? `<span style="font-size:9px;color:#60a5fa;font-weight:700;background:rgba(59,130,246,0.12);padding:1px 5px;border-radius:3px;margin-left:4px;">Smart</span>`
+                            : `<span style="font-size:9px;color:#a78bfa;font-weight:700;background:rgba(167,139,250,0.12);padding:1px 5px;border-radius:3px;margin-left:4px;">Global</span>`;
+                        routeHtml = `<div style="display:flex;align-items:center;gap:8px;min-width:0;"><div style="min-width:0;"><div style="font-size:12px;font-weight:700;color:${ronline?'#f1f5f9':'var(--muted)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${rn.tag}${modeBadge}</div></div></div>`;
                     } else {
                         routeHtml = `<div style="font-size:11px;color:var(--muted);">Нет узлов</div>`;
                     }
@@ -1389,9 +1468,9 @@
                         <!-- Col 3: TRAFFIC -->
                         <div class="dev-col-trafik">
                             <!-- Live speed -->
-                            <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;">
-                                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#34d399;"><span class="traffic-down" data-ip="${dev.ip}">0 B/s</span> ↓</span>
-                                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#60a5fa;"><span class="traffic-up" data-ip="${dev.ip}">0 B/s</span> ↑</span>
+                            <div style="display:flex;flex-wrap:nowrap;gap:6px;align-items:center;margin-bottom:4px;min-width:0;">
+                                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#34d399;white-space:nowrap;"><span class="traffic-down" data-ip="${dev.ip}">0 B/s</span> ↓</span>
+                                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#60a5fa;white-space:nowrap;"><span class="traffic-up" data-ip="${dev.ip}">0 B/s</span> ↑</span>
                             </div>
                             <!-- Persistent stats -->
                             <div style="display:flex;flex-direction:column;gap:2px;">
@@ -1501,6 +1580,36 @@
                     const sparkEl = document.querySelector(`.dev-spark[data-ip="${ip}"]`);
                     if (sparkEl) sparkEl.innerHTML = ui.makeSparkBars(state.deviceTrafficHistory[ip]);
                 });
+                // Update route column with live chain breakdown (hash-gated to prevent flicker)
+                if (state.deviceChains) {
+                    Object.keys(state.deviceChains).forEach(ip => {
+                        const chains = state.deviceChains[ip];
+                        if (!chains || Object.keys(chains).length === 0) return;
+                        const rowEl = document.querySelector(`.device-row-item[data-ip="${ip}"]`);
+                        const routeEl = rowEl?.querySelector('.dev-col-route');
+                        if (!routeEl) return;
+                        const sortedChains = Object.entries(chains)
+                            .filter(([, d]) => d.total_down > 0 || d.total_up > 0)
+                            .sort(([, a], [, b]) => (b.total_down + b.total_up) - (a.total_down + a.total_up));
+                        if (sortedChains.length === 0) return;
+                        // Build a hash of what matters: chain names + whether each has active speed
+                        const chainHash = sortedChains.map(([ch, d]) => `${ch}:${d.speed_down > 0 ? 1 : 0}:${d.speed_up > 0 ? 1 : 0}:${Math.round((d.total_down + d.total_up) / 1024)}`).join('|');
+                        if (routeEl.dataset.chainHash === chainHash) return;
+                        routeEl.dataset.chainHash = chainHash;
+                        routeEl.innerHTML = `<div style="display:flex;flex-direction:column;gap:5px;min-width:0;">${
+                            sortedChains.map(([chain, data]) => {
+                                const isDirect = chain === 'DIRECT';
+                                const color = isDirect ? '#f59e0b' : '#60a5fa';
+                                const label = isDirect ? 'Напрямую' : chain;
+                                const hasSpeed = data.speed_down > 0 || data.speed_up > 0;
+                                const speedHtml = hasSpeed
+                                    ? `<span style="color:#34d399;">↓${utils.formatBytes(data.speed_down)}/s</span> <span style="color:#60a5fa;">↑${utils.formatBytes(data.speed_up)}/s</span>`
+                                    : `<span style="color:rgba(100,116,139,0.6);">${utils.formatBytes(data.total_down + data.total_up)}</span>`;
+                                return `<div style="min-width:0;"><div style="font-size:11px;font-weight:700;color:${color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px;">${label}</div><div style="font-family:'JetBrains Mono',monospace;font-size:9px;margin-top:1px;">${speedHtml}</div></div>`;
+                            }).join('')
+                        }</div>`;
+                    });
+                }
             },
 
             makeSparkBars: (history) => {
@@ -1549,27 +1658,23 @@
                     : (providerCc ? `<img src="https://flagcdn.com/20x15/${providerCc}.png" width="20" height="15" style="border-radius:2px;vertical-align:middle;object-fit:cover;" onerror="this.style.display='none'">` : '🌐');
 
                 const today = new Date().toISOString().slice(0, 10);
-                // Today's total across all nodes from persistent history
-                const todayNodeDown = Object.values(state.nodeHistory).reduce((s, nh) => s + (nh?.daily?.[today]?.down || 0), 0);
-                const todayNodeUp   = Object.values(state.nodeHistory).reduce((s, nh) => s + (nh?.daily?.[today]?.up   || 0), 0);
+                // Use device history for sidebar traffic (matches device list totals)
+                const todayDevDown = Object.values(state.deviceHistory).reduce((s, dh) => s + (dh?.daily?.[today]?.down || 0), 0);
+                const todayDevUp   = Object.values(state.deviceHistory).reduce((s, dh) => s + (dh?.daily?.[today]?.up   || 0), 0);
+                // Fallback to session stats if no history yet
+                const sidebarDown = todayDevDown || state.sessionStats.totalDown;
+                const sidebarUp   = todayDevUp   || state.sessionStats.totalUp;
                 const onlineCount = state.nodes.filter(n => n.status === 'online').length;
 
+                // Shorten ISP name: remove legal suffixes
+                const shortIsp = providerIspName.replace(/\b(pjsc|ojsc|llc|ltd|inc|co\.|as|jsc|ao|oao|zao|msk|spb)\b\.?/gi,'').replace(/\s{2,}/g,' ').trim().slice(0, 24);
+
                 el.innerHTML = `
-                    <div class="metric-pill">
-                        <span style="color:var(--muted);">Провайдер</span>
-                        <span style="display:flex;align-items:center;gap:5px;font-weight:700;color:#f1f5f9;font-family:'JetBrains Mono',monospace;font-size:11px;">${providerVisual}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100px;" title="${providerIspName}">${providerIspName || providerIp}</span></span>
+                    <div class="metric-pill" style="flex-direction:column;align-items:flex-start;gap:1px;padding:6px 10px;">
+                        <span style="color:var(--muted);font-size:10px;">Провайдер</span>
+                        <span style="display:flex;align-items:center;gap:5px;font-weight:700;color:#f1f5f9;font-family:'JetBrains Mono',monospace;font-size:11px;min-width:0;">${providerVisual}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${providerIspName}">${shortIsp || providerIp}</span></span>
                     </div>
-                    <div class="metric-pill">
-                        <span style="color:var(--muted);">Узлы</span>
-                        <span style="font-weight:700;color:${onlineCount>0?'#34d399':'#ef4444'};font-size:11px;">${onlineCount}/${state.nodes.length} онлайн</span>
-                    </div>
-                    <div class="metric-pill" style="flex-direction:column;align-items:flex-start;gap:3px;padding:7px 10px;">
-                        <span style="color:var(--muted);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Трафик сегодня</span>
-                        <div style="display:flex;gap:10px;">
-                            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#34d399;">↓ ${utils.formatBytes(todayNodeDown||state.sessionStats.totalDown)}</span>
-                            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#60a5fa;">↑ ${utils.formatBytes(todayNodeUp||state.sessionStats.totalUp)}</span>
-                        </div>
-                    </div>`;
+                    `;
             },
 
             renderNodes: () => {
@@ -1606,7 +1711,6 @@
                     return `
                     <div class="node-card ${isSelected ? 'selected' : ''}" onclick="GatewayApp.actions.setGlobalNode('${n.tag}')">
                         <div style="display:flex;align-items:center;gap:8px;overflow:hidden;min-width:0;">
-                            <span style="font-size:18px;flex-shrink:0;">${utils.getFlagEmoji(n.tag)}</span>
                             <div style="overflow:hidden;min-width:0;">
                                 <div style="font-size:12px;font-weight:700;color:${isSelected?'#93c5fd':'#f1f5f9'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${n.tag}</div>
                                 <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
@@ -1652,7 +1756,8 @@
                 const directFlag = state.providerLogo
                     ? `<img src="${state.providerLogo}" width="44" height="44" style="border-radius:10px;object-fit:contain;background:rgba(255,255,255,0.08);padding:4px;box-shadow:0 2px 8px rgba(0,0,0,0.4);" onerror="this.outerHTML='${directCc ? `<img src=\\'https://flagcdn.com/40x30/${directCc}.png\\' width=\\'40\\' height=\\'30\\' style=\\'border-radius:4px;\\'>` : '🌐'}';">`
                     : (directCc ? `<img src="https://flagcdn.com/40x30/${directCc}.png" width="40" height="30" style="border-radius:4px;object-fit:cover;box-shadow:0 2px 8px rgba(0,0,0,0.4);" onerror="this.outerHTML='🌐'">` : '⏳');
-                const directIsp  = ispName ? `<div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:rgba(148,163,184,0.7);width:70px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4;" title="${ispName}">${ispName}</div>` : '';
+                const shortIspViz = ispName.replace(/\b(pjsc|ojsc|llc|ltd|inc|co\.|as|jsc|ao|oao|zao|msk|spb)\b\.?/gi,'').replace(/["'«»]/g,'').replace(/\s{2,}/g,' ').trim().slice(0,22);
+                const directIsp  = ispName ? `<div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:rgba(148,163,184,0.7);max-width:80px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;" title="${ispName}">${shortIspViz}</div>` : '';
                 const directIp   = data ? (data.direct.ip || '—') : '...';
                 const tunnelOk   = data && data.tunnel.status === 'ok';
 
@@ -1681,7 +1786,6 @@
 
                 const nodePill = (flag, name, ping, pingCls, bg, border) =>
                     `<div style="display:flex;align-items:center;gap:6px;background:${bg};border:1px solid ${border};border-radius:9px;padding:6px 10px;flex:1;min-width:0;max-width:140px;">
-                        <span style="font-size:16px;flex-shrink:0;">${flag}</span>
                         <div style="min-width:0;overflow:hidden;">
                             <div style="font-size:10px;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div>
                             <div style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;" class="${pingCls}">${ping}</div>
@@ -1693,11 +1797,11 @@
                 <div style="display:grid;grid-template-columns:70px 1fr 46px 14px 1fr minmax(110px,145px) 1fr auto;grid-template-rows:auto auto;row-gap:12px;align-items:center;margin-bottom:18px;">
 
                     <!-- Col 1: Provider (spans both rows) -->
-                    <div style="grid-row:1/3;display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center;width:70px;">
+                    <div style="grid-row:1/3;display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center;width:80px;overflow:hidden;min-width:0;">
                         <div style="line-height:1;">${directFlag}</div>
                         <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);">Провайдер</div>
                         ${directIsp}
-                        <div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:rgba(100,116,139,0.45);width:70px;text-align:center;word-break:break-all;line-height:1.4;">${directIp}</div>
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:rgba(100,116,139,0.45);max-width:80px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${directIp}</div>
                     </div>
 
                     <!-- Col 2: Line provider→GSG (spans both rows, 1fr) -->
@@ -1822,15 +1926,30 @@
                         x: (i / (hist.length - 1)) * W,
                         y: H - (p[key] / maxVal) * H * 0.88 - H * 0.06
                     }));
+                    // Smooth curve via cubic bezier
+                    const smooth = (p, i, arr) => {
+                        const cp = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+                        return i === 0 ? null : { c1: cp(arr[i-1], p), c2: cp(arr[i-1], p) };
+                    };
+                    // Fill
                     ctx.beginPath();
                     ctx.moveTo(pts[0].x, H);
-                    pts.forEach(p => ctx.lineTo(p.x, p.y));
+                    ctx.lineTo(pts[0].x, pts[0].y);
+                    for (let i = 1; i < pts.length; i++) {
+                        const cpx = (pts[i-1].x + pts[i].x) / 2;
+                        ctx.bezierCurveTo(cpx, pts[i-1].y, cpx, pts[i].y, pts[i].x, pts[i].y);
+                    }
                     ctx.lineTo(pts[pts.length-1].x, H);
                     ctx.closePath();
                     ctx.fillStyle = fill;
                     ctx.fill();
+                    // Stroke
                     ctx.beginPath();
-                    pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+                    ctx.moveTo(pts[0].x, pts[0].y);
+                    for (let i = 1; i < pts.length; i++) {
+                        const cpx = (pts[i-1].x + pts[i].x) / 2;
+                        ctx.bezierCurveTo(cpx, pts[i-1].y, cpx, pts[i].y, pts[i].x, pts[i].y);
+                    }
                     ctx.strokeStyle = stroke;
                     ctx.lineWidth = 1.5 * dpr;
                     ctx.lineJoin = 'round';
@@ -1936,6 +2055,17 @@
                 el._t = setTimeout(() => { el.style.opacity = '0'; }, 2500);
             },
 
+            openFeedback: () => {
+                const modal = document.getElementById('feedbackModal');
+                modal.style.display = 'flex';
+                document.getElementById('feedbackText').focus();
+                document.getElementById('feedbackStatus').textContent = '';
+                document.getElementById('feedbackName').value = '';
+                document.getElementById('feedbackText').value = '';
+            },
+            closeFeedback: () => {
+                document.getElementById('feedbackModal').style.display = 'none';
+            },
             openHistoryModal: (ip) => {
                 if (!ip) {
                     // Show aggregate summary
@@ -2109,16 +2239,31 @@
                 const dev = state.devices.find(d => d.ip === ip);
                 const curTiktok = tiktokNode !== undefined ? tiktokNode : (dev?.tiktok_node || 'auto');
                 const result = await utils.apiCall(`/devices/${ip}`, { method: 'PUT', body: JSON.stringify({ mode, assigned_node: assignedNode, tiktok_node: curTiktok }) });
-                if (result) actions.fetchData();
+                if (result) {
+                    const name = dev?.custom_name || dev?.hostname || ip;
+                    const modeLabel = {smart:'Smart',global:'Прокси',bypass:'Напрямую',block:'Блок'}[mode] || mode;
+                    ui.addEvent('⚙️', `${name}: режим → ${modeLabel}`, '#93c5fd');
+                    actions.fetchData();
+                }
             }, 400),
 
             setGlobalNode: async (tag) => {
+                const prev = state.globalNode;
                 state.globalNode = tag;
                 ui.renderNodes();
                 ui.renderRouteViz();
                 await utils.apiCall('/subscription/node', { method: 'PUT', body: JSON.stringify({ global_node: tag }) });
+                if (tag !== prev) ui.addEvent('🌐', `Глобальный узел: ${tag === 'auto' ? 'Авто' : tag}`, '#fbbf24');
                 actions.fetchNodes();
                 actions.fetchData();
+            },
+
+            pingNodes: async () => {
+                const btn = document.getElementById('pingBtn');
+                if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
+                await utils.apiCall('/nodes/ping', { _silent: true });
+                await actions.fetchNodes();
+                if (btn) { btn.disabled = false; btn.style.opacity = ''; }
             },
 
             fetchNodes: async () => {
@@ -2141,7 +2286,11 @@
             },
 
             fetchTraffic: async () => {
-                const traffic = await utils.apiCall('/traffic');
+                const [traffic, deviceChains] = await Promise.all([
+                    utils.apiCall('/traffic', { _silent: true }),
+                    utils.apiCall('/traffic/device-chains', { _silent: true })
+                ]);
+                if (deviceChains) state.deviceChains = deviceChains;
                 if (traffic) {
                     state.traffic = traffic;
                     ui.updateTrafficDOM();
@@ -2165,7 +2314,7 @@
                     ss.peakUp    = Math.max(ss.peakUp, totalUp);
                     ui.drawTrafficChart();
                     ui.renderSessionStats();
-                    const nodeTraffic = await utils.apiCall('/traffic/nodes');
+                    const nodeTraffic = await utils.apiCall('/traffic/nodes', { _silent: true });
                     if (nodeTraffic) { state.nodeTraffic = nodeTraffic; ui.updateNodeTrafficDOM(); }
                     ui.updateSidebarNetStats();
                 }
@@ -2174,7 +2323,7 @@
             fetchData: async () => {
                 const [status, network, devices] = await Promise.all([
                     utils.apiCall('/status'),
-                    utils.apiCall('/network-status'),
+                    utils.apiCall('/network-status', { _silent: true }),
                     utils.apiCall('/devices')
                 ]);
                 ui.renderMetrics(status);
@@ -2207,6 +2356,11 @@
                     document.getElementById('dhcpEnd').value = dhcp.pool_end || '';
                     document.getElementById('dhcpDns').value = dhcp.dns || '';
                 }
+                const lic = await utils.apiCall('/license');
+                if (lic && lic.device_id) {
+                    const el = document.getElementById('deviceIdValue');
+                    if (el) el.textContent = lic.device_id;
+                }
                 const sub = await utils.apiCall('/subscription');
                 if (sub) {
                     if (sub.url) document.getElementById('subUrlInput').value = sub.url;
@@ -2221,7 +2375,8 @@
             },
 
             fetchVendors: async (devices) => {
-                const toFetch = devices.filter(d => d.mac && d.mac !== '00:00:00:00:00:00' && !(d.mac in state.vendorCache));
+                const isLocalMAC = (mac) => (parseInt((mac||'').split(':')[0], 16) & 0x02) !== 0;
+                const toFetch = devices.filter(d => d.mac && d.mac !== '00:00:00:00:00:00' && !isLocalMAC(d.mac) && !(d.mac in state.vendorCache));
                 for (const dev of toFetch) {
                     const data = await utils.apiCall(`/vendor/${encodeURIComponent(dev.mac)}`);
                     if (data !== null) {
@@ -2236,7 +2391,7 @@
                             iconEl.style.color = ist.color;
                             iconEl.title = data.vendor || dev.hostname;
                             const statusDot = iconEl.querySelector('[style*="bottom:-3px"]');
-                            const bLogo = getBrandLogoHtml(data.vendor, ist.color);
+                            const bLogo = getBrandLogoHtml(data.vendor, ist.color, dev.hostname);
                             iconEl.innerHTML = (bLogo || '')
                                 + `<span style="display:${bLogo ? 'none' : 'flex'};align-items:center;justify-content:center;">${DEVICE_ICONS[type] || DEVICE_ICONS.unknown}</span>`
                                 + (statusDot ? statusDot.outerHTML : '');
@@ -2269,7 +2424,7 @@
             },
 
             fetchLogs: async () => {
-                const logs = await utils.apiCall('/logs');
+                const logs = await utils.apiCall('/logs', { _silent: true });
                 const logBox = document.getElementById('systemLogsBox');
                 if (logBox && logs) {
                     const isAtBottom = logBox.scrollHeight - logBox.clientHeight <= logBox.scrollTop + 20;
@@ -2286,7 +2441,7 @@
             },
 
             fetchTrafficHistory: async () => {
-                const data = await utils.apiCall('/traffic/history');
+                const data = await utils.apiCall('/traffic/history', { _silent: true });
                 if (data) {
                     state.deviceHistory = data.devices || {};
                     state.nodeHistory   = data.nodes   || {};
@@ -2308,11 +2463,41 @@
                 }
             },
 
+            submitFeedback: async () => {
+                const name = document.getElementById('feedbackName').value.trim();
+                const message = document.getElementById('feedbackText').value.trim();
+                const statusEl = document.getElementById('feedbackStatus');
+                const btn = document.getElementById('feedbackSubmitBtn');
+                if (!message) { statusEl.style.color='#f87171'; statusEl.textContent='Введите сообщение'; return; }
+                btn.disabled = true; btn.style.opacity = '0.6';
+                statusEl.style.color = 'var(--muted)'; statusEl.textContent = 'Отправка...';
+                const res = await utils.apiCall('/feedback', { method: 'POST', body: JSON.stringify({ name, message }) });
+                btn.disabled = false; btn.style.opacity = '1';
+                if (res?.ok) {
+                    statusEl.style.color = '#34d399'; statusEl.textContent = 'Отправлено, спасибо!';
+                    setTimeout(() => ui.closeFeedback(), 1800);
+                } else {
+                    statusEl.style.color = '#f87171'; statusEl.textContent = 'Ошибка, попробуйте снова';
+                }
+            },
+
             resetTraffic: async (scope, ip) => {
                 const body = JSON.stringify({ scope, ip: ip || null });
                 await utils.apiCall('/traffic/reset', { method: 'POST', body });
                 await actions.fetchTrafficHistory();
+                const label = {daily:'сегодня',monthly:'месяц',yearly:'год',all:'всё время'}[scope] || scope;
+                const who = ip ? (state.devices.find(d=>d.ip===ip)?.custom_name || state.devices.find(d=>d.ip===ip)?.hostname || ip) : 'все устройства';
+                ui.addEvent('🗑️', `Трафик сброшен (${label}) — ${who}`, '#f59e0b');
                 ui.showToast(`Трафик сброшен (${scope}${ip ? ' · ' + ip : ''})`);
+            },
+
+            checkUpdate: async () => {
+                const btn = document.getElementById('gsgUpdateBtn');
+                if (btn) { btn.textContent = '...'; btn.disabled = true; }
+                const v = await utils.apiCall('/version');
+                if (btn) { btn.textContent = '↻ обновить'; btn.disabled = false; }
+                ui.showToast(`Версия GSG: ${v?.version || '?'} — для обновления подключитесь по SSH и выполните: cd /root/GSG && git pull && docker compose build && docker compose up -d`);
+                ui.addEvent('ℹ️', `Проверка обновлений: v${v?.version || '?'}`, '#93c5fd');
             },
 
             updateSchedule: async () => {
@@ -2393,9 +2578,33 @@
                 const orig = btn.textContent;
                 btn.textContent = 'Ожидайте...';
                 btn.disabled = true;
-                await utils.apiCall('/subscription', { method: 'PUT', body: JSON.stringify({ url: document.getElementById('subUrlInput').value }) });
-                btn.textContent = 'Готово!';
-                setTimeout(() => { btn.textContent = orig; btn.disabled = false; actions.fetchNodes(); }, 2000);
+                const licEl = document.getElementById('licenseStatus');
+                if (licEl) licEl.style.display = 'none';
+                const res = await utils.apiCall('/subscription', { method: 'PUT', body: JSON.stringify({ url: document.getElementById('subUrlInput').value }) });
+                if (res === null) {
+                    // HTTP ошибка — проверяем тип
+                    const errDetail = utils._lastError;
+                    if (errDetail === 'invalid_domain') {
+                        if (licEl) { licEl.style.display='block'; licEl.innerHTML='<span style="color:#ef4444;font-size:11px;">⛔ Поддерживается только подписка GlobalShield (subscribe.globalshield.ru)</span>'; }
+                    }
+                    btn.textContent = 'Ошибка';
+                    setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2000);
+                } else {
+                    ui.addEvent('🔄', 'Подписка обновлена, конфиг применён', '#34d399');
+                    btn.textContent = 'Готово!';
+                    setTimeout(async () => {
+                        btn.textContent = orig; btn.disabled = false;
+                        actions.fetchNodes();
+                        // Проверяем статус лицензии после обновления подписки
+                        const lic = await utils.apiCall('/license', { _silent: true });
+                        if (lic?.error === 'unauthorized' && licEl) {
+                            licEl.style.display = 'block';
+                            licEl.innerHTML = '<span style="color:#ef4444;font-size:11px;">⛔ Устройство не авторизовано. Обратитесь в поддержку GlobalShield.</span>';
+                        } else if (licEl) {
+                            licEl.style.display = 'none';
+                        }
+                    }, 2000);
+                }
             });
 
             // Save rules
@@ -2435,6 +2644,15 @@
 
             // Always expert mode
             state.expertMode = true;
+
+            // Load version
+            utils.apiCall('/version').then(v => {
+                if (v?.version) {
+                    const el = document.getElementById('gsgVersion');
+                    if (el) el.textContent = v.version;
+                }
+            });
+
             ui.addEvent('🚀', 'Панель управления GSG запущена', '#c9a84c');
             ui.renderSessionStats();
 

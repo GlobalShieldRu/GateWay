@@ -7,7 +7,10 @@ GSG_RULES_FILE = GSG_CONFIG_DIR / "rules.json"
 GSG_RULESETS_FILE = GSG_CONFIG_DIR / "rulesets.json"
 GSG_SUBSCRIPTION_FILE = GSG_CONFIG_DIR / "subscription.json"
 GSG_NODES_FILE = GSG_CONFIG_DIR / "nodes.json"
+GSG_DEVICE_FILE = GSG_CONFIG_DIR / "device.json"
 MIHOMO_CONFIG = Path("/etc/mihomo/config.yaml")
+
+GLOBALSHIELD_DOMAIN = "globalshield.ru"
 
 def main():
     def load_json(p, default):
@@ -20,21 +23,55 @@ def main():
     rulesets = load_json(GSG_RULESETS_FILE, {"rkn_bypass": True, "ru_direct": True})
     sub_data = load_json(GSG_SUBSCRIPTION_FILE, {"url": "", "global_node": "auto"})
 
-    url = sub_data.get("url")
+    url = sub_data.get("url", "")
     global_node = sub_data.get("global_node", "auto")
     server_config = {}
     nodes = []
 
+    # Загружаем идентификатор устройства
+    device_data = load_json(GSG_DEVICE_FILE, {})
+    device_id    = device_data.get("device_id", "")
+    device_token = device_data.get("device_token", "")
+
     if url:
+        # Валидируем домен — принимаем только GlobalShield
+        from urllib.parse import urlparse
+        parsed_url = urlparse(url)
+        host = parsed_url.hostname or ""
+        if not (host == GLOBALSHIELD_DOMAIN or host.endswith("." + GLOBALSHIELD_DOMAIN)):
+            print(f"[ERROR] Subscription URL domain not allowed: {host}")
+            with open(GSG_NODES_FILE, 'w') as f:
+                json.dump({"nodes": [], "updated": str(time.time()), "error": "invalid_domain"}, f)
+            return
+
         try:
-            headers = {"User-Agent": "Mihomo/1.18.10 (GSG-Smart-Gateway)"}
+            headers = {
+                "User-Agent": "Mihomo/1.18.10 (GSG-Smart-Gateway)",
+                "X-Device-ID": device_id,
+                "X-Device-Token": device_token,
+            }
             r = httpx.get(url, headers=headers, timeout=15.0, follow_redirects=True)
+            if r.status_code == 401:
+                print("[ERROR] Subscription auth failed: device not registered or subscription inactive")
+                with open(GSG_NODES_FILE, 'w') as f:
+                    json.dump({"nodes": [], "updated": str(time.time()), "error": "unauthorized"}, f)
+                return
             r.raise_for_status()
+
+            # Сервер может выдать/обновить токен в заголовке ответа
+            new_token = r.headers.get("X-Device-Token", "")
+            if new_token and new_token != device_token:
+                device_data["device_token"] = new_token
+                with open(GSG_DEVICE_FILE, 'w') as f:
+                    json.dump(device_data, f)
+                print(f"[INFO] Device token updated")
+
             parsed_yaml = yaml.safe_load(r.text)
             if isinstance(parsed_yaml, dict):
                 server_config = parsed_yaml
                 nodes = server_config.get("proxies") or []
-        except Exception as e: print(f"[ERROR] Failed to fetch config: {e}")
+        except Exception as e:
+            print(f"[ERROR] Failed to fetch config: {e}")
 
     if not isinstance(server_config, dict): server_config = {}
 
