@@ -6,13 +6,16 @@ import socket
 import psutil
 import httpx
 import aiofiles
+import hashlib
+import secrets
 from pathlib import Path
 from datetime import datetime
 from typing import List, Optional
 from collections import defaultdict
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response, Cookie
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 
 GSG_VERSION = "1.1.0"
@@ -29,13 +32,54 @@ GSG_LOG_FILE = GSG_CONFIG_DIR / "sing-box.log"
 GSG_TRAFFIC_HISTORY_FILE = GSG_CONFIG_DIR / "traffic_history.json"
 GSG_FEEDBACK_FILE = GSG_CONFIG_DIR / "feedback.json"
 GSG_DEVICE_FILE = GSG_CONFIG_DIR / "device.json"
-DNSMASQ_LEASES = Path("/var/lib/misc/dnsmasq.leases")
+GSG_AUTH_FILE   = GSG_CONFIG_DIR / "auth.json"
+DNSMASQ_LEASES  = Path("/var/lib/misc/dnsmasq.leases")
 
 GLOBALSHIELD_DOMAIN = "globalshield.ru"
 GLOBALSHIELD_API = "https://api.globalshield.ru/v1"
 
 GATEWAY_IP = os.getenv("GSG_GATEWAY_IP", "10.10.1.139")
 socket.setdefaulttimeout(0.3)
+
+# ── Auth helpers ─────────────────────────────────────────────────────────────
+
+def _hash_password(password: str, salt: str) -> str:
+    return hashlib.sha256(f"{salt}{password}".encode()).hexdigest()
+
+def _load_auth() -> dict:
+    try:
+        return json.loads(GSG_AUTH_FILE.read_text())
+    except Exception:
+        return {}
+
+def _save_auth(data: dict):
+    GSG_AUTH_FILE.parent.mkdir(parents=True, exist_ok=True)
+    GSG_AUTH_FILE.write_text(json.dumps(data))
+
+def _verify_token(token: str | None) -> bool:
+    if not token:
+        return False
+    auth = _load_auth()
+    return token == auth.get("token")
+
+# Public paths that don't require authentication
+_PUBLIC = {"/api/login", "/api/auth/check"}
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        # Allow public API paths and static assets
+        if path in _PUBLIC or path.startswith("/static/"):
+            return await call_next(request)
+        token = request.cookies.get("gsg_token")
+        if not _verify_token(token):
+            if path.startswith("/api/"):
+                return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+            # For the root page, return login page
+            return FileResponse("static/login.html")
+        return await call_next(request)
+
+app.add_middleware(AuthMiddleware)
 
 class TrafficMonitor:
     def __init__(self):
@@ -771,6 +815,61 @@ async def get_feedback():
         async with aiofiles.open(GSG_FEEDBACK_FILE, 'r') as f:
             return json.loads(await f.read())
     except: return []
+
+# ── Auth endpoints ────────────────────────────────────────────────────────────
+
+class LoginRequest(BaseModel):
+    password: str
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+@app.get("/api/auth/check")
+async def auth_check(request: Request):
+    token = request.cookies.get("gsg_token")
+    if _verify_token(token):
+        return {"authenticated": True}
+    return JSONResponse({"authenticated": False}, status_code=401)
+
+@app.post("/api/login")
+async def login(req: LoginRequest, response: Response):
+    auth = _load_auth()
+    if not auth.get("hash") or not auth.get("salt"):
+        raise HTTPException(status_code=500, detail="Auth not configured")
+    expected = _hash_password(req.password, auth["salt"])
+    if not secrets.compare_digest(expected, auth["hash"]):
+        raise HTTPException(status_code=401, detail="Неверный пароль")
+    token = secrets.token_urlsafe(32)
+    auth["token"] = token
+    _save_auth(auth)
+    response.set_cookie("gsg_token", token, httponly=True, samesite="lax", max_age=30*24*3600)
+    return {"ok": True}
+
+@app.post("/api/logout")
+async def logout(response: Response):
+    auth = _load_auth()
+    auth.pop("token", None)
+    _save_auth(auth)
+    response.delete_cookie("gsg_token")
+    return {"ok": True}
+
+@app.post("/api/auth/password")
+async def change_password(req: ChangePasswordRequest, response: Response):
+    if len(req.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Пароль должен быть не менее 6 символов")
+    auth = _load_auth()
+    expected = _hash_password(req.current_password, auth["salt"])
+    if not secrets.compare_digest(expected, auth["hash"]):
+        raise HTTPException(status_code=401, detail="Неверный текущий пароль")
+    new_salt = secrets.token_hex(16)
+    auth["salt"]  = new_salt
+    auth["hash"]  = _hash_password(req.new_password, new_salt)
+    # Invalidate session — user must log in again
+    auth.pop("token", None)
+    _save_auth(auth)
+    response.delete_cookie("gsg_token")
+    return {"ok": True}
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 

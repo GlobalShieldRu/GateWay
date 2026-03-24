@@ -190,20 +190,7 @@ EOF
     netplan apply 2>/dev/null && success "Netplan: статический IP применён" || warn "Netplan apply не удался, будет применён после перезагрузки"
 fi
 
-# Применяем IP немедленно в текущей сессии
-if [ "${GATEWAY_IP}" != "${CURRENT_IP}" ]; then
-    warn "IP изменится: ${CURRENT_IP} → ${GATEWAY_IP}"
-    warn "SSH-сессия может прерваться. После перезагрузки подключайтесь к ${GATEWAY_IP}"
-    ip addr flush dev "${LAN_IFACE}" 2>/dev/null || true
-    ip addr add "${GATEWAY_IP}/24" dev "${LAN_IFACE}"
-    ip link set "${LAN_IFACE}" up
-    ip route del default 2>/dev/null || true
-    ip route add default via "${UPSTREAM_GW}" 2>/dev/null || true
-else
-    success "IP не изменился (${GATEWAY_IP}), сессия не прервётся"
-fi
-
-success "Статический IP настроен — будет сохранён после перезагрузки"
+success "Конфигурация статического IP записана (применится в конце установки)"
 
 # ── Autostart Docker при загрузке ─────────────
 info "Настройка автозапуска GSG при загрузке..."
@@ -295,11 +282,44 @@ print('ok')
     fi
 fi
 
+# ── Генерация пароля для веб-интерфейса ───────
+echo ""
+info "Настройка пароля веб-интерфейса..."
+
+# Генерируем пароль только если auth.json ещё не существует
+EXISTING_AUTH=$(docker exec gsg-web-orchestrator python3 -c "
+import json, os
+try:
+    d = json.load(open('/etc/gsg/auth.json'))
+    print('exists' if d.get('hash') else '')
+except:
+    print('')
+" 2>/dev/null || echo "")
+
+if [ -z "$EXISTING_AUTH" ]; then
+    GSG_PASSWORD=$(python3 -c "import secrets, string; print(''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(12)))")
+    docker exec gsg-web-orchestrator python3 -c "
+import json, hashlib, secrets
+salt = secrets.token_hex(16)
+pw   = '${GSG_PASSWORD}'
+h    = hashlib.sha256((salt + pw).encode()).hexdigest()
+with open('/etc/gsg/auth.json', 'w') as f:
+    json.dump({'salt': salt, 'hash': h}, f)
+print('ok')
+"
+else
+    info "Пароль уже задан — пропускаем генерацию"
+    GSG_PASSWORD=""
+fi
+
 echo ""
 success "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 success "  GSG установлен и запущен!"
 echo ""
 echo -e "  Веб-интерфейс:  ${CYAN}http://${GATEWAY_IP}:8080${NC}"
+if [ -n "$GSG_PASSWORD" ]; then
+echo -e "  Пароль входа:   ${CYAN}${GSG_PASSWORD}${NC}  ← сохраните!"
+fi
 echo -e "  Роутер:         ${CYAN}${UPSTREAM_GW}${NC}"
 echo -e "  DHCP пул:       ${CYAN}${DHCP_START} — ${DHCP_END}${NC}"
 echo -e "  Статический IP: ${CYAN}${GATEWAY_IP}${NC} (сохранится после перезагрузки)"
@@ -310,3 +330,20 @@ echo ""
 echo -e "  Для проверки статуса:"
 echo -e "  ${YELLOW}docker compose -f ${INSTALL_DIR}/docker-compose.yml ps${NC}"
 echo ""
+
+# ── Применяем новый IP в последнюю очередь ────
+# Делаем это в самом конце, чтобы не прерывать установку
+if [ "${GATEWAY_IP}" != "${CURRENT_IP}" ]; then
+    echo ""
+    warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    warn "  Сейчас IP сменится: ${CURRENT_IP} → ${GATEWAY_IP}"
+    warn "  SSH-сессия прервётся — это нормально."
+    warn "  Подключайтесь к новому адресу: ssh root@${GATEWAY_IP}"
+    warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    sleep 3
+    ip addr flush dev "${LAN_IFACE}" 2>/dev/null || true
+    ip addr add "${GATEWAY_IP}/24" dev "${LAN_IFACE}"
+    ip link set "${LAN_IFACE}" up
+    ip route del default 2>/dev/null || true
+    ip route add default via "${UPSTREAM_GW}" 2>/dev/null || true
+fi

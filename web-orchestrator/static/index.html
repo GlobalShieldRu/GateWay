@@ -680,14 +680,42 @@
             </div>
         </nav>
 
-        <!-- Feedback -->
-        <div style="padding:10px 14px 16px;margin-top:auto;">
+        <!-- Feedback + Auth buttons -->
+        <div style="padding:10px 14px 16px;margin-top:auto;display:flex;flex-direction:column;gap:6px;">
             <button onclick="GatewayApp.ui.openFeedback()" style="width:100%;display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:10px;background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.15);color:var(--muted);cursor:pointer;font-family:'Syne',sans-serif;font-size:12px;font-weight:600;transition:all 0.18s ease;" onmouseover="this.style.background='rgba(59,130,246,0.12)';this.style.color='#93c5fd';" onmouseout="this.style.background='rgba(59,130,246,0.06)';this.style.color='var(--muted)';">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                 Обратная связь
             </button>
+            <button onclick="GatewayApp.ui.openChangePassword()" style="width:100%;display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);color:var(--muted);cursor:pointer;font-family:'Syne',sans-serif;font-size:12px;font-weight:600;transition:all 0.18s ease;" onmouseover="this.style.background='rgba(255,255,255,0.06)';this.style.color='var(--text)';" onmouseout="this.style.background='rgba(255,255,255,0.03)';this.style.color='var(--muted)';">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                Сменить пароль
+            </button>
+            <button onclick="GatewayApp.actions.logout()" style="width:100%;display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);color:var(--muted);cursor:pointer;font-family:'Syne',sans-serif;font-size:12px;font-weight:600;transition:all 0.18s ease;" onmouseover="this.style.background='rgba(239,68,68,0.08)';this.style.color='#fca5a5';" onmouseout="this.style.background='rgba(255,255,255,0.03)';this.style.color='var(--muted)';">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                Выйти
+            </button>
         </div>
     </aside>
+
+    <!-- Change Password Modal -->
+    <div id="changePwModal" onclick="if(event.target===this)GatewayApp.ui.closeChangePassword()" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);align-items:center;justify-content:center;">
+        <div class="glass" style="width:min(400px,calc(100vw - 32px));padding:28px;position:relative;animation:fadeSlideUp 0.25s ease both;">
+            <button onclick="GatewayApp.ui.closeChangePassword()" style="position:absolute;top:14px;right:14px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:7px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+            <div style="font-size:16px;font-weight:800;color:#f1f5f9;margin-bottom:4px;">Смена пароля</div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:20px;">После смены потребуется войти заново</div>
+            <div style="display:flex;flex-direction:column;gap:12px;">
+                <input id="pwCurrent" type="password" placeholder="Текущий пароль" class="gsg-input" style="width:100%;padding:9px 12px;">
+                <input id="pwNew" type="password" placeholder="Новый пароль (мин. 6 символов)" class="gsg-input" style="width:100%;padding:9px 12px;">
+                <input id="pwConfirm" type="password" placeholder="Повторите новый пароль" class="gsg-input" style="width:100%;padding:9px 12px;">
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px;">
+                <span id="changePwStatus" style="font-size:12px;color:var(--muted);"></span>
+                <button id="changePwBtn" onclick="GatewayApp.actions.changePassword()" style="padding:9px 22px;background:linear-gradient(135deg,#3b82f6,#2563eb);border:none;border-radius:9px;color:#fff;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:opacity 0.15s;">Сохранить</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Feedback Modal -->
     <div id="feedbackModal" onclick="if(event.target===this)GatewayApp.ui.closeFeedback()" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);align-items:center;justify-content:center;">
@@ -2066,6 +2094,18 @@
             closeFeedback: () => {
                 document.getElementById('feedbackModal').style.display = 'none';
             },
+            openChangePassword: () => {
+                document.getElementById('changePwModal').style.display = 'flex';
+                document.getElementById('pwCurrent').value = '';
+                document.getElementById('pwNew').value = '';
+                document.getElementById('pwConfirm').value = '';
+                document.getElementById('changePwStatus').textContent = '';
+                document.getElementById('changePwBtn').disabled = false;
+                document.getElementById('pwCurrent').focus();
+            },
+            closeChangePassword: () => {
+                document.getElementById('changePwModal').style.display = 'none';
+            },
             openHistoryModal: (ip) => {
                 if (!ip) {
                     // Show aggregate summary
@@ -2463,6 +2503,36 @@
                 }
             },
 
+            logout: async () => {
+                await utils.apiCall('/logout', { method: 'POST' });
+                window.location.href = '/';
+            },
+            changePassword: async () => {
+                const current  = document.getElementById('pwCurrent').value;
+                const newPw    = document.getElementById('pwNew').value;
+                const confirm  = document.getElementById('pwConfirm').value;
+                const statusEl = document.getElementById('changePwStatus');
+                const btn      = document.getElementById('changePwBtn');
+                if (!current || !newPw || !confirm) {
+                    statusEl.style.color = '#fca5a5'; statusEl.textContent = 'Заполните все поля'; return;
+                }
+                if (newPw !== confirm) {
+                    statusEl.style.color = '#fca5a5'; statusEl.textContent = 'Пароли не совпадают'; return;
+                }
+                if (newPw.length < 6) {
+                    statusEl.style.color = '#fca5a5'; statusEl.textContent = 'Минимум 6 символов'; return;
+                }
+                btn.disabled = true;
+                const res = await utils.apiCall('/auth/password', { method: 'POST', body: JSON.stringify({ current_password: current, new_password: newPw }) });
+                if (res && res.ok) {
+                    statusEl.style.color = '#86efac'; statusEl.textContent = 'Пароль изменён';
+                    setTimeout(() => { window.location.href = '/'; }, 1200);
+                } else {
+                    statusEl.style.color = '#fca5a5';
+                    statusEl.textContent = res?.detail || 'Ошибка';
+                    btn.disabled = false;
+                }
+            },
             submitFeedback: async () => {
                 const name = document.getElementById('feedbackName').value.trim();
                 const message = document.getElementById('feedbackText').value.trim();
