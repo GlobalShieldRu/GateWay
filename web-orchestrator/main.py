@@ -364,7 +364,7 @@ async def get_network_status():
             r = await client.get("http://ip-api.com/json")
             if r.status_code == 200:
                 d = r.json()
-                direct = {"ip": d.get("query"), "country": d.get("countryCode"), "status": "ok"}
+                direct = {"ip": d.get("query"), "country": d.get("countryCode"), "isp": d.get("isp", ""), "org": d.get("org", ""), "status": "ok"}
     except Exception:
         pass
 

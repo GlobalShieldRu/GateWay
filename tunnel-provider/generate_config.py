@@ -135,6 +135,7 @@ def main():
 
             if rulesets.get('rkn_bypass', True):
                 device_sub.append(f"GEOSITE,youtube,{target}")
+                device_sub.append(f"GEOSITE,tiktok,{target}")
                 device_sub.append(f"GEOSITE,meta,{target}")
                 device_sub.append(f"GEOSITE,instagram,{target}")
                 device_sub.append(f"GEOSITE,twitter,{target}")
