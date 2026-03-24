@@ -1,33 +1,25 @@
-# ── Stage 1: Компиляция generate_config.py в бинарник ────────
-FROM python:3.11-slim AS builder
-WORKDIR /build
-RUN pip install --no-cache-dir pyinstaller httpx PyYAML
-COPY generate_config.py .
-RUN pyinstaller --onefile --name generate_config generate_config.py
-
-# ── Stage 2: Runtime ──────────────────────────────────────────
 FROM debian:bookworm-slim
 ARG DEBIAN_FRONTEND=noninteractive
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl ca-certificates python3 inotify-tools gzip \
+    curl ca-certificates python3 python3-pip inotify-tools gzip \
+    && pip3 install --no-cache-dir --break-system-packages httpx PyYAML \
     && rm -rf /var/lib/apt/lists/*
 
-# Поднимаем версию до максимально стабильной из ветки 1.18
 ENV MIHOMO_VERSION="v1.18.10"
 
-# Скачиваем ТОЛЬКО ядро. Оффлайн базы удалены, так как теперь работают Rule Providers
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then PKG="linux-arm64"; \
     elif [ "$ARCH" = "x86_64" ]; then PKG="linux-amd64-compatible"; \
+    elif [ "$ARCH" = "armv7l" ]; then PKG="linux-armv7l"; \
     else echo "Unsupported arch: $ARCH" && exit 1; fi && \
     curl -fL "https://github.com/MetaCubeX/mihomo/releases/download/${MIHOMO_VERSION}/mihomo-${PKG}-${MIHOMO_VERSION}.gz" | gzip -d > /usr/local/bin/mihomo && \
     chmod +x /usr/local/bin/mihomo && \
     mkdir -p /etc/mihomo
 
-# Бинарник из builder-стадии (исходник generate_config.py в runtime не попадает)
-COPY --from=builder /build/dist/generate_config /usr/local/bin/generate_config
+COPY generate_config.py /usr/local/bin/generate_config.py
+RUN chmod +x /usr/local/bin/generate_config.py
 
 COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh
