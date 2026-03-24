@@ -148,49 +148,7 @@ sed -i "s|GSG_GATEWAY_IP=.*|GSG_GATEWAY_IP=${GATEWAY_IP}|g" docker-compose.yml
 
 success "Docker конфиг записан"
 
-# ── Статический IP ────────────────────────────
-info "Настройка статического IP ${GATEWAY_IP} на ${LAN_IFACE}..."
-
-# Метод 1: /etc/network/interfaces.d/ (Debian / Raspberry Pi OS)
-if [ -d /etc/network/interfaces.d ] || [ -f /etc/network/interfaces ]; then
-    mkdir -p /etc/network/interfaces.d
-    # Убираем DHCP для этого интерфейса из основного файла
-    if [ -f /etc/network/interfaces ]; then
-        sed -i "/^auto ${LAN_IFACE}/d" /etc/network/interfaces
-        sed -i "/^allow-hotplug ${LAN_IFACE}/d" /etc/network/interfaces
-        sed -i "/^iface ${LAN_IFACE} inet/d" /etc/network/interfaces
-    fi
-    # Пишем статический конфиг в отдельный файл
-    cat > /etc/network/interfaces.d/gsg-lan.conf << EOF
-auto ${LAN_IFACE}
-iface ${LAN_IFACE} inet static
-    address ${GATEWAY_IP}/24
-    gateway ${UPSTREAM_GW}
-    dns-nameservers 8.8.8.8 1.1.1.1
-EOF
-    success "Записано: /etc/network/interfaces.d/gsg-lan.conf"
-fi
-
-# Метод 2: Netplan (Ubuntu 20.04+)
-if command -v netplan &>/dev/null; then
-    cat > /etc/netplan/01-gsg-lan.yaml << EOF
-network:
-  version: 2
-  renderer: networkd
-  ethernets:
-    ${LAN_IFACE}:
-      addresses: [${GATEWAY_IP}/24]
-      dhcp4: false
-      routes:
-        - to: default
-          via: ${UPSTREAM_GW}
-      nameservers:
-        addresses: [8.8.8.8, 1.1.1.1]
-EOF
-    success "Netplan: конфигурация записана (применится в конце установки)"
-fi
-
-success "Конфигурация статического IP записана (применится в конце установки)"
+info "Конфигурация сети будет применена после успешного запуска контейнеров"
 
 # ── Autostart Docker при загрузке ─────────────
 info "Настройка автозапуска GSG при загрузке..."
@@ -331,8 +289,46 @@ echo -e "  Для проверки статуса:"
 echo -e "  ${YELLOW}docker compose -f ${INSTALL_DIR}/docker-compose.yml ps${NC}"
 echo ""
 
-# ── Применяем новый IP в последнюю очередь ────
-# Делаем это в самом конце, чтобы не прерывать установку
+# ── Применяем сетевую конфигурацию в последнюю очередь ───────────────────────
+# Только сейчас — когда контейнеры уже запущены — меняем сеть
+
+# Метод 1: /etc/network/interfaces.d/ (Debian / Raspberry Pi OS)
+if [ -d /etc/network/interfaces.d ] || [ -f /etc/network/interfaces ]; then
+    mkdir -p /etc/network/interfaces.d
+    if [ -f /etc/network/interfaces ]; then
+        sed -i "/^auto ${LAN_IFACE}/d" /etc/network/interfaces
+        sed -i "/^allow-hotplug ${LAN_IFACE}/d" /etc/network/interfaces
+        sed -i "/^iface ${LAN_IFACE} inet/d" /etc/network/interfaces
+    fi
+    cat > /etc/network/interfaces.d/gsg-lan.conf << EOF
+auto ${LAN_IFACE}
+iface ${LAN_IFACE} inet static
+    address ${GATEWAY_IP}/24
+    gateway ${UPSTREAM_GW}
+    dns-nameservers 8.8.8.8 1.1.1.1
+EOF
+    success "Записано: /etc/network/interfaces.d/gsg-lan.conf"
+fi
+
+# Метод 2: Netplan (Ubuntu 20.04+)
+if command -v netplan &>/dev/null; then
+    cat > /etc/netplan/01-gsg-lan.yaml << EOF
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    ${LAN_IFACE}:
+      addresses: [${GATEWAY_IP}/24]
+      dhcp4: false
+      routes:
+        - to: default
+          via: ${UPSTREAM_GW}
+      nameservers:
+        addresses: [8.8.8.8, 1.1.1.1]
+EOF
+    success "Netplan: конфигурация записана"
+fi
+
 if [ "${GATEWAY_IP}" != "${CURRENT_IP}" ]; then
     echo ""
     warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

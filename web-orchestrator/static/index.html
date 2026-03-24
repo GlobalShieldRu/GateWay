@@ -1675,35 +1675,7 @@
                 });
             },
 
-            updateSidebarNetStats: () => {
-                const el = document.getElementById('sidebarNetStats');
-                if (!el) return;
-                const providerIp = state.networkData?.direct?.ip || '—';
-                const providerCc = state.networkData?.direct?.country?.toLowerCase() || '';
-                const providerIspName = state.networkData?.direct?.isp || '';
-                const providerVisual = state.providerLogo
-                    ? `<img src="${state.providerLogo}" height="16" style="border-radius:3px;object-fit:contain;vertical-align:middle;background:rgba(255,255,255,0.06);padding:1px 3px;max-width:60px;" onerror="this.style.display='none'">`
-                    : (providerCc ? `<img src="https://flagcdn.com/20x15/${providerCc}.png" width="20" height="15" style="border-radius:2px;vertical-align:middle;object-fit:cover;" onerror="this.style.display='none'">` : '🌐');
-
-                const today = new Date().toISOString().slice(0, 10);
-                // Use device history for sidebar traffic (matches device list totals)
-                const todayDevDown = Object.values(state.deviceHistory).reduce((s, dh) => s + (dh?.daily?.[today]?.down || 0), 0);
-                const todayDevUp   = Object.values(state.deviceHistory).reduce((s, dh) => s + (dh?.daily?.[today]?.up   || 0), 0);
-                // Fallback to session stats if no history yet
-                const sidebarDown = todayDevDown || state.sessionStats.totalDown;
-                const sidebarUp   = todayDevUp   || state.sessionStats.totalUp;
-                const onlineCount = state.nodes.filter(n => n.status === 'online').length;
-
-                // Shorten ISP name: remove legal suffixes
-                const shortIsp = providerIspName.replace(/\b(pjsc|ojsc|llc|ltd|inc|co\.|as|jsc|ao|oao|zao|msk|spb)\b\.?/gi,'').replace(/\s{2,}/g,' ').trim().slice(0, 24);
-
-                el.innerHTML = `
-                    <div class="metric-pill" style="flex-direction:column;align-items:flex-start;gap:1px;padding:6px 10px;">
-                        <span style="color:var(--muted);font-size:10px;">Провайдер</span>
-                        <span style="display:flex;align-items:center;gap:5px;font-weight:700;color:#f1f5f9;font-family:'JetBrains Mono',monospace;font-size:11px;min-width:0;">${providerVisual}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${providerIspName}">${shortIsp || providerIp}</span></span>
-                    </div>
-                    `;
-            },
+            updateSidebarNetStats: () => {},
 
             renderNodes: () => {
                 const dash = document.getElementById('nodesDashboard');
@@ -1820,19 +1792,27 @@
                         </div>
                     </div>`;
 
+                const devTotal  = state.devices.length;
+                const devOnline = state.devices.filter(d => d.online !== false).length;
+                const devIcons  = ['💻','📱','📺','🖥️','🎮'];
+                const devPreview = state.devices.slice(0,3).map((d,i) =>
+                    `<div title="${d.custom_name || d.hostname || d.ip}" style="width:22px;height:22px;border-radius:6px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.25);display:flex;align-items:center;justify-content:center;font-size:11px;">${devIcons[i % devIcons.length]}</div>`
+                ).join('');
+
                 box.innerHTML = `
-                <!-- Route map: 8-column grid — cols 2 and 7 are both 1fr (equal line lengths) -->
+                <!-- Route map: 8-column grid -->
                 <div style="display:grid;grid-template-columns:90px 1fr 46px 14px 1fr minmax(110px,145px) 1fr auto;grid-template-rows:auto auto;row-gap:12px;align-items:center;margin-bottom:18px;">
 
-                    <!-- Col 1: Provider (spans both rows) -->
-                    <div style="grid-row:1/3;display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center;width:90px;min-width:0;">
-                        <div style="line-height:1;">${directFlag}</div>
-                        <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);">Провайдер</div>
-                        ${directIsp}
-                        <div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:rgba(100,116,139,0.45);max-width:80px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${directIp}</div>
+                    <!-- Col 1: Devices (spans both rows) -->
+                    <div style="grid-row:1/3;display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;width:90px;min-width:0;">
+                        <div style="display:flex;gap:3px;flex-wrap:wrap;justify-content:center;max-width:80px;">
+                            ${devPreview || '<div style="width:22px;height:22px;border-radius:6px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);display:flex;align-items:center;justify-content:center;font-size:11px;">💻</div>'}
+                        </div>
+                        <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);">Устройства</div>
+                        <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#60a5fa;">${devOnline}<span style="font-size:8px;color:var(--muted);font-weight:400;"> / ${devTotal}</span></div>
                     </div>
 
-                    <!-- Col 2: Line provider→GSG (spans both rows, 1fr) -->
+                    <!-- Col 2: Line devices→GSG (spans both rows, 1fr) -->
                     <div style="grid-row:1/3;padding:0 8px;"><div class="route-line">${pkt3}</div></div>
 
                     <!-- Col 3: GSG (spans both rows) -->
@@ -2270,7 +2250,21 @@
                     <div class="metric-pill">
                         <span style="color:var(--muted);">Аптайм</span>
                         <span style="font-weight:600;color:rgba(148,163,184,0.8);">${uptimeStr}</span>
-                    </div>`;
+                    </div>
+                    ${(() => {
+                        const isp = state.networkData?.direct?.isp || '';
+                        const ip  = state.networkData?.direct?.ip  || '';
+                        const cc  = state.networkData?.direct?.country?.toLowerCase() || '';
+                        if (!isp && !ip) return '';
+                        const shortIsp = isp.replace(/\b(pjsc|ojsc|llc|ltd|inc|co\.|as|jsc|ao|oao|zao|msk|spb)\b\.?/gi,'').replace(/\s{2,}/g,' ').trim();
+                        const flag = cc ? `<img src="https://flagcdn.com/16x12/${cc}.png" width="16" height="12" style="border-radius:2px;flex-shrink:0;" onerror="this.style.display='none'">` : '';
+                        return `<div class="metric-pill" style="flex-direction:column;align-items:flex-start;gap:2px;padding:6px 8px;">
+                            <span style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Провайдер</span>
+                            <span style="display:flex;align-items:center;gap:4px;min-width:0;">${flag}<span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#f1f5f9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${isp}">${shortIsp || ip}</span></span>
+                            ${ip ? `<span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(100,116,139,0.6);">${ip}</span>` : ''}
+                        </div>`;
+                    })()}
+                `;
             }
         };
 
