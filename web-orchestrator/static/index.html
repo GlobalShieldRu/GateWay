@@ -78,7 +78,9 @@
         #sidebar {
             width: var(--sidebar-w);
             background: rgba(5,5,12,0.97);
+            background-color: rgb(5,5,12); /* solid fallback for iOS */
             border-right: 1px solid var(--card-border);
+            -webkit-backdrop-filter: blur(40px);
             backdrop-filter: blur(40px);
         }
 
@@ -463,6 +465,10 @@
                 transform: translateX(-100%);
                 transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
                 width: 82vw; max-width: 280px;
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+                height: 100%;
+                background-color: rgb(5,5,12) !important;
             }
             #sidebar.open { transform: translateX(0); }
 
@@ -1157,23 +1163,35 @@
             }
         };
 
-        // Fetch ISP logo via Clearbit autocomplete (free, no API key)
-        const fetchProviderLogo = async (ispName) => {
+        // Resolve ISP logo URL from ISP name (synchronous, domain-based)
+        const ISP_DOMAIN_MAP = [
+            [/rostelecom/i, 'rostelecom.ru'],
+            [/\bmts\b|mts pjsc/i, 'mts.ru'],
+            [/megafon/i, 'megafon.ru'],
+            [/veon|beeline/i, 'beeline.ru'],
+            [/ttk|transtelecom/i, 'ttk.ru'],
+            [/tele2|t2 mobile/i, 'tele2.ru'],
+            [/dom\.ru|ural/i, 'dom.ru'],
+            [/er-telecom|ertelecom/i, 'ertelecom.ru'],
+            [/skynet|skyne/i, 'skynet.ru'],
+            [/comcor|akado/i, 'akado.ru'],
+            [/wifire|netbynet/i, 'wifire.ru'],
+        ];
+        const getIspLogoUrl = (ispName) => {
+            if (!ispName) return null;
+            for (const [re, domain] of ISP_DOMAIN_MAP) {
+                if (re.test(ispName)) return `https://logo.clearbit.com/${domain}`;
+            }
+            return null;
+        };
+        const fetchProviderLogo = (ispName) => {
             if (!ispName || state.providerIsp === ispName) return;
             state.providerIsp = ispName;
-            state.providerLogo = null;
-            try {
-                const r = await fetch(`https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(ispName)}`);
-                if (r.ok) {
-                    const list = await r.json();
-                    if (list && list[0] && list[0].logo) {
-                        state.providerLogo = list[0].logo;
-                        // Re-render to show logo
-                        ui.renderRouteViz();
-                        ui.updateSidebarNetStats();
-                    }
-                }
-            } catch(e) { /* silent fail */ }
+            state.providerLogo = getIspLogoUrl(ispName);
+            if (state.providerLogo) {
+                ui.renderRouteViz();
+                ui.updateSidebarNetStats();
+            }
         };
 
         const ui = {
@@ -1289,6 +1307,9 @@
 
                     const devApps = state.deviceApps[dev.ip] || {};
                     const hasUSApp = ['gemini', 'claude'].some(a => devApps[a]);
+                    const hasTikTok = !!devApps['tiktok'];
+                    const tiktokNode = dev.tiktok_node || 'auto';
+                    const nodeOptions = [['auto','Авто'], ...state.nodes.map(n=>[n.tag, n.tag])].map(([v,l])=>`<option value="${v}"${tiktokNode===v?' selected':''}>${l}</option>`).join('');
                     const appsHtml = `<div style="display:flex;flex-direction:column;gap:4px;">
                         <div style="display:flex;gap:4px;align-items:center;">
                         ${APPS.map(app => {
@@ -1298,6 +1319,7 @@
                         }).join('')}
                         </div>
                         ${hasUSApp ? `<div style="font-size:9px;color:#60a5fa;font-weight:700;font-family:'JetBrains Mono',monospace;display:flex;align-items:center;gap:3px;"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>NY узел</div>` : ''}
+                        ${hasTikTok ? `<div style="display:flex;align-items:center;gap:4px;"><span style="font-size:9px;color:#ee1d52;font-weight:700;flex-shrink:0;">TT →</span><select class="gsg-select tiktok-node-select" data-ip="${dev.ip}" style="font-size:10px;padding:2px 6px;height:22px;min-width:0;flex:1;max-width:120px;" title="Узел для TikTok">${nodeOptions}</select></div>` : ''}
                     </div>`;
 
                     // Compute effective route for this device
@@ -1412,6 +1434,24 @@
             updateTrafficDOM: () => {
                 if (!state.traffic) return;
                 const today = new Date().toISOString().slice(0, 10);
+                const thisMonth = today.slice(0, 7);
+                // Also update history columns for devices that have saved history but no live traffic
+                Object.keys(state.deviceHistory).forEach(ip => {
+                    if (state.traffic[ip]) return; // handled below
+                    const hd = state.deviceHistory[ip];
+                    if (!hd) return;
+                    const todayH = hd.daily?.[today];
+                    const monthH = hd.monthly?.[thisMonth] || {down:0, up:0};
+                    const dayEl = document.querySelector(`.dev-hist-day[data-ip="${ip}"]`);
+                    const monEl = document.querySelector(`.dev-hist-month[data-ip="${ip}"]`);
+                    const allEl = document.querySelector(`.dev-hist-all[data-ip="${ip}"]`);
+                    const dayTot = todayH ? todayH.down + todayH.up : 0;
+                    const monTot = monthH.down + monthH.up;
+                    const allTot = (hd.alltime_down||0) + (hd.alltime_up||0);
+                    if (dayEl) dayEl.textContent = dayTot > 0 ? utils.formatBytes(dayTot) : '—';
+                    if (monEl) monEl.textContent = monTot > 0 ? utils.formatBytes(monTot) : '—';
+                    if (allEl) allEl.textContent = allTot > 0 ? utils.formatBytes(allTot) : '—';
+                });
                 Object.keys(state.traffic).forEach(ip => {
                     const data = state.traffic[ip];
                     const downEl = document.querySelector(`.traffic-down[data-ip="${ip}"]`);
@@ -2014,8 +2054,10 @@
         };
 
         const actions = {
-            updateDeviceSettings: utils.debounce(async (ip, mode, assignedNode) => {
-                const result = await utils.apiCall(`/devices/${ip}`, { method: 'PUT', body: JSON.stringify({ mode, assigned_node: assignedNode }) });
+            updateDeviceSettings: utils.debounce(async (ip, mode, assignedNode, tiktokNode) => {
+                const dev = state.devices.find(d => d.ip === ip);
+                const curTiktok = tiktokNode !== undefined ? tiktokNode : (dev?.tiktok_node || 'auto');
+                const result = await utils.apiCall(`/devices/${ip}`, { method: 'PUT', body: JSON.stringify({ mode, assigned_node: assignedNode, tiktok_node: curTiktok }) });
                 if (result) actions.fetchData();
             }, 400),
 
@@ -2197,6 +2239,12 @@
                 if (data) {
                     state.deviceHistory = data.devices || {};
                     state.nodeHistory   = data.nodes   || {};
+                    // Debug: if nodeHistory is empty but we have nodes, log live stats for diagnosis
+                    if (Object.keys(state.nodeHistory).length === 0 && state.nodes.length > 0) {
+                        utils.apiCall('/debug/node-stats').then(dbg => {
+                            if (dbg) console.log('[GSG] Node stats debug:', dbg, 'Expected tags:', state.nodes.map(n=>n.tag));
+                        });
+                    }
                     const sched = data.schedule || {};
                     const typeEl = document.getElementById('scheduleTypeSelect');
                     if (typeEl) typeEl.value = sched.type || 'never';
@@ -2278,6 +2326,9 @@
                 const row = e.target.closest('[data-ip]');
                 if (e.target.classList.contains('device-toggle')) {
                     actions.updateDeviceSettings(ip, e.target.checked ? 'smart' : 'bypass', 'auto');
+                } else if (e.target.classList.contains('tiktok-node-select')) {
+                    const dev = state.devices.find(d => d.ip === ip);
+                    actions.updateDeviceSettings(ip, dev?.mode || 'smart', dev?.assigned_node || 'auto', e.target.value);
                 } else if (e.target.classList.contains('device-mode-select') || e.target.classList.contains('device-node-select')) {
                     const modeEl = document.querySelector(`.device-mode-select[data-ip="${ip}"]`);
                     const nodeEl = document.querySelector(`.device-node-select[data-ip="${ip}"]`);

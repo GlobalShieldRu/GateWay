@@ -135,7 +135,15 @@ def main():
 
             if rulesets.get('rkn_bypass', True):
                 device_sub.append(f"GEOSITE,youtube,{target}")
-                device_sub.append(f"GEOSITE,tiktok,{target}")
+                # TikTok: use per-device tiktok_node if set, else device target
+                tiktok_raw = info.get('tiktok_node', 'auto')
+                tiktok_target = target  # default
+                if tiktok_raw and tiktok_raw != 'auto':
+                    for name in node_names:
+                        if tiktok_raw.lower() in name.lower():
+                            tiktok_target = name
+                            break
+                device_sub.append(f"GEOSITE,tiktok,{tiktok_target}")
                 device_sub.append(f"GEOSITE,meta,{target}")
                 device_sub.append(f"GEOSITE,instagram,{target}")
                 device_sub.append(f"GEOSITE,twitter,{target}")

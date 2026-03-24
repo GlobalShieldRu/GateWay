@@ -235,6 +235,14 @@ async def get_traffic_nodes():
 async def get_traffic_history():
     return {"devices": traffic_history.data, "nodes": traffic_history.nodes, "schedule": traffic_history.schedule}
 
+@app.get("/api/debug/node-stats")
+async def debug_node_stats():
+    """Debug: show raw node_stats keys and totals to help diagnose node traffic matching."""
+    return {
+        "live_node_stats": {k: {"up": v["total_up"], "down": v["total_down"]} for k, v in monitor.node_stats.items()},
+        "history_node_keys": list(traffic_history.nodes.keys()),
+    }
+
 class TrafficResetRequest(BaseModel):
     scope: str  # all, daily, monthly, yearly
     ip: Optional[str] = None
@@ -321,6 +329,7 @@ async def ping_tcp(host: str, port: int, timeout: float = 1.0):
 class DeviceUpdate(BaseModel):
     mode: str
     assigned_node: str
+    tiktok_node: str = "auto"
 
 class RulesUpdate(BaseModel):
     direct: List[str]
@@ -407,14 +416,15 @@ async def get_devices():
         result.append({
             **d,
             "mode": conf.get("mode", "smart"),
-            "assigned_node": conf.get("assigned_node", "auto")
+            "assigned_node": conf.get("assigned_node", "auto"),
+            "tiktok_node": conf.get("tiktok_node", "auto")
         })
     return result
 
 @app.put("/api/devices/{ip}")
 async def update_device(ip: str, data: DeviceUpdate):
     configs = await read_json(GSG_DEVICES_FILE, {})
-    configs[ip] = {"mode": data.mode, "assigned_node": data.assigned_node}
+    configs[ip] = {"mode": data.mode, "assigned_node": data.assigned_node, "tiktok_node": data.tiktok_node}
     async with aiofiles.open(GSG_DEVICES_FILE, 'w') as f:
         await f.write(json.dumps(configs, indent=2))
     async with aiofiles.open(GSG_CONFIG_DIR / ".reload_nftables", 'w') as f:
