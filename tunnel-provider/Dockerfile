@@ -12,7 +12,7 @@ ENV MIHOMO_VERSION="v1.18.10"
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then PKG="linux-arm64"; \
     elif [ "$ARCH" = "x86_64" ]; then PKG="linux-amd64-compatible"; \
-    elif [ "$ARCH" = "armv7l" ]; then PKG="linux-armv7l"; \
+    elif [ "$ARCH" = "armv7l" ]; then PKG="linux-armv7"; \
     else echo "Unsupported arch: $ARCH" && exit 1; fi && \
     curl -fL "https://github.com/MetaCubeX/mihomo/releases/download/${MIHOMO_VERSION}/mihomo-${PKG}-${MIHOMO_VERSION}.gz" | gzip -d > /usr/local/bin/mihomo && \
     chmod +x /usr/local/bin/mihomo && \
