@@ -63,7 +63,7 @@ def _verify_token(token: str | None) -> bool:
     return token == auth.get("token")
 
 # Public paths that don't require authentication
-_PUBLIC = {"/api/login", "/api/auth/check"}
+_PUBLIC = {"/api/login", "/api/auth/check", "/api/auth/setup"}
 
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -71,11 +71,16 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # Allow public API paths and static assets
         if path in _PUBLIC or path.startswith("/static/"):
             return await call_next(request)
+        # If auth is not configured yet — show setup page
+        auth = _load_auth()
+        if not auth.get("hash"):
+            if path.startswith("/api/"):
+                return JSONResponse({"detail": "Setup required"}, status_code=403)
+            return FileResponse("static/setup.html")
         token = request.cookies.get("gsg_token")
         if not _verify_token(token):
             if path.startswith("/api/"):
                 return JSONResponse({"detail": "Unauthorized"}, status_code=401)
-            # For the root page, return login page
             return FileResponse("static/login.html")
         return await call_next(request)
 
@@ -824,6 +829,22 @@ class LoginRequest(BaseModel):
 class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
+
+@app.post("/api/auth/setup")
+async def auth_setup(req: LoginRequest, response: Response):
+    """First-time password setup. Only works if no password is configured yet."""
+    auth = _load_auth()
+    if auth.get("hash"):
+        raise HTTPException(status_code=403, detail="Already configured")
+    if len(req.password) < 6:
+        raise HTTPException(status_code=400, detail="Пароль должен быть не менее 6 символов")
+    salt = secrets.token_hex(16)
+    auth = {"salt": salt, "hash": _hash_password(req.password, salt)}
+    token = secrets.token_urlsafe(32)
+    auth["token"] = token
+    _save_auth(auth)
+    response.set_cookie("gsg_token", token, httponly=True, samesite="lax", max_age=30*24*3600)
+    return {"ok": True}
 
 @app.get("/api/auth/check")
 async def auth_check(request: Request):

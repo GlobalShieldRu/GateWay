@@ -1784,8 +1784,8 @@
                 const directFlag = state.providerLogo
                     ? `<img src="${state.providerLogo}" width="44" height="44" style="border-radius:10px;object-fit:contain;background:rgba(255,255,255,0.08);padding:4px;box-shadow:0 2px 8px rgba(0,0,0,0.4);" onerror="this.outerHTML='${directCc ? `<img src=\\'https://flagcdn.com/40x30/${directCc}.png\\' width=\\'40\\' height=\\'30\\' style=\\'border-radius:4px;\\'>` : '🌐'}';">`
                     : (directCc ? `<img src="https://flagcdn.com/40x30/${directCc}.png" width="40" height="30" style="border-radius:4px;object-fit:cover;box-shadow:0 2px 8px rgba(0,0,0,0.4);" onerror="this.outerHTML='🌐'">` : '⏳');
-                const shortIspViz = ispName.replace(/\b(pjsc|ojsc|llc|ltd|inc|co\.|as|jsc|ao|oao|zao|msk|spb)\b\.?/gi,'').replace(/["'«»]/g,'').replace(/\s{2,}/g,' ').trim().slice(0,22);
-                const directIsp  = ispName ? `<div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:rgba(148,163,184,0.7);max-width:80px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;" title="${ispName}">${shortIspViz}</div>` : '';
+                const shortIspViz = ispName.replace(/\b(pjsc|ojsc|llc|ltd|inc|co\.|as|jsc|ao|oao|zao|msk|spb)\b\.?/gi,'').replace(/["'«»]/g,'').replace(/\s{2,}/g,' ').trim();
+                const directIsp  = ispName ? `<div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:rgba(148,163,184,0.7);max-width:90px;word-break:break-word;text-align:center;line-height:1.3;" title="${ispName}">${shortIspViz}</div>` : '';
                 const directIp   = data ? (data.direct.ip || '—') : '...';
                 const tunnelOk   = data && data.tunnel.status === 'ok';
 
@@ -1822,10 +1822,10 @@
 
                 box.innerHTML = `
                 <!-- Route map: 8-column grid — cols 2 and 7 are both 1fr (equal line lengths) -->
-                <div style="display:grid;grid-template-columns:70px 1fr 46px 14px 1fr minmax(110px,145px) 1fr auto;grid-template-rows:auto auto;row-gap:12px;align-items:center;margin-bottom:18px;">
+                <div style="display:grid;grid-template-columns:90px 1fr 46px 14px 1fr minmax(110px,145px) 1fr auto;grid-template-rows:auto auto;row-gap:12px;align-items:center;margin-bottom:18px;">
 
                     <!-- Col 1: Provider (spans both rows) -->
-                    <div style="grid-row:1/3;display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center;width:80px;overflow:hidden;min-width:0;">
+                    <div style="grid-row:1/3;display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center;width:90px;min-width:0;">
                         <div style="line-height:1;">${directFlag}</div>
                         <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);">Провайдер</div>
                         ${directIsp}

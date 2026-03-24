@@ -187,7 +187,7 @@ network:
       nameservers:
         addresses: [8.8.8.8, 1.1.1.1]
 EOF
-    netplan apply 2>/dev/null && success "Netplan: статический IP применён" || warn "Netplan apply не удался, будет применён после перезагрузки"
+    success "Netplan: конфигурация записана (применится в конце установки)"
 fi
 
 success "Конфигурация статического IP записана (применится в конце установки)"
