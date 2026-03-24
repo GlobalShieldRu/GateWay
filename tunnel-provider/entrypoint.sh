@@ -30,7 +30,7 @@ if [ "$HAS_URL" = "yes" ]; then
 
     for attempt in $(seq 1 $MAX_ATTEMPTS); do
         echo "[INFO] Загрузка подписки (попытка ${attempt}/${MAX_ATTEMPTS})..."
-        generate_config
+        python3 /usr/local/bin/generate_config.py
 
         NODE_COUNT=$(python3 -c "
 import json
@@ -55,14 +55,14 @@ except:
     done
 else
     echo "[INFO] URL подписки не задан — генерируем минимальный конфиг"
-    generate_config
+    python3 /usr/local/bin/generate_config.py
 fi
 
 # ── Мониторинг изменений (на лету) ───────────────────────────
 inotifywait -m -e close_write,moved_to,create "$GSG_CONFIG_DIR" 2>/dev/null | while read path action file; do
     if [ "$file" = ".reload_singbox" ] || [ "$file" = "devices.json" ] || [ "$file" = "subscription.json" ]; then
         echo "[INFO] Hot-Reload: $file изменён"
-        generate_config
+        python3 /usr/local/bin/generate_config.py
 
         curl -s -X PUT -H "Content-Type: application/json" \
             -d '{"path": "/etc/mihomo/config.yaml"}' \
