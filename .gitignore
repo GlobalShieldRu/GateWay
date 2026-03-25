@@ -1,8 +1,6 @@
 # Claude Code
 .claude/
 
-# Proprietary assets
-web-orchestrator/static/logo.png
 
 # Runtime / secrets (created on device, not tracked)
 /etc/gsg/
