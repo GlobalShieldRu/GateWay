@@ -198,15 +198,35 @@ systemctl daemon-reload
 systemctl enable gsg.service
 success "Автозапуск включён (systemd: gsg.service)"
 
-# ── Сборка и запуск ───────────────────────────
+# ── Выбор зеркала PyPI ────────────────────────
 echo ""
-info "Проверка доступности PyPI..."
+info "Выбор зеркала PyPI..."
 PIP_BUILD_ARGS=""
-if ! curl -sf --max-time 5 https://pypi.org/simple/ > /dev/null 2>&1; then
-    warn "pypi.org недоступен — используем зеркало mirrors.aliyun.com"
-    PIP_BUILD_ARGS="--build-arg PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/"
+PYPI_MIRRORS=(
+    "https://pypi.org/simple/"
+    "https://repo.huaweicloud.com/repository/pypi/simple/"
+    "https://pypi.tuna.tsinghua.edu.cn/simple/"
+    "https://mirrors.aliyun.com/pypi/simple/"
+)
+SELECTED_MIRROR=""
+for mirror in "${PYPI_MIRRORS[@]}"; do
+    if curl -sf --max-time 5 "${mirror}httpx/" > /dev/null 2>&1; then
+        SELECTED_MIRROR="$mirror"
+        break
+    fi
+done
+if [ -z "$SELECTED_MIRROR" ]; then
+    error "Ни одно зеркало PyPI недоступно. Проверьте подключение к интернету."
+fi
+if [ "$SELECTED_MIRROR" != "https://pypi.org/simple/" ]; then
+    warn "pypi.org недоступен — используем зеркало: ${SELECTED_MIRROR}"
+    PIP_BUILD_ARGS="--build-arg PIP_INDEX_URL=${SELECTED_MIRROR}"
+else
+    success "PyPI доступен напрямую"
 fi
 
+# ── Сборка и запуск ───────────────────────────
+echo ""
 info "Сборка Docker образов (может занять несколько минут)..."
 docker compose build $PIP_BUILD_ARGS
 
