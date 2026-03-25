@@ -206,6 +206,35 @@ systemctl daemon-reload
 systemctl enable gsg.service
 success "Автозапуск включён (systemd: gsg.service)"
 
+# ── Network Watchdog ───────────────────────────────────────────────────────────
+info "Установка сетевого watchdog..."
+cp "${INSTALL_DIR}/gsg-netwatch.sh" /usr/local/bin/gsg-netwatch
+chmod +x /usr/local/bin/gsg-netwatch
+
+# Restore static config if it was renamed by a previous recovery
+IFACE_CONF="/etc/network/interfaces.d/gsg-lan.conf"
+[ -f "${IFACE_CONF}.bak" ] && mv "${IFACE_CONF}.bak" "${IFACE_CONF}" 2>/dev/null || true
+
+cat > /etc/systemd/system/gsg-netwatch.service << EOF
+[Unit]
+Description=GSG Network Watchdog (gateway loss → DHCP fallback)
+After=network-online.target gsg.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/gsg-netwatch
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable gsg-netwatch.service
+systemctl restart gsg-netwatch.service 2>/dev/null || systemctl start gsg-netwatch.service
+success "Network watchdog включён (systemd: gsg-netwatch.service)"
+
 # ── Выбор зеркала PyPI ────────────────────────
 echo ""
 info "Выбор зеркала PyPI..."

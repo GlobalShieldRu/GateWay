@@ -451,18 +451,31 @@ async def parse_arp_and_leases():
 
     if DNSMASQ_LEASES.exists():
         try:
+            # Build mac→hostname map from leases for fallback matching
+            mac_hostname: dict = {}
             async with aiofiles.open(DNSMASQ_LEASES, 'r') as f:
                 async for line in f:
                     parts = line.strip().split()
                     if len(parts) >= 4:
                         ip = parts[2]
+                        mac = parts[1].lower()
+                        hostname = parts[3] if parts[3] != "*" else ""
+                        if not hostname:
+                            continue
+                        if hostname:
+                            mac_hostname[mac] = hostname
                         if ip.startswith(lan_prefix) and not ip.startswith("172."):
-                            hostname = parts[3] if parts[3] != "*" else "Unknown"
                             if ip in devices:
                                 if devices[ip]["hostname"] in ["Устройство", "Unknown"]:
                                     devices[ip]["hostname"] = hostname
                             else:
-                                devices[ip] = {"ip": ip, "mac": parts[1], "hostname": hostname}
+                                devices[ip] = {"ip": ip, "mac": mac, "hostname": hostname}
+            # Second pass: fix devices whose IP changed since last lease (match by MAC)
+            for dev in devices.values():
+                if dev["hostname"] in ["Устройство", "Unknown"]:
+                    name = mac_hostname.get(dev["mac"].lower(), "")
+                    if name:
+                        dev["hostname"] = name
         except Exception:
             pass
 
