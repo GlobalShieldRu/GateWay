@@ -392,7 +392,55 @@
 
         /* Tab content */
         .tab-content { display: none; }
-        .tab-content.active { display: block; }
+        .tab-content.active { display: block; animation: tabFadeIn 0.2s ease-out forwards; }
+        @keyframes tabFadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Skeleton loading */
+        .skeleton {
+            background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%);
+            background-size: 200% 100%;
+            animation: skelShimmer 1.5s infinite;
+            border-radius: 6px;
+        }
+        @keyframes skelShimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        .skel-line { height: 12px; margin-bottom: 6px; }
+        .skel-line.short { width: 40%; }
+        .skel-line.medium { width: 65%; }
+        .skel-line.full { width: 100%; }
+
+        /* Context menu */
+        #ctxMenu {
+            position: fixed;
+            background: rgba(15,20,35,0.98);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 6px;
+            z-index: 9000;
+            backdrop-filter: blur(16px);
+            box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+            min-width: 180px;
+            display: none;
+        }
+        #ctxMenu .ctx-item {
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-family: 'Syne', sans-serif;
+            color: #94a3b8;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.1s;
+        }
+        #ctxMenu .ctx-item:hover { background: rgba(255,255,255,0.06); color: #f1f5f9; }
+        #ctxMenu .ctx-sep { height: 1px; background: rgba(255,255,255,0.06); margin: 4px 0; }
 
         /* Logs */
         .logs-scroll::-webkit-scrollbar { width: 5px; }
@@ -686,6 +734,10 @@
             <div class="nav-item expert-item" id="nav-connections" onclick="GatewayApp.ui.switchTab('tab-connections', this)" style="display:flex;">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
                 Соединения
+            </div>
+            <div class="nav-item expert-item" id="nav-stats" onclick="GatewayApp.ui.switchTab('tab-stats', this)" style="display:flex;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                Статистика
             </div>
         </nav>
 
@@ -1002,18 +1054,26 @@
 
             <!-- Proxy/Logs tab -->
             <div id="tab-proxy" class="tab-content expert-item reveal reveal-2">
-                <div class="glass" style="padding:24px;">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                <div class="glass" style="padding:24px;display:flex;flex-direction:column;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-shrink:0;flex-wrap:wrap;gap:10px;">
                         <div style="font-size:15px;font-weight:800;color:#f1f5f9;display:flex;align-items:center;gap:8px;">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
-                            Журнал ядра (sing-box)
+                            Журнал ядра (Mihomo)
                         </div>
-                        <div style="display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.2);">
-                            <div class="pulse-dot green"></div>
-                            <span style="font-size:11px;font-weight:700;color:#34d399;">Live</span>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <div id="logLevelBadge" style="display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:rgba(100,116,139,0.1);border:1px solid rgba(100,116,139,0.2);">
+                                <div class="pulse-dot" id="logLevelDot" style="width:6px;height:6px;border-radius:50%;background:#64748b;flex-shrink:0;"></div>
+                                <span style="font-size:11px;font-weight:700;color:#64748b;" id="logLevelLabel">—</span>
+                            </div>
+                            <select id="logLevelSelect" onchange="GatewayApp.actions.setLogLevel(this.value)" style="padding:5px 10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#94a3b8;font-family:'Syne',sans-serif;font-size:12px;outline:none;cursor:pointer;">
+                                <option value="silent">Silent (выкл)</option>
+                                <option value="warning">Warning</option>
+                                <option value="info">Info</option>
+                                <option value="debug">Debug</option>
+                            </select>
                         </div>
                     </div>
-                    <div id="systemLogsBox" class="logs-scroll" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:rgba(100,116,139,0.8);background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:16px;height:380px;overflow-y:auto;white-space:pre;line-height:1.7;">
+                    <div id="systemLogsBox" class="logs-scroll" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:rgba(100,116,139,0.8);background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:16px;height:600px;overflow-y:auto;white-space:pre;line-height:1.7;">
                         <span style="color:var(--emerald);">[INFO]</span> Ожидание инициализации логов...
                     </div>
                 </div>
@@ -1059,14 +1119,79 @@
                         <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">Через</span>
                         <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;text-align:right;">Трафик</span>
                     </div>
-                    <div id="connectionsBox" class="logs-scroll" style="height:560px;overflow-y:auto;">
-                        <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:13px;">Загрузка...</div>
+                    <div id="connectionsBox" class="logs-scroll" style="overflow-y:auto;">
+                        <div style="padding:8px 0;">
+                          <div style="display:flex;flex-direction:column;gap:10px;">
+                            <div style="display:grid;grid-template-columns:180px 1fr 90px 100px;gap:10px;padding:7px 10px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);">
+                              <div><div class="skeleton skel-line medium"></div><div class="skeleton skel-line short" style="margin-top:4px;height:8px;"></div></div>
+                              <div><div class="skeleton skel-line full"></div></div>
+                              <div><div class="skeleton skel-line medium"></div></div>
+                              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;"><div class="skeleton skel-line" style="width:60px;"></div><div class="skeleton skel-line" style="width:60px;"></div></div>
+                            </div>
+                            <div style="display:grid;grid-template-columns:180px 1fr 90px 100px;gap:10px;padding:7px 10px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);">
+                              <div><div class="skeleton skel-line medium"></div><div class="skeleton skel-line short" style="margin-top:4px;height:8px;"></div></div>
+                              <div><div class="skeleton skel-line full"></div></div>
+                              <div><div class="skeleton skel-line medium"></div></div>
+                              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;"><div class="skeleton skel-line" style="width:60px;"></div><div class="skeleton skel-line" style="width:60px;"></div></div>
+                            </div>
+                            <div style="display:grid;grid-template-columns:180px 1fr 90px 100px;gap:10px;padding:7px 10px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);">
+                              <div><div class="skeleton skel-line medium"></div><div class="skeleton skel-line short" style="margin-top:4px;height:8px;"></div></div>
+                              <div><div class="skeleton skel-line full"></div></div>
+                              <div><div class="skeleton skel-line medium"></div></div>
+                              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;"><div class="skeleton skel-line" style="width:60px;"></div><div class="skeleton skel-line" style="width:60px;"></div></div>
+                            </div>
+                            <div style="display:grid;grid-template-columns:180px 1fr 90px 100px;gap:10px;padding:7px 10px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);">
+                              <div><div class="skeleton skel-line medium"></div><div class="skeleton skel-line short" style="margin-top:4px;height:8px;"></div></div>
+                              <div><div class="skeleton skel-line full"></div></div>
+                              <div><div class="skeleton skel-line medium"></div></div>
+                              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;"><div class="skeleton skel-line" style="width:60px;"></div><div class="skeleton skel-line" style="width:60px;"></div></div>
+                            </div>
+                          </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats tab -->
+            <div id="tab-stats" class="tab-content expert-item reveal reveal-2">
+                <div class="glass" style="padding:24px;margin-bottom:16px;">
+                    <div style="font-size:15px;font-weight:800;color:#f1f5f9;margin-bottom:20px;display:flex;align-items:center;gap:8px;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                        Статистика трафика
+                    </div>
+                    <div style="margin-bottom:20px;">
+                        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;">Топ устройств сегодня</div>
+                        <div id="statsDeviceList" style="display:flex;flex-direction:column;gap:8px;"></div>
+                    </div>
+                    <div>
+                        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;">Распределение маршрутов</div>
+                        <div id="statsRouteChart" style="display:flex;gap:12px;flex-wrap:wrap;"></div>
+                    </div>
+                </div>
+                <div class="glass" style="padding:24px;">
+                    <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;">Live трафик (последние 60 сек)</div>
+                    <div style="position:relative;height:220px;">
+                        <canvas id="statsLiveChart" style="position:absolute;top:0;left:0;width:100%;height:100%;display:block;"></canvas>
+                        <div id="statsChartTooltip" style="position:absolute;pointer-events:none;display:none;background:rgba(10,9,8,0.95);border:1px solid rgba(251,191,36,0.2);border-radius:8px;padding:8px 12px;font-size:11px;color:#f1f5f9;white-space:nowrap;z-index:10;box-shadow:0 4px 16px rgba(0,0,0,0.5);"></div>
                     </div>
                 </div>
             </div>
 
         </main>
     </div>
+</div>
+
+<!-- Toast container -->
+<div id="toastContainer" style="position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column-reverse;gap:8px;pointer-events:none;"></div>
+
+<!-- Context menu -->
+<div id="ctxMenu">
+    <div class="ctx-item" id="ctxRename">✏️ Переименовать</div>
+    <div class="ctx-item" id="ctxVPN">🌐 Через VPN</div>
+    <div class="ctx-item" id="ctxSmart">⚡ Smart</div>
+    <div class="ctx-item" id="ctxDirect">🔓 Напрямую</div>
+    <div class="ctx-sep"></div>
+    <div class="ctx-item" id="ctxBlock" style="color:#ef4444;">🚫 Блокировать</div>
 </div>
 
 <script>
@@ -1275,7 +1400,10 @@
             providerLogo: null,
             providerIsp: '',
             sortBy: 'hostname',
-            sortDir: 1
+            sortDir: 1,
+            deviceSparklines: {},
+            _trafficHistory: [],
+            _trafficHistoryDevices: []
         };
 
         const utils = {
@@ -1328,6 +1456,16 @@
                 const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
                 const i = Math.floor(Math.log(bytes) / Math.log(k));
                 return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+            },
+            sparkline: (data, color = '#10b981', width = 60, height = 20) => {
+                if (!data || data.length < 2) return '';
+                const max = Math.max(...data, 1);
+                const pts = data.map((v, i) => {
+                    const x = (i / (data.length - 1)) * width;
+                    const y = height - (v / max) * height;
+                    return `${x},${y}`;
+                }).join(' ');
+                return `<svg width="${width}" height="${height}" style="display:block;"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
             }
         };
 
@@ -1390,10 +1528,20 @@
                 // Switch tabs
                 document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
                 const tab = document.getElementById(tabId);
-                if (tab) tab.classList.add('active');
+                if (tab) {
+                    tab.classList.add('active');
+                    // Re-trigger tab fade animation
+                    tab.style.animation = 'none';
+                    tab.offsetHeight; // reflow
+                    tab.style.animation = '';
+                }
 
                 // Immediately fetch connections when switching to that tab
                 if (tabId === 'tab-connections') actions.fetchConnections();
+
+                // Render stats when switching to stats tab (rAF — wait for layout)
+                if (tabId === 'tab-stats') requestAnimationFrame(() => requestAnimationFrame(() => ui.renderStats()));
+                if (tabId === 'tab-proxy') actions.fetchLogLevel();
 
                 // Close mobile sidebar
                 if (window.innerWidth < 768) {
@@ -1419,6 +1567,8 @@
                 } else {
                     // Show nav items
                     document.querySelectorAll('.expert-item.nav-item').forEach(el => el.style.display = 'flex');
+                    // Activate devices tab (CSS-class based system needs explicit activation)
+                    ui.switchTab('tab-devices', document.getElementById('nav-devices'));
                 }
 
                 ui.renderDevices(state.devices);
@@ -1537,7 +1687,7 @@
                         routeHtml = `<div style="font-size:11px;color:var(--muted);">Нет узлов</div>`;
                     }
 
-                    return `<div data-ip="${dev.ip}" class="device-row-item dev-row-grid" onmouseover="this.style.background='rgba(255,255,255,0.025)'" onmouseout="this.style.background=''">
+                    return `<div data-ip="${dev.ip}" data-device-ip="${dev.ip}" class="device-row-item dev-row-grid" onmouseover="this.style.background='rgba(255,255,255,0.025)'" onmouseout="this.style.background=''">
                         <div class="dev-row-mobile" style="display:contents;">
                         <div class="dev-row-mobile-body" style="display:contents;">
                         <!-- Col 1: CLIENT -->
@@ -2181,18 +2331,22 @@
                 if (peakEl) peakEl.textContent = utils.formatBytes(state.sessionStats.peakDown) + '/с';
             },
 
-            showToast: (msg) => {
-                let el = document.getElementById('gsgToast');
-                if (!el) {
-                    el = document.createElement('div');
-                    el.id = 'gsgToast';
-                    el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);backdrop-filter:blur(16px);color:#34d399;font-size:12px;font-weight:700;padding:8px 18px;border-radius:10px;z-index:9999;transition:opacity 0.3s;pointer-events:none;';
-                    document.body.appendChild(el);
-                }
-                el.textContent = msg;
-                el.style.opacity = '1';
-                clearTimeout(el._t);
-                el._t = setTimeout(() => { el.style.opacity = '0'; }, 2500);
+            showToast: (msg, type = 'info') => {
+                const container = document.getElementById('toastContainer');
+                if (!container) return;
+                const colors = { success: '#10b981', error: '#ef4444', warning: '#f59e0b', info: '#60a5fa' };
+                const icons  = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' };
+                const color  = colors[type] || colors.info;
+                const icon   = icons[type]  || icons.info;
+                const el = document.createElement('div');
+                el.style.cssText = `pointer-events:auto;display:flex;align-items:center;gap:10px;padding:12px 16px;background:rgba(15,20,35,0.95);border:1px solid ${color}40;border-left:3px solid ${color};border-radius:10px;backdrop-filter:blur(12px);box-shadow:0 8px 32px rgba(0,0,0,0.4);font-family:'Syne',sans-serif;font-size:13px;color:#f1f5f9;max-width:320px;opacity:0;transform:translateX(20px);transition:all 0.25s ease;`;
+                el.innerHTML = `<span style="color:${color};font-weight:700;font-size:14px;">${icon}</span><span>${msg}</span>`;
+                container.appendChild(el);
+                requestAnimationFrame(() => { el.style.opacity = '1'; el.style.transform = 'translateX(0)'; });
+                setTimeout(() => {
+                    el.style.opacity = '0'; el.style.transform = 'translateX(20px)';
+                    setTimeout(() => el.remove(), 300);
+                }, 3500);
             },
 
             openFeedback: () => {
@@ -2406,7 +2560,13 @@
                 if (!box) return;
                 if (countEl) countEl.textContent = conns.length ? `${conns.length} соед.` : '';
                 if (!conns.length) {
-                    box.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:13px;">Нет соединений</div>';
+                    box.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px;color:var(--muted);">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(148,163,184,0.3)" stroke-width="1.5"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                        <div style="text-align:center;">
+                            <div style="font-size:14px;font-weight:700;color:#475569;margin-bottom:4px;">Нет активных соединений</div>
+                            <div style="font-size:12px;color:#334155;">Данные появятся когда устройства начнут работать</div>
+                        </div>
+                    </div>`;
                     return;
                 }
                 const devNames = {};
@@ -2436,6 +2596,170 @@
                         </div>
                     </div>`;
                 }).join('');
+            },
+
+            renderStats: () => {
+                // Top devices by today traffic
+                const today = new Date().toISOString().slice(0, 10);
+                const devList = document.getElementById('statsDeviceList');
+                if (devList && state.deviceHistory) {
+                    const devs = (state.devices || []).map(d => {
+                        const h = state.deviceHistory[d.ip];
+                        const todayD = h?.daily?.[today] || { up: 0, down: 0 };
+                        return { ...d, total: todayD.up + todayD.down };
+                    }).sort((a, b) => b.total - a.total).slice(0, 8);
+                    const maxTotal = Math.max(...devs.map(d => d.total), 1);
+                    const filtered = devs.filter(d => d.total > 0);
+                    devList.innerHTML = filtered.length ? filtered.map(d => {
+                        const name = d.custom_name || d.hostname || d.ip;
+                        const pct = (d.total / maxTotal) * 100;
+                        const totalFmt = utils.formatBytes(d.total);
+                        return `<div style="display:flex;align-items:center;gap:12px;">
+                            <div style="width:120px;font-size:12px;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div>
+                            <div style="flex:1;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;">
+                                <div style="width:${pct}%;height:100%;background:linear-gradient(90deg,#10b981,#34d399);border-radius:3px;transition:width 0.5s;"></div>
+                            </div>
+                            <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#f1f5f9;width:70px;text-align:right;">${totalFmt}</div>
+                        </div>`;
+                    }).join('') : '<div style="color:var(--muted);font-size:13px;">Нет данных за сегодня</div>';
+                }
+
+                // Route distribution
+                const routeEl = document.getElementById('statsRouteChart');
+                if (routeEl && state.allConnections?.length) {
+                    const direct = state.allConnections.filter(c => (c.chain || 'DIRECT') === 'DIRECT').length;
+                    const vpn = state.allConnections.length - direct;
+                    const total = state.allConnections.length;
+                    routeEl.innerHTML = [
+                        { label: 'Напрямую', count: direct, color: '#f59e0b' },
+                        { label: 'Через VPN', count: vpn, color: '#60a5fa' }
+                    ].map(r => `<div style="flex:1;min-width:120px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:14px;">
+                        <div style="font-size:22px;font-weight:800;color:${r.color};font-family:'JetBrains Mono',monospace;">${r.count}</div>
+                        <div style="font-size:11px;color:var(--muted);margin-top:2px;">${r.label}</div>
+                        <div style="font-size:10px;color:${r.color};margin-top:4px;">${total > 0 ? Math.round(r.count/total*100) : 0}%</div>
+                    </div>`).join('');
+                }
+
+                // Live chart (canvas bar chart)
+                const canvas = document.getElementById('statsLiveChart');
+                if (!canvas) return;
+
+                // Init tooltip + hover once
+                if (!canvas._tooltipInit) {
+                    canvas._tooltipInit = true;
+                    // Redraw on resize / orientation change
+                    if (window.ResizeObserver) {
+                        new ResizeObserver(() => { if (document.getElementById('tab-stats')?.classList.contains('active')) ui.renderStats(); }).observe(canvas.parentElement);
+                    }
+                    canvas.addEventListener('mousemove', (e) => {
+                        const tip = document.getElementById('statsChartTooltip');
+                        if (!tip) return;
+                        const hist = state._trafficHistory.slice(-60);
+                        const devHist = (state._trafficHistoryDevices || []).slice(-60);
+                        if (!hist.length) return;
+                        const rect = canvas.getBoundingClientRect();
+                        const mx = e.clientX - rect.left;
+                        const padL = 52, padR = 12;
+                        const chartW = canvas.offsetWidth - padL - padR;
+                        const barW = chartW / 60;
+                        const idx = Math.floor((mx - padL) / barW);
+                        if (idx < 0 || idx >= hist.length) { tip.style.display = 'none'; return; }
+                        const item = hist[idx];
+                        const devSnap = devHist[idx] || {};
+                        const secsAgo = hist.length - 1 - idx;
+                        const label = secsAgo === 0 ? 'сейчас' : `${secsAgo}с назад`;
+                        const topDevs = Object.entries(devSnap)
+                            .map(([ip, spd]) => {
+                                const dev = state.devices.find(d => d.ip === ip);
+                                return { name: dev?.custom_name || dev?.hostname || ip, speed: spd };
+                            })
+                            .sort((a, b) => b.speed - a.speed).slice(0, 4);
+                        const devsHtml = topDevs.length
+                            ? `<div style="margin-top:7px;padding-top:7px;border-top:1px solid rgba(255,255,255,0.08);">${topDevs.map(d => `<div style="display:flex;justify-content:space-between;gap:14px;margin-top:3px;"><span style="color:rgba(148,163,184,0.65);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;">${d.name}</span><span style="color:#34d399;font-family:'JetBrains Mono',monospace;font-size:10px;">${utils.formatBytes(d.speed)}/с</span></div>`).join('')}</div>` : '';
+                        tip.innerHTML = `<div style="color:rgba(148,163,184,0.7);margin-bottom:5px;font-size:10px;">${label}</div><div style="color:#34d399;">↓ ${utils.formatBytes(item.down)}/с</div><div style="color:#60a5fa;margin-top:2px;">↑ ${utils.formatBytes(item.up)}/с</div>${devsHtml}`;
+                        let tx = mx + 14;
+                        if (tx + 210 > canvas.offsetWidth) tx = mx - 214;
+                        tip.style.left = tx + 'px';
+                        tip.style.top = Math.max(4, e.clientY - rect.top - 90) + 'px';
+                        tip.style.display = 'block';
+                    });
+                    canvas.addEventListener('mouseleave', () => {
+                        const tip = document.getElementById('statsChartTooltip');
+                        if (tip) tip.style.display = 'none';
+                    });
+                }
+
+                if (!state._trafficHistory?.length) return;
+
+                const dpr = window.devicePixelRatio || 1;
+                const cssW = canvas.offsetWidth;
+                const cssH = canvas.offsetHeight;
+                if (cssH < 50) return;
+                canvas.width  = cssW * dpr;
+                canvas.height = cssH * dpr;
+                const ctx = canvas.getContext('2d');
+                ctx.scale(dpr, dpr);
+
+                const padL = 52, padR = 12, padT = 20, padB = 28;
+                const cW = cssW - padL - padR;
+                const cH = cssH - padT - padB;
+
+                ctx.clearRect(0, 0, cssW, cssH);
+
+                const hist = state._trafficHistory.slice(-60);
+                const maxVal = Math.max(...hist.map(h => h.down + h.up), 1024);
+
+                // Grid + Y-axis labels
+                ctx.font = `9px 'JetBrains Mono', monospace`;
+                [0, 0.25, 0.5, 0.75, 1].forEach(frac => {
+                    const y = padT + cH - frac * cH;
+                    ctx.strokeStyle = frac === 0 ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.04)';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + cW, y); ctx.stroke();
+                    if (frac > 0) {
+                        ctx.fillStyle = 'rgba(148,163,184,0.45)';
+                        ctx.textAlign = 'right';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(utils.formatBytes(maxVal * frac) + '/с', padL - 5, y);
+                    }
+                });
+
+                // X-axis labels
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'top';
+                ctx.fillStyle = 'rgba(148,163,184,0.45)';
+                [['60с', 0], ['30с', 0.5], ['сейчас', 1]].forEach(([lbl, pos]) => {
+                    ctx.fillText(lbl, padL + pos * cW, padT + cH + 7);
+                });
+
+                // Bars
+                const barW = cW / 60;
+                hist.forEach((item, i) => {
+                    const x = padL + i * barW;
+                    const dH = (item.down / maxVal) * cH;
+                    const uH = (item.up   / maxVal) * cH;
+                    if (dH > 0) {
+                        ctx.fillStyle = 'rgba(16,185,129,0.75)';
+                        ctx.fillRect(x + 0.5, padT + cH - dH, barW - 1, dH);
+                    }
+                    if (uH > 0) {
+                        ctx.fillStyle = 'rgba(96,165,250,0.55)';
+                        ctx.fillRect(x + 0.5, padT + cH - dH - uH, barW - 1, uH);
+                    }
+                });
+
+                // Legend (top-right)
+                const last = hist[hist.length - 1] || { down: 0, up: 0 };
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'top';
+                ctx.fillStyle = 'rgba(16,185,129,0.85)';
+                ctx.fillRect(cssW - padR - 170, padT - 13, 8, 8);
+                ctx.fillStyle = 'rgba(148,163,184,0.6)';
+                ctx.fillText(`↓ ${utils.formatBytes(last.down)}/с`, cssW - padR - 95, padT - 12);
+                ctx.fillStyle = 'rgba(96,165,250,0.85)';
+                ctx.fillRect(cssW - padR - 85, padT - 13, 8, 8);
+                ctx.fillStyle = 'rgba(148,163,184,0.6)';
+                ctx.fillText(`↑ ${utils.formatBytes(last.up)}/с`, cssW - padR, padT - 12);
             }
         };
 
@@ -2512,6 +2836,21 @@
                     const totalUp   = vals.reduce((s, v) => s + (v.speed_up   || 0), 0);
                     state.trafficHistory.push({ down: totalDown, up: totalUp });
                     if (state.trafficHistory.length > 60) state.trafficHistory.shift();
+                    // Store history for stats live chart
+                    state._trafficHistory.push({ down: totalDown, up: totalUp });
+                    if (state._trafficHistory.length > 60) state._trafficHistory.shift();
+                    // Per-device snapshot for chart tooltip
+                    const _devSnap = {};
+                    Object.entries(traffic).forEach(([ip, d]) => { if ((d.speed_down||0)+(d.speed_up||0) > 0) _devSnap[ip] = (d.speed_down||0)+(d.speed_up||0); });
+                    state._trafficHistoryDevices.push(_devSnap);
+                    if (state._trafficHistoryDevices.length > 60) state._trafficHistoryDevices.shift();
+                    // Update device sparklines
+                    Object.entries(traffic).forEach(([ip, data]) => {
+                        if (!state.deviceSparklines[ip]) state.deviceSparklines[ip] = [];
+                        const spk = state.deviceSparklines[ip];
+                        spk.push((data.speed_down || 0) + (data.speed_up || 0));
+                        if (spk.length > 30) spk.shift();
+                    });
                     const ss = state.sessionStats;
                     ss.totalDown = vals.reduce((s, v) => s + (v.total_down || 0), 0);
                     ss.totalUp   = vals.reduce((s, v) => s + (v.total_up   || 0), 0);
@@ -2628,6 +2967,34 @@
                 try { sessionStorage.setItem('gsg_vendor_cache', JSON.stringify(state.vendorCache)); } catch(e) {}
             },
 
+            fetchLogLevel: async () => {
+                const data = await utils.apiCall('/log-level', { _silent: true });
+                if (!data) return;
+                const level = data.level || 'unknown';
+                const sel = document.getElementById('logLevelSelect');
+                if (sel) sel.value = level;
+                const dot = document.getElementById('logLevelDot');
+                const lbl = document.getElementById('logLevelLabel');
+                const badge = document.getElementById('logLevelBadge');
+                const cfg = {
+                    silent:  { color: '#64748b', bg: 'rgba(100,116,139,0.1)', border: 'rgba(100,116,139,0.2)', text: 'Silent' },
+                    warning: { color: '#fbbf24', bg: 'rgba(251,191,36,0.1)',   border: 'rgba(251,191,36,0.2)',   text: 'Warning' },
+                    info:    { color: '#34d399', bg: 'rgba(16,185,129,0.1)',   border: 'rgba(16,185,129,0.2)',   text: 'Info' },
+                    debug:   { color: '#818cf8', bg: 'rgba(129,140,248,0.1)',  border: 'rgba(129,140,248,0.2)',  text: 'Debug' },
+                    error:   { color: '#f87171', bg: 'rgba(248,113,113,0.1)',  border: 'rgba(248,113,113,0.2)',  text: 'Error' },
+                };
+                const c = cfg[level] || cfg.silent;
+                if (dot) dot.style.background = c.color;
+                if (lbl) { lbl.textContent = c.text; lbl.style.color = c.color; }
+                if (badge) { badge.style.background = c.bg; badge.style.borderColor = c.border; }
+            },
+
+            setLogLevel: async (level) => {
+                await utils.apiCall('/log-level', { method: 'PUT', body: JSON.stringify({ level }) });
+                await actions.fetchLogLevel();
+                ui.addEvent('📋', `Уровень логов: ${level}`, '#94a3b8');
+            },
+
             fetchLogs: async () => {
                 const logs = await utils.apiCall('/logs', { _silent: true });
                 const logBox = document.getElementById('systemLogsBox');
@@ -2681,6 +3048,9 @@
                     ui.updateSidebarNetStats();
                     ui.updateTrafficSummary();
                     ui.renderNodes(); // refresh node cards with daily traffic
+                    // Update stats tab if visible
+                    const statsTab = document.getElementById('tab-stats');
+                    if (statsTab && statsTab.classList.contains('active')) ui.renderStats();
                 }
             },
 
@@ -2739,7 +3109,7 @@
                 const label = {daily:'сегодня',monthly:'месяц',yearly:'год',all:'всё время'}[scope] || scope;
                 const who = ip ? (state.devices.find(d=>d.ip===ip)?.custom_name || state.devices.find(d=>d.ip===ip)?.hostname || ip) : 'все устройства';
                 ui.addEvent('🗑️', `Трафик сброшен (${label}) — ${who}`, '#f59e0b');
-                ui.showToast(`Трафик сброшен (${scope}${ip ? ' · ' + ip : ''})`);
+                ui.showToast(`Трафик сброшен (${scope}${ip ? ' · ' + ip : ''})`, 'success');
             },
 
             checkUpdate: async () => {
@@ -2747,7 +3117,7 @@
                 if (btn) { btn.textContent = '...'; btn.disabled = true; }
                 const v = await utils.apiCall('/version');
                 if (btn) { btn.textContent = '↻ обновить'; btn.disabled = false; }
-                ui.showToast(`Версия GSG: ${v?.version || '?'} — для обновления подключитесь по SSH и выполните: cd /root/GSG && git pull && docker compose build && docker compose up -d`);
+                ui.showToast(`Версия GSG: ${v?.version || '?'} — для обновления подключитесь по SSH и выполните: cd /root/GSG && git pull && docker compose build && docker compose up -d`, 'info');
                 ui.addEvent('ℹ️', `Проверка обновлений: v${v?.version || '?'}`, '#93c5fd');
             },
 
@@ -2755,7 +3125,7 @@
                 const type = document.getElementById('scheduleTypeSelect')?.value || 'never';
                 const time = document.getElementById('scheduleTimeInput')?.value || '00:00';
                 await utils.apiCall('/traffic/schedule', { method: 'PUT', body: JSON.stringify({ type, time }) });
-                ui.showToast('Расписание сохранено');
+                ui.showToast('Расписание сохранено', 'success');
             }
         };
 
@@ -2925,6 +3295,60 @@
 
             const connLoop = async () => { await actions.fetchConnections(); setTimeout(connLoop, 2000); };
             setTimeout(connLoop, 1500);
+
+            // Keyboard shortcuts
+            document.addEventListener('keydown', (e) => {
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+                if (e.ctrlKey || e.metaKey) {
+                    if (e.key === 'k') { e.preventDefault(); document.getElementById('connFilterText')?.focus(); }
+                    return;
+                }
+                if (e.key === 'e' || e.key === 'E') {
+                    const expertBtn = document.querySelector('[onclick*="expert"]');
+                    if (expertBtn) expertBtn.click();
+                }
+                if (e.key === 's' || e.key === 'S') {
+                    const simpleBtn = document.querySelector('[onclick*="simple"]');
+                    if (simpleBtn) simpleBtn.click();
+                }
+                if (e.key === 'c' || e.key === 'C') {
+                    const connNav = document.getElementById('nav-connections');
+                    if (connNav) connNav.click();
+                }
+                if (e.key === 'l' || e.key === 'L') {
+                    const logsNav = document.getElementById('nav-logs');
+                    if (logsNav) logsNav.click();
+                }
+                if (e.key === '?') {
+                    ui.showToast('Горячие клавиши: E/S — режим, C — соединения, L — логи, Ctrl+K — поиск', 'info');
+                }
+            });
+
+            // Context menu
+            let ctxIp = null;
+            const ctxMenu = document.getElementById('ctxMenu');
+            document.addEventListener('contextmenu', (e) => {
+                const row = e.target.closest('[data-device-ip]');
+                if (!row) { if (ctxMenu) ctxMenu.style.display = 'none'; return; }
+                e.preventDefault();
+                ctxIp = row.dataset.deviceIp;
+                ctxMenu.style.display = 'block';
+                ctxMenu.style.left = Math.min(e.clientX, window.innerWidth - 200) + 'px';
+                ctxMenu.style.top  = Math.min(e.clientY, window.innerHeight - 200) + 'px';
+            });
+            document.addEventListener('click', () => { if (ctxMenu) ctxMenu.style.display = 'none'; });
+            document.getElementById('ctxRename')?.addEventListener('click', () => {
+                if (!ctxIp) return;
+                ui.startRename(ctxIp);
+            });
+            ['ctxVPN','ctxSmart','ctxDirect','ctxBlock'].forEach((id, i) => {
+                const modes = ['global','smart','bypass','block'];
+                document.getElementById(id)?.addEventListener('click', () => {
+                    if (!ctxIp) return;
+                    const dev = state.devices.find(d => d.ip === ctxIp);
+                    if (dev) actions.updateDeviceSettings(ctxIp, modes[i], dev.assigned_node || 'auto');
+                });
+            });
         };
 
         return { init, state, ui, actions };

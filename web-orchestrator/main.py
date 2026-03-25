@@ -293,6 +293,19 @@ async def get_mac_vendor(mac: str):
     _mac_vendor_cache[oui] = vendor
     return {"vendor": vendor}
 
+async def _rotate_log():
+    """Truncate sing-box.log to last 2000 lines every 2 hours to prevent disk fill."""
+    while True:
+        await asyncio.sleep(7200)
+        try:
+            if GSG_LOG_FILE.exists() and GSG_LOG_FILE.stat().st_size > 5 * 1024 * 1024:  # >5 MB
+                async with aiofiles.open(GSG_LOG_FILE, 'r') as f:
+                    lines = await f.readlines()
+                async with aiofiles.open(GSG_LOG_FILE, 'w') as f:
+                    await f.writelines(lines[-2000:])
+        except Exception:
+            pass
+
 @app.on_event("startup")
 async def startup_event():
     # Ensure DNS works (resolv.conf may be empty in network_mode:host containers)
@@ -307,6 +320,7 @@ async def startup_event():
     await traffic_history.load()
     asyncio.create_task(monitor.poll_mihomo())
     asyncio.create_task(traffic_history.run(monitor))
+    asyncio.create_task(_rotate_log())
 
 @app.get("/api/traffic")
 async def get_traffic():
@@ -705,9 +719,37 @@ async def get_logs():
     try:
         async with aiofiles.open(GSG_LOG_FILE, 'r') as f:
             lines = await f.readlines()
-            return [l.strip() for l in lines[-30:]]
+            return [l.strip() for l in lines[-100:]]
     except Exception:
         return ["[ERROR] Не удалось прочитать лог"]
+
+@app.get("/api/log-level")
+async def get_log_level():
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.get("http://127.0.0.1:9090/configs", timeout=3)
+            return {"level": r.json().get("log-level", "info")}
+    except Exception:
+        return {"level": "unknown"}
+
+class LogLevelUpdate(BaseModel):
+    level: str
+
+@app.put("/api/log-level")
+async def set_log_level(req: LogLevelUpdate):
+    allowed = {"silent", "error", "warning", "info", "debug"}
+    if req.level not in allowed:
+        raise HTTPException(400, "Invalid log level")
+    try:
+        async with httpx.AsyncClient() as client:
+            await client.patch(
+                "http://127.0.0.1:9090/configs",
+                json={"log-level": req.level},
+                timeout=3
+            )
+        return {"level": req.level}
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 class FeedbackRequest(BaseModel):
     name: str = ""
