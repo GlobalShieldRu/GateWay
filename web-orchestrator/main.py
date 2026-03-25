@@ -985,6 +985,10 @@ async def change_password(req: ChangePasswordRequest):
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+@app.get("/install.sh")
+async def install_script():
+    return FileResponse("static/install.sh", media_type="text/plain")
+
 @app.get("/")
 async def index():
     return FileResponse("static/index.html", headers={"Cache-Control": "no-store"})
