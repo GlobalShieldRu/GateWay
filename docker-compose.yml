@@ -7,7 +7,9 @@ volumes:
 services:
   # Оркестратор - веб-интерфейс управления
   web-orchestrator:
-    build: ./web-orchestrator
+    build:
+      context: ./web-orchestrator
+      network: host
     container_name: gsg-web-orchestrator
     network_mode: "host"
     volumes:
@@ -21,7 +23,9 @@ services:
 
   # DHCP Сервер - раздача IP и регистрация имен
   registry-dhcp:
-    build: ./registry-dhcp
+    build:
+      context: ./registry-dhcp
+      network: host
     container_name: gsg-dhcp
     privileged: true
     network_mode: "host"
@@ -37,7 +41,9 @@ services:
 
   # Tunnel Provider - работа с прокси и подписками
   tunnel-provider:
-    build: ./tunnel-provider
+    build:
+      context: ./tunnel-provider
+      network: host
     container_name: gsg-tunnel
     network_mode: "host"
     privileged: true
@@ -50,7 +56,9 @@ services:
 
   # Net Enforcer - управление правилами nftables (TPROXY)
   net-enforcer:
-    build: ./net-enforcer
+    build:
+      context: ./net-enforcer
+      network: host
     container_name: gsg-netenforcer
     privileged: true
     network_mode: "host"
