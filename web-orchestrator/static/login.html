@@ -21,11 +21,11 @@
     content: '';
     position: fixed;
     inset: 0;
-    background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(59,130,246,0.12) 0%, transparent 70%);
+    background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(251,191,36,0.08) 0%, transparent 70%);
     pointer-events: none;
   }
   .card {
-    width: min(380px, calc(100vw - 32px));
+    width: min(400px, calc(100vw - 32px));
     background: rgba(255,255,255,0.04);
     border: 1px solid rgba(255,255,255,0.08);
     border-radius: 20px;
@@ -34,28 +34,21 @@
     position: relative;
     z-index: 1;
   }
-  .logo {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 28px;
+  .logo { display: flex; align-items: center; gap: 12px; margin-bottom: 32px; }
+  .logo-img-wrap {
+    width: 44px; height: 44px; border-radius: 12px;
+    background: rgba(201,168,76,0.08); border: 1.5px solid rgba(201,168,76,0.3);
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden; flex-shrink: 0;
   }
-  .logo-icon {
-    width: 38px;
-    height: 38px;
-    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .logo-text { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; }
-  .logo-sub { font-size: 11px; color: #64748b; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
-  h1 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+  .logo-img-wrap img { width: 36px; height: 36px; object-fit: contain; }
+  .logo-text { font-size: 13px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: #c9a84c; text-shadow: 0 0 10px rgba(201,168,76,0.4); }
+  .logo-sub { font-size: 10px; color: #64748b; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin-top: 1px; }
+  h1 { font-size: 13px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: #c9a84c; text-shadow: 0 0 10px rgba(201,168,76,0.4); margin-bottom: 6px; }
   .subtitle { font-size: 13px; color: #64748b; margin-bottom: 28px; }
   label { display: block; font-size: 12px; font-weight: 600; color: #94a3b8; margin-bottom: 6px; }
   .input-wrap { position: relative; margin-bottom: 20px; }
-  input[type=password] {
+  input[type=password], input[type=text] {
     width: 100%;
     padding: 11px 44px 11px 14px;
     background: rgba(255,255,255,0.05);
@@ -67,52 +60,37 @@
     outline: none;
     transition: border-color 0.15s;
   }
-  input[type=password]:focus { border-color: rgba(59,130,246,0.5); }
+  input:focus { border-color: rgba(16,185,129,0.5); }
   .toggle-pw {
-    position: absolute;
-    right: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: #64748b;
-    padding: 2px;
-    display: flex;
+    position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer; color: #64748b; padding: 2px; display: flex;
   }
   .toggle-pw:hover { color: #94a3b8; }
   button[type=submit] {
-    width: 100%;
-    padding: 12px;
-    background: linear-gradient(135deg, #3b82f6, #2563eb);
-    border: none;
-    border-radius: 10px;
-    color: #fff;
-    font-family: 'Syne', sans-serif;
-    font-size: 14px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: opacity 0.15s;
+    width: 100%; padding: 12px; margin-top: 2px;
+    background: linear-gradient(135deg, #FFD700, #FBBF24, #F59E0B);
+    border: none; border-radius: 10px; color: #0A0908;
+    font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 800;
+    cursor: pointer; transition: all 0.15s;
+    box-shadow: 0 4px 18px rgba(251,191,36,0.35);
+    letter-spacing: 0.02em;
   }
-  button[type=submit]:hover { opacity: 0.9; }
+  button[type=submit]:hover { opacity: 0.92; box-shadow: 0 6px 24px rgba(251,191,36,0.5); transform: translateY(-1px); }
   button[type=submit]:disabled { opacity: 0.5; cursor: not-allowed; }
   .error {
-    margin-top: 14px;
-    padding: 10px 14px;
-    background: rgba(239,68,68,0.1);
-    border: 1px solid rgba(239,68,68,0.2);
-    border-radius: 8px;
-    color: #fca5a5;
-    font-size: 13px;
-    display: none;
+    margin-top: 14px; padding: 10px 14px;
+    background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2);
+    border-radius: 8px; color: #fca5a5; font-size: 13px; display: none;
   }
+  .hint { font-size: 11px; color: #475569; margin-top: 16px; text-align: center; line-height: 1.5; }
+  code { background: rgba(255,255,255,0.06); padding: 1px 5px; border-radius: 4px; font-size: 10px; }
 </style>
 </head>
 <body>
 <div class="card">
   <div class="logo">
-    <div class="logo-icon">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    <div class="logo-img-wrap">
+      <img src="/static/logo.png" alt="GSG" onerror="this.style.display='none';this.parentNode.innerHTML='<svg width=\'24\' height=\'24\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'#c9a84c\' stroke-width=\'2\'><path d=\'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z\'/></svg>'">
     </div>
     <div>
       <div class="logo-text">GlobalShield</div>
@@ -134,12 +112,17 @@
     <button type="submit" id="submitBtn">Войти</button>
     <div class="error" id="errMsg"></div>
   </form>
+  <p class="hint">Забыли пароль? Сбросьте через SSH:<br><code>bash /root/GSG/install.sh</code></p>
 </div>
 
 <script>
 function togglePw() {
   const input = document.getElementById('pw');
-  input.type = input.type === 'password' ? 'text' : 'password';
+  const isHidden = input.type === 'password';
+  input.type = isHidden ? 'text' : 'password';
+  document.getElementById('eyeIcon').innerHTML = isHidden
+    ? '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>'
+    : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
 }
 
 async function doLogin(e) {
@@ -154,10 +137,11 @@ async function doLogin(e) {
     const r = await fetch('/api/login', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
+      credentials: 'same-origin',
       body: JSON.stringify({password})
     });
     if (r.ok) {
-      window.location.href = '/';
+      window.location.replace('/');
     } else {
       const d = await r.json().catch(() => ({}));
       err.textContent = d.detail || 'Неверный пароль';

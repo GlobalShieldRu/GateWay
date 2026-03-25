@@ -143,7 +143,16 @@ class TrafficMonitor:
                                 self.node_stats[node]['speed_up'] += delta_up
                                 self.node_stats[node]['speed_down'] += delta_down
 
-                            self.active_conns[uid] = {'up': up, 'down': down}
+                            host = meta.get('host') or meta.get('destinationIP', '')
+                            self.active_conns[uid] = {
+                                'up': up, 'down': down,
+                                'src': ip,
+                                'host': host,
+                                'dst_port': meta.get('destinationPort', ''),
+                                'network': meta.get('network', 'tcp').upper(),
+                                'chains': chains,
+                                'start': conn.get('start', ''),
+                            }
 
                             chain_label = node if node else 'DIRECT'
                             self.device_chains[ip][chain_label]['speed_down'] += delta_down
@@ -286,6 +295,15 @@ async def get_mac_vendor(mac: str):
 
 @app.on_event("startup")
 async def startup_event():
+    # Ensure DNS works (resolv.conf may be empty in network_mode:host containers)
+    try:
+        with open('/etc/resolv.conf', 'r') as f:
+            content = f.read()
+        if 'nameserver' not in content:
+            with open('/etc/resolv.conf', 'a') as f:
+                f.write('\nnameserver 8.8.8.8\nnameserver 1.1.1.1\n')
+    except Exception:
+        pass
     await traffic_history.load()
     asyncio.create_task(monitor.poll_mihomo())
     asyncio.create_task(traffic_history.run(monitor))
@@ -431,7 +449,7 @@ async def get_status():
     }
 
 _net_cache: dict = {"data": None, "ts": 0}
-_NET_CACHE_TTL = 300  # ip-api.com: обновлять раз в 5 минут
+_NET_CACHE_TTL = 120  # обновлять раз в 2 минуты
 
 @app.get("/api/network-status")
 async def get_network_status():
@@ -446,14 +464,25 @@ async def get_network_status():
     tunnel = {"ip": "Оффлайн", "country": "-", "status": "error"}
     youtube = {"status": "error", "ping": 0}
 
-    try:
-        async with httpx.AsyncClient(timeout=3.0) as client:
-            r = await client.get("http://ip-api.com/json")
-            if r.status_code == 200:
-                d = r.json()
-                direct = {"ip": d.get("query"), "country": d.get("countryCode"), "isp": d.get("isp", ""), "org": d.get("org", ""), "status": "ok"}
-    except Exception:
-        pass
+    _direct_services = [
+        ("http://ip-api.com/json",  lambda d: {"ip": d.get("query"), "country": d.get("countryCode"), "isp": d.get("isp", ""), "org": d.get("org", "")}),
+        ("https://ipwho.is/",       lambda d: {"ip": d.get("ip"), "country": d.get("country_code"), "isp": d.get("connection", {}).get("isp", ""), "org": ""}),
+        ("https://ipinfo.io/json",  lambda d: {"ip": d.get("ip"), "country": d.get("country"), "isp": d.get("org", ""), "org": d.get("org", "")}),
+        ("https://ipapi.co/json/",  lambda d: {"ip": d.get("ip"), "country": d.get("country_code"), "isp": d.get("org", ""), "org": d.get("asn", "")}),
+        ("https://freeipapi.com/api/json", lambda d: {"ip": d.get("ipAddress"), "country": d.get("countryCode"), "isp": d.get("ispName", ""), "org": ""}),
+    ]
+    async with httpx.AsyncClient(timeout=4.0) as client:
+        for url, parser in _direct_services:
+            try:
+                r = await client.get(url)
+                if r.status_code == 200:
+                    d = r.json()
+                    parsed = parser(d)
+                    if parsed.get("ip"):
+                        direct = {**parsed, "status": "ok"}
+                        break
+            except Exception:
+                continue
 
     proxies = {"http://": "http://127.0.0.1:2080", "https://": "http://127.0.0.1:2080"}
     try:
@@ -814,6 +843,23 @@ async def get_device_chains():
             result[ip] = active
     return result
 
+@app.get("/api/connections")
+async def get_connections():
+    conns = []
+    for uid, c in monitor.active_conns.items():
+        chains = c.get('chains', [])
+        conns.append({
+            'src': c.get('src', ''),
+            'host': c.get('host', ''),
+            'dst_port': c.get('dst_port', ''),
+            'network': c.get('network', 'TCP'),
+            'chain': next((x for x in chains if x not in ('DIRECT','REJECT','GLOBAL','') ), 'DIRECT'),
+            'upload': c.get('up', 0),
+            'download': c.get('down', 0),
+        })
+    conns.sort(key=lambda x: -(x['upload'] + x['download']))
+    return {"connections": conns[:100]}
+
 @app.get("/api/feedback")
 async def get_feedback():
     try:
@@ -830,8 +876,12 @@ class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
 
+def _make_cookie(resp: JSONResponse, token: str) -> JSONResponse:
+    resp.set_cookie("gsg_token", token, httponly=True, samesite="lax", max_age=30*24*3600, path="/")
+    return resp
+
 @app.post("/api/auth/setup")
-async def auth_setup(req: LoginRequest, response: Response):
+async def auth_setup(req: LoginRequest):
     """First-time password setup. Only works if no password is configured yet."""
     auth = _load_auth()
     if auth.get("hash"):
@@ -843,8 +893,7 @@ async def auth_setup(req: LoginRequest, response: Response):
     token = secrets.token_urlsafe(32)
     auth["token"] = token
     _save_auth(auth)
-    response.set_cookie("gsg_token", token, httponly=True, samesite="lax", max_age=30*24*3600)
-    return {"ok": True}
+    return _make_cookie(JSONResponse({"ok": True}), token)
 
 @app.get("/api/auth/check")
 async def auth_check(request: Request):
@@ -854,7 +903,7 @@ async def auth_check(request: Request):
     return JSONResponse({"authenticated": False}, status_code=401)
 
 @app.post("/api/login")
-async def login(req: LoginRequest, response: Response):
+async def login(req: LoginRequest):
     auth = _load_auth()
     if not auth.get("hash") or not auth.get("salt"):
         raise HTTPException(status_code=500, detail="Auth not configured")
@@ -864,19 +913,19 @@ async def login(req: LoginRequest, response: Response):
     token = secrets.token_urlsafe(32)
     auth["token"] = token
     _save_auth(auth)
-    response.set_cookie("gsg_token", token, httponly=True, samesite="lax", max_age=30*24*3600)
-    return {"ok": True}
+    return _make_cookie(JSONResponse({"ok": True}), token)
 
 @app.post("/api/logout")
-async def logout(response: Response):
+async def logout():
     auth = _load_auth()
     auth.pop("token", None)
     _save_auth(auth)
-    response.delete_cookie("gsg_token")
-    return {"ok": True}
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie("gsg_token", path="/")
+    return resp
 
 @app.post("/api/auth/password")
-async def change_password(req: ChangePasswordRequest, response: Response):
+async def change_password(req: ChangePasswordRequest):
     if len(req.new_password) < 6:
         raise HTTPException(status_code=400, detail="Пароль должен быть не менее 6 символов")
     auth = _load_auth()
@@ -886,14 +935,14 @@ async def change_password(req: ChangePasswordRequest, response: Response):
     new_salt = secrets.token_hex(16)
     auth["salt"]  = new_salt
     auth["hash"]  = _hash_password(req.new_password, new_salt)
-    # Invalidate session — user must log in again
     auth.pop("token", None)
     _save_auth(auth)
-    response.delete_cookie("gsg_token")
-    return {"ok": True}
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie("gsg_token", path="/")
+    return resp
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/")
 async def index():
-    return FileResponse("static/index.html")
+    return FileResponse("static/index.html", headers={"Cache-Control": "no-store"})

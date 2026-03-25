@@ -71,7 +71,11 @@
             flex-shrink: 0;
         }
         .app-chip:hover { border-color: rgba(255,255,255,0.22); color: rgba(255,255,255,0.7); transform: scale(1.1); }
-        .app-chip.active { background: var(--chip-bg, rgba(59,130,246,0.15)); border-color: var(--chip-border, rgba(59,130,246,0.4)); color: var(--chip-color, #60a5fa); box-shadow: 0 0 8px var(--chip-border, rgba(59,130,246,0.3)); }
+        .app-chip.active { background: var(--chip-bg, rgba(59,130,246,0.15)); border-color: var(--chip-border, rgba(59,130,246,0.4)); color: var(--chip-color, #60a5fa); box-shadow: 0 0 8px var(--chip-border, rgba(59,130,246,0.3)); animation: chipGlow 2.4s ease-in-out infinite; }
+        @keyframes chipGlow {
+            0%, 100% { box-shadow: 0 0 6px var(--chip-border, rgba(59,130,246,0.3)); }
+            50% { box-shadow: 0 0 14px var(--chip-border, rgba(59,130,246,0.6)), 0 0 22px var(--chip-border, rgba(59,130,246,0.2)); }
+        }
         .app-chip .us-dot { position: absolute; top: -2px; right: -2px; width: 8px; height: 8px; border-radius: 50%; background: #3b82f6; border: 1px solid var(--bg); }
 
         /* Sidebar */
@@ -258,7 +262,7 @@
         /* Device row grid (desktop) */
         .dev-row-grid {
             display: grid;
-            grid-template-columns: minmax(220px,280px) 120px 190px 1fr 200px 250px;
+            grid-template-columns: minmax(220px,280px) 120px 228px 1fr 240px 250px;
             align-items: center;
             gap: 14px;
             padding: 14px 20px;
@@ -677,7 +681,11 @@
             </div>
             <div class="nav-item expert-item" id="nav-proxy" onclick="GatewayApp.ui.switchTab('tab-proxy', this)" style="display:flex;">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
-                Прокси и Логи
+                Логи
+            </div>
+            <div class="nav-item expert-item" id="nav-connections" onclick="GatewayApp.ui.switchTab('tab-connections', this)" style="display:flex;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                Соединения
             </div>
         </nav>
 
@@ -1011,6 +1019,52 @@
                 </div>
             </div>
 
+            <!-- Connections tab -->
+            <div id="tab-connections" class="tab-content expert-item reveal reveal-2">
+                <div class="glass" style="padding:24px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                        <div style="font-size:15px;font-weight:800;color:#f1f5f9;display:flex;align-items:center;gap:8px;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                            Активные соединения
+                        </div>
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <span id="connCount" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);"></span>
+                            <div style="display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.2);">
+                                <div class="pulse-dot green"></div>
+                                <span style="font-size:11px;font-weight:700;color:#34d399;">Live</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Filter bar -->
+                    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+                        <div style="position:relative;flex:1;min-width:160px;">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            <input id="connFilterText" type="text" autocomplete="off" placeholder="Клиент, хост, узел..." oninput="GatewayApp.ui.applyConnFilter()" style="width:100%;padding:7px 10px 7px 30px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:#f1f5f9;font-family:'Syne',sans-serif;font-size:12px;outline:none;">
+                        </div>
+                        <select id="connFilterProto" autocomplete="off" onchange="GatewayApp.ui.applyConnFilter()" style="padding:7px 10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:#94a3b8;font-family:'Syne',sans-serif;font-size:12px;outline:none;cursor:pointer;">
+                            <option value="">TCP + UDP</option>
+                            <option value="TCP">TCP</option>
+                            <option value="UDP">UDP</option>
+                        </select>
+                        <select id="connFilterRoute" autocomplete="off" onchange="GatewayApp.ui.applyConnFilter()" style="padding:7px 10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:#94a3b8;font-family:'Syne',sans-serif;font-size:12px;outline:none;cursor:pointer;">
+                            <option value="">Все маршруты</option>
+                            <option value="DIRECT">Напрямую</option>
+                            <option value="VPN">Через VPN</option>
+                        </select>
+                    </div>
+                    <!-- Table header -->
+                    <div style="display:grid;grid-template-columns:180px 1fr 90px 100px;gap:10px;padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:4px;">
+                        <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">Клиент</span>
+                        <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">Назначение</span>
+                        <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">Через</span>
+                        <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;text-align:right;">Трафик</span>
+                    </div>
+                    <div id="connectionsBox" class="logs-scroll" style="height:560px;overflow-y:auto;">
+                        <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:13px;">Загрузка...</div>
+                    </div>
+                </div>
+            </div>
+
         </main>
     </div>
 </div>
@@ -1046,18 +1100,28 @@
     // ─── App ───
     const GatewayApp = (() => {
         const APP_ICONS = {
-            telegram: `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>`,
-            tiktok:   `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></svg>`,
-            youtube:  `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>`,
-            gemini:   `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 1.5C12 1.5 8.504 8.504 1.5 12c7.004 3.496 10.5 10.5 10.5 10.5S15.496 15.496 22.5 12C15.496 8.504 12 1.5 12 1.5z"/></svg>`,
-            claude:   `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M13.827 3.39C10.563 3.39 7.88 5.355 6.676 8.13c-.87-.814-2.04-1.315-3.332-1.315C.599 6.815-1.354 9.394-.81 12.302c-.503.814-.793 1.776-.793 2.806 0 2.968 2.404 5.372 5.372 5.372.608 0 1.19-.1 1.736-.285 1.148 1.358 2.862 2.22 4.78 2.22 1.967 0 3.718-.907 4.865-2.328.498.152 1.025.234 1.572.234 2.968 0 5.372-2.404 5.372-5.372 0-1.045-.3-2.02-.82-2.842.478-2.875-1.468-5.433-4.248-5.433a4.384 4.384 0 0 0-.999.117C16.205 4.682 15.126 3.39 13.827 3.39zm-.242 2.226c.71 0 1.298.517 1.379 1.222l.007.166V8.15l1.208-.396a2.118 2.118 0 0 1 .66-.105c1.167 0 2.117.95 2.117 2.118 0 .272-.052.532-.146.77l-.423 1.082 1.164.206c.855.151 1.502.895 1.502 1.791 0 1.002-.812 1.814-1.814 1.814a1.81 1.81 0 0 1-.55-.084l-1.183-.375-.088 1.232c-.1 1.394-1.267 2.484-2.672 2.484-.918 0-1.748-.464-2.23-1.176l-.7-1.031-.823.944a2.117 2.117 0 0 1-1.594.726c-1.168 0-2.118-.95-2.118-2.118 0-.215.032-.423.09-.619l.33-1.128-1.17-.194A1.814 1.814 0 0 1 5.54 13.63c0-1.003.812-1.815 1.815-1.815.103 0 .204.009.303.025l1.17.195.008-1.185c.009-1.17.962-2.116 2.132-2.116.39 0 .757.105 1.07.29l1.033.614.245-1.183a1.388 1.388 0 0 1 1.27-1.038z"/></svg>`,
+            telegram:  `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>`,
+            tiktok:    `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></svg>`,
+            youtube:   `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>`,
+            instagram: `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/></svg>`,
+            twitter:   `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622 5.911-5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>`,
+            gemini:    `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 1.5C12 1.5 8.504 8.504 1.5 12c7.004 3.496 10.5 10.5 10.5 10.5S15.496 15.496 22.5 12C15.496 8.504 12 1.5 12 1.5z"/></svg>`,
+            claude:    `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M13.827 3.39C10.563 3.39 7.88 5.355 6.676 8.13c-.87-.814-2.04-1.315-3.332-1.315C.599 6.815-1.354 9.394-.81 12.302c-.503.814-.793 1.776-.793 2.806 0 2.968 2.404 5.372 5.372 5.372.608 0 1.19-.1 1.736-.285 1.148 1.358 2.862 2.22 4.78 2.22 1.967 0 3.718-.907 4.865-2.328.498.152 1.025.234 1.572.234 2.968 0 5.372-2.404 5.372-5.372 0-1.045-.3-2.02-.82-2.842.478-2.875-1.468-5.433-4.248-5.433a4.384 4.384 0 0 0-.999.117C16.205 4.682 15.126 3.39 13.827 3.39zm-.242 2.226c.71 0 1.298.517 1.379 1.222l.007.166V8.15l1.208-.396a2.118 2.118 0 0 1 .66-.105c1.167 0 2.117.95 2.117 2.118 0 .272-.052.532-.146.77l-.423 1.082 1.164.206c.855.151 1.502.895 1.502 1.791 0 1.002-.812 1.814-1.814 1.814a1.81 1.81 0 0 1-.55-.084l-1.183-.375-.088 1.232c-.1 1.394-1.267 2.484-2.672 2.484-.918 0-1.748-.464-2.23-1.176l-.7-1.031-.823.944a2.117 2.117 0 0 1-1.594.726c-1.168 0-2.118-.95-2.118-2.118 0-.215.032-.423.09-.619l.33-1.128-1.17-.194A1.814 1.814 0 0 1 5.54 13.63c0-1.003.812-1.815 1.815-1.815.103 0 .204.009.303.025l1.17.195.008-1.185c.009-1.17.962-2.116 2.132-2.116.39 0 .757.105 1.07.29l1.033.614.245-1.183a1.388 1.388 0 0 1 1.27-1.038z"/></svg>`,
+            chatgpt:   `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.032.067L9.77 19.95a4.5 4.5 0 0 1-6.17-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.896zm16.597 3.855l-5.833-3.387 2.02-1.168a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.412-.663zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .027-.067l4.844-2.799a4.5 4.5 0 0 1 6.678 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z"/></svg>`,
+            netflix:   `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M5.398 0v.006c3.028 8.556 5.37 15.175 8.348 23.624 1.341.393 2.669.808 4.007 1.198L10.254 0H5.398zm10.208 0c1.013 2.866 1.99 5.649 2.982 8.43V0h-2.982zm2.982 15.288-3.12-.01.001 8.64 3.119.012V15.288zM5.398 15.288v8.628h3.1V4.692L5.398 0v15.288z"/></svg>`,
+            hulu:      `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 3h4.5v6.75H16.5V3H21v18h-4.5v-6.75H7.5V21H3V3z"/></svg>`,
         };
         const APPS = [
-            { id: 'telegram', title: 'Telegram', color: '#229ED9', us: false },
-            { id: 'tiktok',   title: 'TikTok',  color: '#ee1d52', us: false },
-            { id: 'youtube',  title: 'YouTube',  color: '#ff0000', us: false },
-            { id: 'gemini',   title: 'Gemini (только US)',  color: '#8ab4f8', us: true },
-            { id: 'claude',   title: 'Claude (только US)',  color: '#d97706', us: true },
+            { id: 'telegram',  title: 'Telegram',           color: '#229ED9', ny: false },
+            { id: 'tiktok',    title: 'TikTok',             color: '#ee1d52', ny: false },
+            { id: 'youtube',   title: 'YouTube',            color: '#ff0000', ny: false },
+            { id: 'instagram', title: 'Instagram',          color: '#e1306c', ny: false },
+            { id: 'twitter',   title: 'X (Twitter)',        color: '#e7e9ea', ny: false },
+            { id: 'gemini',    title: 'Gemini (только US)', color: '#8ab4f8', ny: true, alwaysActive: true },
+            { id: 'claude',    title: 'Claude (только US)', color: '#d97706', ny: true, alwaysActive: true },
+            { id: 'chatgpt',   title: 'ChatGPT (только US)',color: '#10a37f', ny: true, alwaysActive: true },
+            { id: 'netflix',   title: 'Netflix (только US)', color: '#E50914', ny: true },
+            { id: 'hulu',      title: 'Hulu (только US)',    color: '#1ce783', ny: true },
         ];
 
         const DEVICE_ICONS = {
@@ -1194,6 +1258,7 @@
             traffic: {},
             globalNode: 'auto',
             deviceApps: {},
+            allConnections: [],
             networkData: null,
             _devicesHash: null,
             trafficHistory: [],
@@ -1224,19 +1289,21 @@
             _lastError: null,
             apiCall: async (endpoint, options = {}) => {
                 const silent = options._silent === true;
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 6000);
+                const { _silent, ...fetchOpts } = options;
+                const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000));
                 try {
-                    const response = await fetch(`/api${endpoint}`, { ...options, signal: controller.signal, headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } });
-                    clearTimeout(timeoutId);
+                    const response = await Promise.race([
+                        fetch(`/api${endpoint}`, { credentials: 'same-origin', ...fetchOpts, headers: { 'Content-Type': 'application/json', ...(fetchOpts.headers || {}) } }),
+                        timeout
+                    ]);
                     if (!response.ok) {
                         try { const errBody = await response.json(); utils._lastError = errBody.detail || null; } catch { utils._lastError = null; }
                         throw new Error(`HTTP: ${response.status}`);
                     }
                     if (!silent) { state._failCount = 0; if (!state.isOnline) ui.setConnectionStatus(true); }
-                    return await response.json();
+                    const result = await Promise.race([response.json(), new Promise((_, reject) => setTimeout(() => reject(new Error('json timeout')), 8000))]);
+                    return result;
                 } catch (error) {
-                    clearTimeout(timeoutId);
                     if (!silent) {
                         state._failCount = (state._failCount || 0) + 1;
                         if (state._failCount >= 3) ui.setConnectionStatus(false);
@@ -1324,6 +1391,9 @@
                 document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
                 const tab = document.getElementById(tabId);
                 if (tab) tab.classList.add('active');
+
+                // Immediately fetch connections when switching to that tab
+                if (tabId === 'tab-connections') actions.fetchConnections();
 
                 // Close mobile sidebar
                 if (window.innerWidth < 768) {
@@ -1424,11 +1494,18 @@
                     const tiktokNode = dev.tiktok_node || 'auto';
                     const nodeOptions = [['auto','Авто'], ...state.nodes.map(n=>[n.tag, n.tag])].map(([v,l])=>`<option value="${v}"${tiktokNode===v?' selected':''}>${l}</option>`).join('');
                     const appsHtml = `<div style="display:flex;flex-direction:column;gap:4px;">
-                        <div style="display:flex;gap:4px;align-items:center;">
-                        ${APPS.map(app => {
+                        <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;max-width:204px;">
+                        ${APPS.filter(a=>!a.ny).map(app => {
                             const active = !!devApps[app.id];
                             const chipStyle = active ? `--chip-bg:${app.color}22;--chip-border:${app.color}55;--chip-color:${app.color};` : '';
-                            return `<button class="app-chip${active ? ' active' : ''}" data-ip="${dev.ip}" data-app="${app.id}" title="${app.title}" style="${chipStyle}">${APP_ICONS[app.id]}${app.us ? '<span class="us-dot"></span>' : ''}</button>`;
+                            return `<button class="app-chip${active ? ' active' : ''}" data-ip="${dev.ip}" data-app="${app.id}" title="${app.title}" style="${chipStyle}">${APP_ICONS[app.id]}</button>`;
+                        }).join('')}
+                        </div>
+                        <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;max-width:204px;">
+                        ${APPS.filter(a=>a.ny).map(app => {
+                            const active = app.alwaysActive || !!devApps[app.id];
+                            const chipStyle = active ? `--chip-bg:${app.color}22;--chip-border:${app.color}55;--chip-color:${app.color};` : '';
+                            return `<button class="app-chip${active ? ' active' : ''}" data-ip="${dev.ip}" data-app="${app.id}" title="${app.title}" style="${chipStyle}">${APP_ICONS[app.id]}<span class="us-dot"></span></button>`;
                         }).join('')}
                         </div>
                         ${hasUSApp ? `<div style="font-size:9px;color:#60a5fa;font-weight:700;font-family:'JetBrains Mono',monospace;display:flex;align-items:center;gap:3px;"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>NY узел</div>` : ''}
@@ -1484,10 +1561,6 @@
                                 <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);margin-top:1px;">${dev.ip} · <span style="color:rgba(100,116,139,0.5);">${dev.mac}</span></div>
                                 ${vendorLabel}
                                 <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px;">${typeLabel}</div>
-                                <div style="display:flex;gap:8px;margin-top:3px;">
-                                    <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#34d399;" class="dev-total-down" data-ip="${dev.ip}"></span>
-                                    <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#60a5fa;" class="dev-total-up" data-ip="${dev.ip}"></span>
-                                </div>
                             </div>
                         </div>
                         <!-- Col 2: ACTIVITY -->
@@ -1503,17 +1576,26 @@
                             </div>
                             <!-- Persistent stats -->
                             <div style="display:flex;flex-direction:column;gap:2px;">
-                                <div style="display:flex;justify-content:space-between;align-items:center;">
-                                    <span style="font-size:9px;color:rgba(100,116,139,0.5);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">Сегодня</span>
-                                    <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(52,211,153,0.7);" class="dev-hist-day" data-ip="${dev.ip}">—</span>
+                                <div style="display:flex;justify-content:space-between;align-items:center;gap:4px;">
+                                    <span style="font-size:9px;color:rgba(100,116,139,0.5);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;flex-shrink:0;">Сегодня</span>
+                                    <span style="display:flex;gap:3px;font-family:'JetBrains Mono',monospace;font-size:9px;">
+                                        <span style="color:rgba(52,211,153,0.7);" class="dev-hist-day-down" data-ip="${dev.ip}">—</span>
+                                        <span style="color:rgba(96,165,250,0.7);" class="dev-hist-day-up" data-ip="${dev.ip}"></span>
+                                    </span>
                                 </div>
-                                <div style="display:flex;justify-content:space-between;align-items:center;">
-                                    <span style="font-size:9px;color:rgba(100,116,139,0.5);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">Месяц</span>
-                                    <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(96,165,250,0.7);" class="dev-hist-month" data-ip="${dev.ip}">—</span>
+                                <div style="display:flex;justify-content:space-between;align-items:center;gap:4px;">
+                                    <span style="font-size:9px;color:rgba(100,116,139,0.5);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;flex-shrink:0;">Месяц</span>
+                                    <span style="display:flex;gap:3px;font-family:'JetBrains Mono',monospace;font-size:9px;">
+                                        <span style="color:rgba(52,211,153,0.7);" class="dev-hist-month-down" data-ip="${dev.ip}">—</span>
+                                        <span style="color:rgba(96,165,250,0.7);" class="dev-hist-month-up" data-ip="${dev.ip}"></span>
+                                    </span>
                                 </div>
-                                <div style="display:flex;justify-content:space-between;align-items:center;">
-                                    <span style="font-size:9px;color:rgba(100,116,139,0.5);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">Всего</span>
-                                    <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(167,139,250,0.7);" class="dev-hist-all" data-ip="${dev.ip}">—</span>
+                                <div style="display:flex;justify-content:space-between;align-items:center;gap:4px;">
+                                    <span style="font-size:9px;color:rgba(100,116,139,0.5);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;flex-shrink:0;">Всего</span>
+                                    <span style="display:flex;gap:3px;font-family:'JetBrains Mono',monospace;font-size:9px;">
+                                        <span style="color:rgba(52,211,153,0.7);" class="dev-hist-all-down" data-ip="${dev.ip}">—</span>
+                                        <span style="color:rgba(96,165,250,0.7);" class="dev-hist-all-up" data-ip="${dev.ip}"></span>
+                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -1555,21 +1637,24 @@
                 const today = new Date().toISOString().slice(0, 10);
                 const thisMonth = today.slice(0, 7);
                 // Also update history columns for devices that have saved history but no live traffic
+                const setHistCells = (ip, todayH, monthH, alltime_down, alltime_up) => {
+                    const q = (cls) => document.querySelector(`.${cls}[data-ip="${ip}"]`);
+                    const fmt = (n) => n > 0 ? utils.formatBytes(n) : '';
+                    const dayD  = todayH?.down || 0, dayU  = todayH?.up || 0;
+                    const monD  = monthH?.down || 0, monU  = monthH?.up  || 0;
+                    const allD  = alltime_down || 0, allU  = alltime_up  || 0;
+                    const dayDEl = q('dev-hist-day-down');   if (dayDEl) dayDEl.textContent = (dayD > 0 || dayU > 0) ? (fmt(dayD) ? '↓'+fmt(dayD) : '—') : '—';
+                    const dayUEl = q('dev-hist-day-up');     if (dayUEl) dayUEl.textContent = fmt(dayU) ? '↑' + fmt(dayU) : '';
+                    const monDEl = q('dev-hist-month-down'); if (monDEl) monDEl.textContent = (monD > 0 || monU > 0) ? (fmt(monD) ? '↓'+fmt(monD) : '—') : '—';
+                    const monUEl = q('dev-hist-month-up');   if (monUEl) monUEl.textContent = fmt(monU) ? '↑' + fmt(monU) : '';
+                    const allDEl = q('dev-hist-all-down');   if (allDEl) allDEl.textContent = (allD > 0 || allU > 0) ? (fmt(allD) ? '↓'+fmt(allD) : '—') : '—';
+                    const allUEl = q('dev-hist-all-up');     if (allUEl) allUEl.textContent = fmt(allU) ? '↑' + fmt(allU) : '';
+                };
                 Object.keys(state.deviceHistory).forEach(ip => {
                     if (state.traffic[ip]) return; // handled below
                     const hd = state.deviceHistory[ip];
                     if (!hd) return;
-                    const todayH = hd.daily?.[today];
-                    const monthH = hd.monthly?.[thisMonth] || {down:0, up:0};
-                    const dayEl = document.querySelector(`.dev-hist-day[data-ip="${ip}"]`);
-                    const monEl = document.querySelector(`.dev-hist-month[data-ip="${ip}"]`);
-                    const allEl = document.querySelector(`.dev-hist-all[data-ip="${ip}"]`);
-                    const dayTot = todayH ? todayH.down + todayH.up : 0;
-                    const monTot = monthH.down + monthH.up;
-                    const allTot = (hd.alltime_down||0) + (hd.alltime_up||0);
-                    if (dayEl) dayEl.textContent = dayTot > 0 ? utils.formatBytes(dayTot) : '—';
-                    if (monEl) monEl.textContent = monTot > 0 ? utils.formatBytes(monTot) : '—';
-                    if (allEl) allEl.textContent = allTot > 0 ? utils.formatBytes(allTot) : '—';
+                    setHistCells(ip, hd.daily?.[today], hd.monthly?.[thisMonth] || {down:0,up:0}, hd.alltime_down, hd.alltime_up);
                 });
                 Object.keys(state.traffic).forEach(ip => {
                     const data = state.traffic[ip];
@@ -1579,28 +1664,16 @@
                     if (downEl) downEl.textContent = utils.formatBytes(data.speed_down) + '/s';
                     if (upEl) upEl.textContent = utils.formatBytes(data.speed_up) + '/s';
                     if (totalEl) totalEl.textContent = utils.formatBytes(data.total_down + data.total_up);
-                    // Prefer persistent history for today totals; fall back to session totals
+                    // Update persistent history columns
                     const hd = state.deviceHistory[ip];
                     const todayH = hd?.daily?.[today];
-                    const tdEl = document.querySelector(`.dev-total-down[data-ip="${ip}"]`);
-                    const tuEl = document.querySelector(`.dev-total-up[data-ip="${ip}"]`);
                     const showDown = todayH ? todayH.down : data.total_down;
                     const showUp   = todayH ? todayH.up   : data.total_up;
-                    if (tdEl) tdEl.textContent = showDown > 0 ? '↓ ' + utils.formatBytes(showDown) : '';
-                    if (tuEl) tuEl.textContent = showUp   > 0 ? '↑ ' + utils.formatBytes(showUp)   : '';
-                    // Update persistent history columns
                     if (hd) {
-                        const thisMonth = today.slice(0, 7);
-                        const monthH = hd.monthly?.[thisMonth] || {down:0, up:0};
-                        const dayEl   = document.querySelector(`.dev-hist-day[data-ip="${ip}"]`);
-                        const monEl   = document.querySelector(`.dev-hist-month[data-ip="${ip}"]`);
-                        const allEl   = document.querySelector(`.dev-hist-all[data-ip="${ip}"]`);
-                        const dayTot  = todayH ? todayH.down + todayH.up : showDown + showUp;
-                        const monTot  = monthH.down + monthH.up;
-                        const allTot  = (hd.alltime_down||0) + (hd.alltime_up||0);
-                        if (dayEl)  dayEl.textContent  = dayTot  > 0 ? utils.formatBytes(dayTot)  : '—';
-                        if (monEl)  monEl.textContent  = monTot  > 0 ? utils.formatBytes(monTot)  : '—';
-                        if (allEl)  allEl.textContent  = allTot  > 0 ? utils.formatBytes(allTot)  : '—';
+                        const monthH = hd.monthly?.[today.slice(0,7)] || {down:0, up:0};
+                        setHistCells(ip, {down: showDown, up: showUp}, monthH, hd.alltime_down, hd.alltime_up);
+                    } else {
+                        setHistCells(ip, {down: showDown, up: showUp}, {down:0, up:0}, 0, 0);
                     }
                     // Update sparkbar
                     if (!state.deviceTrafficHistory[ip]) state.deviceTrafficHistory[ip] = [];
@@ -1690,8 +1763,25 @@
                 el.innerHTML = `<div class="metric-pill" style="flex-direction:column;align-items:flex-start;gap:2px;padding:6px 8px;">
                     <span style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Провайдер</span>
                     <span style="display:flex;align-items:center;gap:4px;min-width:0;">${visual}<span style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#f1f5f9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${isp}">${shortIsp || ip}</span></span>
-                    ${ip ? `<span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(100,116,139,0.6);">${ip}</span>` : ''}
+                    ${ip ? `<span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(100,116,139,0.6);align-self:flex-end;">${ip}</span>` : ''}
                 </div>`;
+            },
+
+            filterConnections: () => {
+                const text  = (document.getElementById('connFilterText')?.value || '').toLowerCase();
+                const chain = document.getElementById('connFilterChain')?.value || '';
+                const proto = document.getElementById('connFilterProto')?.value || '';
+                const devNames = {};
+                (state.devices || []).forEach(d => { devNames[d.ip] = (d.custom_name || d.hostname || d.ip).toLowerCase(); });
+                let conns = state.allConnections || [];
+                if (text)  conns = conns.filter(c => {
+                    const cn = c.chains?.[0] || 'DIRECT';
+                    return (c.src||'').includes(text) || (devNames[c.src]||'').includes(text)
+                        || (c.host||'').toLowerCase().includes(text) || cn.toLowerCase().includes(text);
+                });
+                if (chain) conns = conns.filter(c => (c.chain || 'DIRECT') === chain);
+                if (proto) conns = conns.filter(c => c.network === proto);
+                ui.renderConnectionRows(conns);
             },
 
             renderNodes: () => {
@@ -1803,8 +1893,22 @@
 
                 const pkt2 = '<div class="packet"></div>'.repeat(2);
                 const pkt3 = '<div class="packet"></div>'.repeat(3);
-                const appBadge = (color, icon, title) =>
-                    `<div title="${title}" style="width:36px;height:36px;border-radius:9px;background:${color}1a;border:1px solid ${color}40;display:flex;align-items:center;justify-content:center;color:${color};flex-shrink:0;transition:transform 0.15s;" onmouseover="this.style.transform='scale(1.12)'" onmouseout="this.style.transform=''">${icon}</div>`;
+
+                // Aggregate active apps across all devices
+                const activeAppIds = new Set();
+                Object.values(state.deviceApps || {}).forEach(devApps => {
+                    Object.entries(devApps).forEach(([appId, enabled]) => { if (enabled) activeAppIds.add(appId); });
+                });
+                // AI apps always active (hardcoded in generate_config.py)
+                APPS.forEach(a => { if (a.alwaysActive) activeAppIds.add(a.id); });
+
+                const appBadge = (color, icon, title, active) => {
+                    const bg     = active ? `${color}26` : `${color}0d`;
+                    const border = active ? `${color}55` : `${color}22`;
+                    const opacity = active ? '1' : '0.38';
+                    const glow   = active ? `box-shadow:0 0 8px ${color}44;` : '';
+                    return `<div title="${title}" style="width:36px;height:36px;border-radius:9px;background:${bg};border:1px solid ${border};display:flex;align-items:center;justify-content:center;color:${color};flex-shrink:0;opacity:${opacity};${glow}transition:transform 0.15s,opacity 0.2s;" onmouseover="this.style.transform='scale(1.12)'" onmouseout="this.style.transform=''">${icon}</div>`;
+                };
 
                 const nodePill = (flag, name, ping, pingCls, bg, border) =>
                     `<div style="display:flex;align-items:center;gap:6px;background:${bg};border:1px solid ${border};border-radius:9px;padding:6px 10px;flex:1;min-width:0;max-width:140px;">
@@ -1816,10 +1920,13 @@
 
                 const devTotal  = state.devices.length;
                 const devOnline = state.devices.filter(d => d.online !== false).length;
-                const devIcons  = ['💻','📱','📺','🖥️','🎮'];
-                const devPreview = state.devices.slice(0,3).map((d,i) =>
-                    `<div title="${d.custom_name || d.hostname || d.ip}" style="width:22px;height:22px;border-radius:6px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.25);display:flex;align-items:center;justify-content:center;font-size:11px;">${devIcons[i % devIcons.length]}</div>`
-                ).join('');
+                const onlineDevs = state.devices.filter(d => d.online !== false);
+                const devPreview = onlineDevs.map(d => {
+                    const dtype = d.device_type || vendorToType(d.vendor, d.hostname);
+                    const st = ICON_STYLE[dtype] || ICON_STYLE.unknown;
+                    const ic = DEVICE_ICONS[dtype] || DEVICE_ICONS.unknown;
+                    return `<div title="${d.custom_name || d.hostname || d.ip}" style="width:22px;height:22px;border-radius:6px;background:${st.bg};border:1px solid ${st.border};display:flex;align-items:center;justify-content:center;color:${st.color};">${ic.replace('width="18"','width="13"').replace('height="18"','height="13"')}</div>`;
+                }).join('');
 
                 box.innerHTML = `
                 <!-- Route map: 8-column grid -->
@@ -1827,10 +1934,10 @@
 
                     <!-- Col 1: Devices (spans both rows) -->
                     <div style="grid-row:1/3;display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;width:90px;min-width:0;">
-                        <div style="display:flex;gap:3px;flex-wrap:wrap;justify-content:center;max-width:80px;">
+                        <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);">Устройства</div>
+                        <div style="display:flex;gap:3px;flex-wrap:wrap;justify-content:center;max-width:84px;">
                             ${devPreview || '<div style="width:22px;height:22px;border-radius:6px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);display:flex;align-items:center;justify-content:center;font-size:11px;">💻</div>'}
                         </div>
-                        <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);">Устройства</div>
                         <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#60a5fa;">${devOnline}<span style="font-size:8px;color:var(--muted);font-weight:400;"> / ${devTotal}</span></div>
                     </div>
 
@@ -1845,10 +1952,8 @@
                         <div style="font-size:9px;font-weight:800;color:#c9a84c;letter-spacing:0.09em;text-shadow:0 0 10px rgba(201,168,76,0.5);">GSG</div>
                     </div>
 
-                    <!-- Col 4: Y-bar (spans both rows) -->
-                    <div style="grid-row:1/3;display:flex;flex-direction:column;align-items:center;align-self:stretch;padding:8px 0;">
-                        <div style="flex:1;width:2px;background:linear-gradient(to bottom,rgba(16,185,129,0.6) 0%,rgba(16,185,129,0.6) 50%,rgba(59,130,246,0.6) 50%,rgba(59,130,246,0.6) 100%);border-radius:1px;"></div>
-                    </div>
+                    <!-- Col 4: spacer -->
+                    <div style="grid-row:1/3;"></div>
 
                     <!-- Row 1: Auto branch — Col 5: short connector -->
                     <div><div class="route-line ${autoLineOk ? 'emerald' : 'dim'}">${pkt2}</div></div>
@@ -1857,10 +1962,12 @@
                     <!-- Row 1: Col 7: line node→apps (1fr, equal to col 2) -->
                     <div style="padding:0 10px;"><div class="route-line ${autoLineOk ? 'emerald' : 'dim'}">${pkt2}</div></div>
                     <!-- Row 1: Col 8: app icons -->
-                    <div style="display:flex;gap:6px;align-items:center;">
-                        ${appBadge('#229ED9', APP_ICONS.telegram, 'Telegram')}
-                        ${appBadge('#ee1d52', APP_ICONS.tiktok, 'TikTok')}
-                        ${appBadge('#ff0000', APP_ICONS.youtube, 'YouTube')}
+                    <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;">
+                        ${appBadge('#229ED9', APP_ICONS.telegram,  'Telegram',  activeAppIds.has('telegram'))}
+                        ${appBadge('#ee1d52', APP_ICONS.tiktok,    'TikTok',    activeAppIds.has('tiktok'))}
+                        ${appBadge('#ff0000', APP_ICONS.youtube,   'YouTube',   activeAppIds.has('youtube'))}
+                        ${appBadge('#e1306c', APP_ICONS.instagram, 'Instagram', activeAppIds.has('instagram'))}
+                        ${appBadge('#e7e9ea', APP_ICONS.twitter,   'X',         activeAppIds.has('twitter'))}
                     </div>
 
                     <!-- Row 2: NY branch — Col 5: short connector -->
@@ -1870,9 +1977,12 @@
                     <!-- Row 2: Col 7: line node→apps (1fr) -->
                     <div style="padding:0 10px;"><div class="route-line ${nyLineOk ? 'blue' : 'dim'}">${pkt2}</div></div>
                     <!-- Row 2: Col 8: app icons -->
-                    <div style="display:flex;gap:6px;align-items:center;">
-                        ${appBadge('#8ab4f8', APP_ICONS.gemini, 'Gemini')}
-                        ${appBadge('#d97706', APP_ICONS.claude, 'Claude')}
+                    <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;">
+                        ${appBadge('#8ab4f8', APP_ICONS.gemini,  'Gemini',  true)}
+                        ${appBadge('#d97706', APP_ICONS.claude,  'Claude',  true)}
+                        ${appBadge('#10a37f', APP_ICONS.chatgpt, 'ChatGPT', true)}
+                        ${appBadge('#E50914', APP_ICONS.netflix, 'Netflix', activeAppIds.has('netflix'))}
+                        ${appBadge('#1ce783', APP_ICONS.hulu,    'Hulu',    activeAppIds.has('hulu'))}
                     </div>
 
                 </div>`;
@@ -1918,8 +2028,8 @@
                 const nyFlag = nyNode ? utils.getFlagEmoji(nyNode.tag) : '🇺🇸';
                 const nyName = nyNode ? nyNode.tag : 'NY (нет узла)';
 
-                const autoApps = APP_ICONS.telegram + APP_ICONS.tiktok + APP_ICONS.youtube;
-                const usApps = APP_ICONS.gemini + APP_ICONS.claude;
+                const autoApps = APP_ICONS.telegram + APP_ICONS.tiktok + APP_ICONS.youtube + APP_ICONS.instagram + APP_ICONS.twitter;
+                const usApps = APP_ICONS.gemini + APP_ICONS.claude + APP_ICONS.chatgpt;
 
                 box.innerHTML =
                     makeRow(autoFlag, autoName, 'Авто • Быстрейший', '#10b981',
@@ -2063,10 +2173,10 @@
                     allDown   += d.alltime_down || 0;
                     allUp     += d.alltime_up   || 0;
                 });
-                const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v > 0 ? utils.formatBytes(v) : '—'; };
-                set('summaryTodayDown', todayDown); set('summaryTodayUp',  todayUp);
-                set('summaryMonthDown', monthDown); set('summaryMonthUp',  monthUp);
-                set('summaryAllDown',   allDown);   set('summaryAllUp',    allUp);
+                const set = (id, v, pre='') => { const el = document.getElementById(id); if (el) el.textContent = v > 0 ? pre+utils.formatBytes(v) : '—'; };
+                set('summaryTodayDown', todayDown, '↓'); set('summaryTodayUp',  todayUp,  '↑');
+                set('summaryMonthDown', monthDown, '↓'); set('summaryMonthUp',  monthUp,  '↑');
+                set('summaryAllDown',   allDown,   '↓'); set('summaryAllUp',    allUp,    '↑');
                 const peakEl = document.getElementById('summaryPeakDown');
                 if (peakEl) peakEl.textContent = utils.formatBytes(state.sessionStats.peakDown) + '/с';
             },
@@ -2274,6 +2384,58 @@
                         <span style="font-weight:600;color:rgba(148,163,184,0.8);">${uptimeStr}</span>
                     </div>
                 `;
+            },
+
+            applyConnFilter: () => {
+                const text  = (document.getElementById('connFilterText')?.value || '').toLowerCase();
+                const proto = document.getElementById('connFilterProto')?.value || '';
+                const route = document.getElementById('connFilterRoute')?.value || '';
+                const devNames = {};
+                (state.devices || []).forEach(d => { devNames[d.ip] = (d.custom_name || d.hostname || d.ip).toLowerCase(); });
+                let conns = state.allConnections || [];
+                if (text)  conns = conns.filter(c => (c.src||'').includes(text) || (devNames[c.src]||'').includes(text) || (c.host||'').toLowerCase().includes(text) || (c.chain||'').toLowerCase().includes(text));
+                if (proto) conns = conns.filter(c => c.network === proto);
+                if (route === 'DIRECT') conns = conns.filter(c => (c.chain || 'DIRECT') === 'DIRECT');
+                if (route === 'VPN')    conns = conns.filter(c => (c.chain || 'DIRECT') !== 'DIRECT');
+                ui.renderConnectionRows(conns);
+            },
+
+            renderConnectionRows: (conns) => {
+                const box = document.getElementById('connectionsBox');
+                const countEl = document.getElementById('connCount');
+                if (!box) return;
+                if (countEl) countEl.textContent = conns.length ? `${conns.length} соед.` : '';
+                if (!conns.length) {
+                    box.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:13px;">Нет соединений</div>';
+                    return;
+                }
+                const devNames = {};
+                (state.devices || []).forEach(d => { devNames[d.ip] = d.custom_name || d.hostname || d.ip; });
+                box.innerHTML = conns.map(c => {
+                    const srcName = devNames[c.src] || c.src;
+                    const chain   = c.chain || 'DIRECT';
+                    const isDirect = chain === 'DIRECT';
+                    const chainColor = isDirect ? '#f59e0b' : '#60a5fa';
+                    const host = c.host ? (c.dst_port ? `${c.host}:${c.dst_port}` : c.host) : (c.dst_port || '—');
+                    const upFmt   = utils.formatBytes(c.upload);
+                    const downFmt = utils.formatBytes(c.download);
+                    const netBadge = `<span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;background:rgba(100,116,139,0.12);border:1px solid rgba(100,116,139,0.2);color:#64748b;">${c.network}</span>`;
+                    return `<div style="display:grid;grid-template-columns:180px 1fr 90px 100px;gap:10px;padding:7px 10px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);margin-bottom:3px;align-items:center;" onmouseover="this.style.background='rgba(255,255,255,0.04)'" onmouseout="this.style.background='rgba(255,255,255,0.02)'">
+                        <div style="min-width:0;">
+                            <div style="font-size:12px;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${srcName}</div>
+                            <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);margin-top:1px;">${c.src}</div>
+                        </div>
+                        <div style="min-width:0;display:flex;align-items:center;gap:6px;">
+                            ${netBadge}
+                            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${host}">${host}</span>
+                        </div>
+                        <div style="font-size:11px;font-weight:700;color:${chainColor};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${chain}">${chain}</div>
+                        <div style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:10px;">
+                            <div style="color:#34d399;">↓${downFmt}</div>
+                            <div style="color:#60a5fa;">↑${upFmt}</div>
+                        </div>
+                    </div>`;
+                }).join('');
             }
         };
 
@@ -2480,6 +2642,22 @@
                         return `<div style="padding:1px 0;">${colored}</div>`;
                     }).join('') + '<div style="margin-top:4px;"><span style="color:var(--emerald);animation:skelPulse 1s infinite;display:inline-block;">█</span></div>';
                     if (isAtBottom) logBox.scrollTop = logBox.scrollHeight;
+                }
+            },
+
+            fetchConnections: async () => {
+                const box = document.getElementById('connectionsBox');
+                try {
+                    const r = await fetch('/api/connections', { credentials: 'same-origin' });
+                    if (!r.ok) {
+                        if (box) box.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ef4444;font-size:13px;">HTTP ${r.status}</div>`;
+                        return;
+                    }
+                    const data = await r.json();
+                    state.allConnections = data.connections || [];
+                    ui.applyConnFilter();
+                } catch (e) {
+                    if (box) box.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ef4444;font-size:13px;">${e.message}</div>`;
                 }
             },
 
@@ -2744,6 +2922,9 @@
 
             const logsLoop = async () => { await actions.fetchLogs(); setTimeout(logsLoop, 3000); };
             logsLoop();
+
+            const connLoop = async () => { await actions.fetchConnections(); setTimeout(connLoop, 2000); };
+            setTimeout(connLoop, 1500);
         };
 
         return { init, state, ui, actions };
