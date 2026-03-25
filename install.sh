@@ -25,14 +25,22 @@ echo ""
 # ── Зависимости ───────────────────────────────
 info "Проверка зависимостей..."
 MISSING=()
-for cmd in git docker curl python3; do
+for cmd in git curl python3; do
     command -v "$cmd" &>/dev/null || MISSING+=("$cmd")
 done
 if [ ${#MISSING[@]} -gt 0 ]; then
     info "Устанавливаем: ${MISSING[*]}"
     apt-get update -qq && apt-get install -y -qq "${MISSING[@]}"
 fi
+
+if ! command -v docker &>/dev/null; then
+    info "Устанавливаем Docker CE..."
+    curl -fsSL https://get.docker.com | sh
+    systemctl enable --now docker
+fi
+
 if ! docker compose version &>/dev/null 2>&1; then
+    info "Устанавливаем docker-compose-plugin..."
     apt-get install -y -qq docker-compose-plugin 2>/dev/null || \
     { mkdir -p /usr/local/lib/docker/cli-plugins
       curl -fsSL "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" \
