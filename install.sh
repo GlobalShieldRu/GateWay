@@ -57,8 +57,16 @@ fi
 if ! docker compose version &>/dev/null 2>&1; then
     info "Устанавливаем docker-compose-plugin..."
     apt-get install -y -qq docker-compose-plugin 2>/dev/null || \
-    { mkdir -p /usr/local/lib/docker/cli-plugins
-      curl -fsSL "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" \
+    { _OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+      _ARCH=$(uname -m)
+      case "$_ARCH" in
+          armv7l|armv7) _ARCH="armv7" ;;
+          armv6l)        _ARCH="armv6" ;;
+          aarch64|arm64) _ARCH="aarch64" ;;
+          x86_64)        _ARCH="x86_64" ;;
+      esac
+      mkdir -p /usr/local/lib/docker/cli-plugins
+      curl -fsSL "https://github.com/docker/compose/releases/latest/download/docker-compose-${_OS}-${_ARCH}" \
           -o /usr/local/lib/docker/cli-plugins/docker-compose
       chmod +x /usr/local/lib/docker/cli-plugins/docker-compose; }
 fi
