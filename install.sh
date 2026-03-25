@@ -41,6 +41,19 @@ if ! command -v dockerd &>/dev/null; then
     systemctl enable --now docker
 fi
 
+# Прописываем DNS для Docker-контейнеров (иначе apt внутри контейнеров не резолвит хосты)
+if [ ! -f /etc/docker/daemon.json ] || ! grep -q '"dns"' /etc/docker/daemon.json 2>/dev/null; then
+    info "Настройка DNS для Docker..."
+    mkdir -p /etc/docker
+    cat > /etc/docker/daemon.json << 'DOCKEREOF'
+{
+  "dns": ["8.8.8.8", "1.1.1.1"]
+}
+DOCKEREOF
+    systemctl restart docker
+    success "Docker DNS настроен"
+fi
+
 if ! docker compose version &>/dev/null 2>&1; then
     info "Устанавливаем docker-compose-plugin..."
     apt-get install -y -qq docker-compose-plugin 2>/dev/null || \
