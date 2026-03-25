@@ -2,9 +2,10 @@ FROM debian:bookworm-slim
 ARG DEBIAN_FRONTEND=noninteractive
 WORKDIR /app
 
+ARG PIP_INDEX_URL=https://pypi.org/simple/
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl ca-certificates python3 python3-pip inotify-tools gzip \
-    && pip3 install --no-cache-dir --break-system-packages httpx PyYAML \
+    && pip3 install --no-cache-dir --break-system-packages --index-url "$PIP_INDEX_URL" httpx PyYAML \
     && rm -rf /var/lib/apt/lists/*
 
 ENV MIHOMO_VERSION="v1.18.10"

@@ -200,8 +200,15 @@ success "Автозапуск включён (systemd: gsg.service)"
 
 # ── Сборка и запуск ───────────────────────────
 echo ""
+info "Проверка доступности PyPI..."
+PIP_BUILD_ARGS=""
+if ! curl -sf --max-time 5 https://pypi.org/simple/ > /dev/null 2>&1; then
+    warn "pypi.org недоступен — используем зеркало mirrors.aliyun.com"
+    PIP_BUILD_ARGS="--build-arg PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/"
+fi
+
 info "Сборка Docker образов (может занять несколько минут)..."
-docker compose build
+docker compose build $PIP_BUILD_ARGS
 
 info "Запуск контейнеров..."
 docker compose up -d
