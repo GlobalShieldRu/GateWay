@@ -141,7 +141,7 @@ async function doLogin(e) {
       body: JSON.stringify({password})
     });
     if (r.ok) {
-      window.location.replace('/');
+      window.location.reload();
     } else {
       const d = await r.json().catch(() => ({}));
       err.textContent = d.detail || 'Неверный пароль';
