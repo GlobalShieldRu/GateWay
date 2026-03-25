@@ -35,6 +35,8 @@ fi
 
 if ! command -v dockerd &>/dev/null; then
     info "Устанавливаем Docker CE..."
+    # Удаляем конфликтующий пакет wmdocker (в Debian пакет 'docker' = оконный менеджер, не Docker CE)
+    apt-get remove -y docker wmdocker 2>/dev/null || true
     curl -fsSL https://get.docker.com | sh
     systemctl enable --now docker
 fi
