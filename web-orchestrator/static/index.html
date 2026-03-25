@@ -694,8 +694,8 @@
                 </div>
                 <div class="metric-pill" style="flex-direction:column;align-items:flex-start;gap:1px;padding:6px 8px;">
                     <span style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-weight:600;">Пик</span>
-                    <span id="summaryPeakDown" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#fbbf24;">—</span>
-                    <span style="font-size:9px;color:var(--muted);">↓/с</span>
+                    <span id="summaryPeakDown" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#34d399;">—</span>
+                    <span id="summaryPeakUp" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#60a5fa;">—</span>
                 </div>
             </div>
         </div>
@@ -1169,7 +1169,15 @@
                     </div>
                 </div>
                 <div class="glass" style="padding:24px;">
-                    <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;">Live трафик (последние 60 сек)</div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+                        <div id="chartPeriodLabel" style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;">Трафик (последние 60 сек)</div>
+                        <div style="display:flex;gap:4px;">
+                            <button id="periodBtn-live"    onclick="GatewayApp.ui.setChartPeriod('live')"    style="font-size:10px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:'Syne',sans-serif;transition:all 0.15s;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.4);color:#fbbf24;">Live</button>
+                            <button id="periodBtn-days"    onclick="GatewayApp.ui.setChartPeriod('days')"    style="font-size:10px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:'Syne',sans-serif;transition:all 0.15s;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);color:var(--muted);">7 дней</button>
+                            <button id="periodBtn-month"   onclick="GatewayApp.ui.setChartPeriod('month')"   style="font-size:10px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:'Syne',sans-serif;transition:all 0.15s;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);color:var(--muted);">Месяц</button>
+                            <button id="periodBtn-alltime" onclick="GatewayApp.ui.setChartPeriod('alltime')" style="font-size:10px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:'Syne',sans-serif;transition:all 0.15s;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);color:var(--muted);">Всё время</button>
+                        </div>
+                    </div>
                     <div style="position:relative;height:220px;">
                         <canvas id="statsLiveChart" style="position:absolute;top:0;left:0;width:100%;height:100%;display:block;"></canvas>
                         <div id="statsChartTooltip" style="position:absolute;pointer-events:none;display:none;background:rgba(10,9,8,0.95);border:1px solid rgba(251,191,36,0.2);border-radius:8px;padding:8px 12px;font-size:11px;color:#f1f5f9;white-space:nowrap;z-index:10;box-shadow:0 4px 16px rgba(0,0,0,0.5);"></div>
@@ -1403,7 +1411,9 @@
             sortDir: 1,
             deviceSparklines: {},
             _trafficHistory: [],
-            _trafficHistoryDevices: []
+            _trafficHistoryDevices: [],
+            _chartPeriod: 'live',
+            _chartBars: []
         };
 
         const utils = {
@@ -2328,7 +2338,9 @@
                 set('summaryMonthDown', monthDown, '↓'); set('summaryMonthUp',  monthUp,  '↑');
                 set('summaryAllDown',   allDown,   '↓'); set('summaryAllUp',    allUp,    '↑');
                 const peakEl = document.getElementById('summaryPeakDown');
-                if (peakEl) peakEl.textContent = utils.formatBytes(state.sessionStats.peakDown) + '/с';
+                if (peakEl) peakEl.textContent = (state.sessionStats.peakDown > 0 ? '↓ ' + utils.formatBytes(state.sessionStats.peakDown) + '/с' : '—');
+                const peakUpEl = document.getElementById('summaryPeakUp');
+                if (peakUpEl) peakUpEl.textContent = (state.sessionStats.peakUp > 0 ? '↑ ' + utils.formatBytes(state.sessionStats.peakUp) + '/с' : '—');
             },
 
             showToast: (msg, type = 'info') => {
@@ -2598,6 +2610,27 @@
                 }).join('');
             },
 
+            setChartPeriod: (period) => {
+                state._chartPeriod = period;
+                const labels = {
+                    live: 'Трафик (последние 60 сек)',
+                    days: 'Трафик за последние 7 дней',
+                    month: 'Трафик за текущий месяц',
+                    alltime: 'Трафик за всё время'
+                };
+                const lbl = document.getElementById('chartPeriodLabel');
+                if (lbl) lbl.textContent = labels[period] || '';
+                ['live','days','month','alltime'].forEach(p => {
+                    const btn = document.getElementById('periodBtn-' + p);
+                    if (!btn) return;
+                    const active = p === period;
+                    btn.style.background = active ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.03)';
+                    btn.style.border     = active ? '1px solid rgba(201,168,76,0.4)' : '1px solid rgba(255,255,255,0.08)';
+                    btn.style.color      = active ? '#fbbf24' : 'var(--muted)';
+                });
+                requestAnimationFrame(() => requestAnimationFrame(() => ui.renderStats()));
+            },
+
             renderStats: () => {
                 // Top devices by today traffic
                 const today = new Date().toISOString().slice(0, 10);
@@ -2640,43 +2673,61 @@
                     </div>`).join('');
                 }
 
-                // Live chart (canvas bar chart)
+                // Chart (canvas bar chart)
                 const canvas = document.getElementById('statsLiveChart');
                 if (!canvas) return;
 
-                // Init tooltip + hover once
+                // Init tooltip + resize handler once
                 if (!canvas._tooltipInit) {
                     canvas._tooltipInit = true;
-                    // Redraw on resize / orientation change
                     if (window.ResizeObserver) {
                         new ResizeObserver(() => { if (document.getElementById('tab-stats')?.classList.contains('active')) ui.renderStats(); }).observe(canvas.parentElement);
                     }
                     canvas.addEventListener('mousemove', (e) => {
                         const tip = document.getElementById('statsChartTooltip');
                         if (!tip) return;
-                        const hist = state._trafficHistory.slice(-60);
-                        const devHist = (state._trafficHistoryDevices || []).slice(-60);
-                        if (!hist.length) return;
+                        const isLive = (state._chartPeriod || 'live') === 'live';
+                        // Use _chartBars if populated; fallback to _trafficHistory for live
+                        let bars = state._chartBars;
+                        if (!bars || !bars.length) {
+                            if (!isLive || !state._trafficHistory?.length) { tip.style.display = 'none'; return; }
+                            bars = state._trafficHistory.slice(-60).map(h => ({ label: '', down: h.down, up: h.up }));
+                        }
                         const rect = canvas.getBoundingClientRect();
                         const mx = e.clientX - rect.left;
                         const padL = 52, padR = 12;
                         const chartW = canvas.offsetWidth - padL - padR;
-                        const barW = chartW / 60;
+                        const barW = chartW / bars.length;
                         const idx = Math.floor((mx - padL) / barW);
-                        if (idx < 0 || idx >= hist.length) { tip.style.display = 'none'; return; }
-                        const item = hist[idx];
-                        const devSnap = devHist[idx] || {};
-                        const secsAgo = hist.length - 1 - idx;
-                        const label = secsAgo === 0 ? 'сейчас' : `${secsAgo}с назад`;
-                        const topDevs = Object.entries(devSnap)
-                            .map(([ip, spd]) => {
-                                const dev = state.devices.find(d => d.ip === ip);
-                                return { name: dev?.custom_name || dev?.hostname || ip, speed: spd };
-                            })
-                            .sort((a, b) => b.speed - a.speed).slice(0, 4);
-                        const devsHtml = topDevs.length
-                            ? `<div style="margin-top:7px;padding-top:7px;border-top:1px solid rgba(255,255,255,0.08);">${topDevs.map(d => `<div style="display:flex;justify-content:space-between;gap:14px;margin-top:3px;"><span style="color:rgba(148,163,184,0.65);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;">${d.name}</span><span style="color:#34d399;font-family:'JetBrains Mono',monospace;font-size:10px;">${utils.formatBytes(d.speed)}/с</span></div>`).join('')}</div>` : '';
-                        tip.innerHTML = `<div style="color:rgba(148,163,184,0.7);margin-bottom:5px;font-size:10px;">${label}</div><div style="color:#34d399;">↓ ${utils.formatBytes(item.down)}/с</div><div style="color:#60a5fa;margin-top:2px;">↑ ${utils.formatBytes(item.up)}/с</div>${devsHtml}`;
+                        if (idx < 0 || idx >= bars.length) { tip.style.display = 'none'; return; }
+                        const item = bars[idx];
+                        let html;
+                        if (isLive) {
+                            const devHist = (state._trafficHistoryDevices || []).slice(-60);
+                            let devSnap = devHist[idx] || {};
+                            // Fallback to current traffic if snapshot empty
+                            if (!Object.keys(devSnap).length && state.traffic) {
+                                devSnap = {};
+                                Object.entries(state.traffic).forEach(([ip, d]) => {
+                                    const s = (d.speed_down||0)+(d.speed_up||0);
+                                    if (s > 0) devSnap[ip] = s;
+                                });
+                            }
+                            const secsAgo = bars.length - 1 - idx;
+                            const timeLabel = secsAgo === 0 ? 'сейчас' : `${secsAgo}с назад`;
+                            const topDevs = Object.entries(devSnap)
+                                .map(([ip, spd]) => {
+                                    const dev = state.devices.find(d => d.ip === ip);
+                                    return { name: dev?.custom_name || dev?.hostname || ip, speed: spd };
+                                })
+                                .sort((a, b) => b.speed - a.speed).slice(0, 4);
+                            const devsHtml = topDevs.length
+                                ? `<div style="margin-top:7px;padding-top:7px;border-top:1px solid rgba(255,255,255,0.08);">${topDevs.map(d => `<div style="display:flex;justify-content:space-between;gap:14px;margin-top:3px;"><span style="color:rgba(148,163,184,0.65);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;">${d.name}</span><span style="color:#34d399;font-family:'JetBrains Mono',monospace;font-size:10px;">${utils.formatBytes(d.speed)}</span></div>`).join('')}</div>` : '';
+                            html = `<div style="color:rgba(148,163,184,0.7);margin-bottom:5px;font-size:10px;">${timeLabel}</div><div style="color:#34d399;">↓ ${utils.formatBytes(item.down)}</div><div style="color:#60a5fa;margin-top:2px;">↑ ${utils.formatBytes(item.up)}</div>${devsHtml}`;
+                        } else {
+                            html = `<div style="color:rgba(148,163,184,0.7);margin-bottom:5px;font-size:10px;">${item.label}</div><div style="color:#34d399;">↓ ${utils.formatBytes(item.down)}</div><div style="color:#60a5fa;margin-top:2px;">↑ ${utils.formatBytes(item.up)}</div>`;
+                        }
+                        tip.innerHTML = html;
                         let tx = mx + 14;
                         if (tx + 210 > canvas.offsetWidth) tx = mx - 214;
                         tip.style.left = tx + 'px';
@@ -2689,7 +2740,46 @@
                     });
                 }
 
-                if (!state._trafficHistory?.length) return;
+                // Build bars array based on selected period
+                const period = state._chartPeriod || 'live';
+                let bars = [];
+                const _devH = state.deviceHistory || {};
+
+                if (period === 'live') {
+                    bars = state._trafficHistory.slice(-60).map(h => ({ label: '', down: h.down, up: h.up }));
+                } else if (period === 'days') {
+                    for (let i = 6; i >= 0; i--) {
+                        const d = new Date(); d.setDate(d.getDate() - i);
+                        const key = d.toISOString().slice(0, 10);
+                        let down = 0, up = 0;
+                        Object.values(_devH).forEach(h => { down += h.daily?.[key]?.down || 0; up += h.daily?.[key]?.up || 0; });
+                        bars.push({ label: key.slice(5).replace('-', '.'), down, up });
+                    }
+                } else if (period === 'month') {
+                    const nowStr = new Date().toISOString().slice(0, 10);
+                    const monthStr = nowStr.slice(0, 7);
+                    const daysInMonth = new Date(parseInt(monthStr.slice(0,4)), parseInt(monthStr.slice(5,7)), 0).getDate();
+                    for (let i = 1; i <= daysInMonth; i++) {
+                        const key = `${monthStr}-${String(i).padStart(2, '0')}`;
+                        let down = 0, up = 0;
+                        Object.values(_devH).forEach(h => { down += h.daily?.[key]?.down || 0; up += h.daily?.[key]?.up || 0; });
+                        bars.push({ label: String(i), down, up });
+                    }
+                } else if (period === 'alltime') {
+                    const monthMap = {};
+                    Object.values(_devH).forEach(h => {
+                        Object.entries(h.monthly || {}).forEach(([m, v]) => {
+                            if (!monthMap[m]) monthMap[m] = { down: 0, up: 0 };
+                            monthMap[m].down += v.down || 0;
+                            monthMap[m].up   += v.up   || 0;
+                        });
+                    });
+                    bars = Object.entries(monthMap).sort(([a], [b]) => a.localeCompare(b))
+                        .map(([m, v]) => ({ label: m.slice(5).replace('-', '.') + '\'' + m.slice(2, 4), down: v.down, up: v.up }));
+                }
+
+                state._chartBars = bars;
+                if (!bars.length) return;
 
                 const dpr = window.devicePixelRatio || 1;
                 const cssW = canvas.offsetWidth;
@@ -2706,8 +2796,8 @@
 
                 ctx.clearRect(0, 0, cssW, cssH);
 
-                const hist = state._trafficHistory.slice(-60);
-                const maxVal = Math.max(...hist.map(h => h.down + h.up), 1024);
+                const isLive = period === 'live';
+                const maxVal = Math.max(...bars.map(b => b.down + b.up), isLive ? 1024 : 1);
 
                 // Grid + Y-axis labels
                 ctx.font = `9px 'JetBrains Mono', monospace`;
@@ -2720,7 +2810,7 @@
                         ctx.fillStyle = 'rgba(148,163,184,0.45)';
                         ctx.textAlign = 'right';
                         ctx.textBaseline = 'middle';
-                        ctx.fillText(utils.formatBytes(maxVal * frac) + '/с', padL - 5, y);
+                        ctx.fillText(utils.formatBytes(maxVal * frac), padL - 5, y);
                     }
                 });
 
@@ -2728,38 +2818,48 @@
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'top';
                 ctx.fillStyle = 'rgba(148,163,184,0.45)';
-                [['60с', 0], ['30с', 0.5], ['сейчас', 1]].forEach(([lbl, pos]) => {
-                    ctx.fillText(lbl, padL + pos * cW, padT + cH + 7);
-                });
+                const barW = cW / bars.length;
+                if (isLive) {
+                    [['60с', 0], ['30с', 0.5], ['сейчас', 1]].forEach(([lbl, pos]) => {
+                        ctx.fillText(lbl, padL + pos * cW, padT + cH + 7);
+                    });
+                } else {
+                    // Show label on every bar if few bars, else every N
+                    const step = bars.length <= 12 ? 1 : bars.length <= 31 ? Math.ceil(bars.length / 8) : 1;
+                    bars.forEach((b, i) => {
+                        if (i % step === 0 || i === bars.length - 1) {
+                            ctx.fillText(b.label, padL + i * barW + barW / 2, padT + cH + 7);
+                        }
+                    });
+                }
 
                 // Bars
-                const barW = cW / 60;
-                hist.forEach((item, i) => {
+                bars.forEach((item, i) => {
                     const x = padL + i * barW;
                     const dH = (item.down / maxVal) * cH;
                     const uH = (item.up   / maxVal) * cH;
                     if (dH > 0) {
                         ctx.fillStyle = 'rgba(16,185,129,0.75)';
-                        ctx.fillRect(x + 0.5, padT + cH - dH, barW - 1, dH);
+                        ctx.fillRect(x + 0.5, padT + cH - dH, Math.max(barW - 1, 1), dH);
                     }
                     if (uH > 0) {
                         ctx.fillStyle = 'rgba(96,165,250,0.55)';
-                        ctx.fillRect(x + 0.5, padT + cH - dH - uH, barW - 1, uH);
+                        ctx.fillRect(x + 0.5, padT + cH - dH - uH, Math.max(barW - 1, 1), uH);
                     }
                 });
 
                 // Legend (top-right)
-                const last = hist[hist.length - 1] || { down: 0, up: 0 };
+                const last = bars[bars.length - 1] || { down: 0, up: 0 };
                 ctx.textAlign = 'right';
                 ctx.textBaseline = 'top';
                 ctx.fillStyle = 'rgba(16,185,129,0.85)';
                 ctx.fillRect(cssW - padR - 170, padT - 13, 8, 8);
                 ctx.fillStyle = 'rgba(148,163,184,0.6)';
-                ctx.fillText(`↓ ${utils.formatBytes(last.down)}/с`, cssW - padR - 95, padT - 12);
+                ctx.fillText(`↓ ${utils.formatBytes(last.down)}`, cssW - padR - 95, padT - 12);
                 ctx.fillStyle = 'rgba(96,165,250,0.85)';
                 ctx.fillRect(cssW - padR - 85, padT - 13, 8, 8);
                 ctx.fillStyle = 'rgba(148,163,184,0.6)';
-                ctx.fillText(`↑ ${utils.formatBytes(last.up)}/с`, cssW - padR, padT - 12);
+                ctx.fillText(`↑ ${utils.formatBytes(last.up)}`, cssW - padR, padT - 12);
             }
         };
 

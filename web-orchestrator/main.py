@@ -9,9 +9,9 @@ import aiofiles
 import hashlib
 import secrets
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from fastapi import FastAPI, HTTPException, Request, Response, Cookie
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
@@ -40,6 +40,12 @@ GLOBALSHIELD_API = "https://api.globalshield.ru/v1"
 
 GATEWAY_IP = os.getenv("GSG_GATEWAY_IP", "10.10.1.139")
 socket.setdefaulttimeout(0.3)
+
+# ── Per-file write locks (prevent concurrent JSON corruption) ─────────────────
+_devices_lock      = asyncio.Lock()
+_traffic_lock      = asyncio.Lock()
+_subscription_lock = asyncio.Lock()
+_feedback_lock     = asyncio.Lock()
 
 # ── Auth helpers ─────────────────────────────────────────────────────────────
 
@@ -152,6 +158,7 @@ class TrafficMonitor:
                                 'network': meta.get('network', 'tcp').upper(),
                                 'chains': chains,
                                 'start': conn.get('start', ''),
+                                '_seen': time.monotonic(),
                             }
 
                             chain_label = node if node else 'DIRECT'
@@ -163,6 +170,9 @@ class TrafficMonitor:
                         self.active_conns = {k: v for k, v in self.active_conns.items() if k in current_active_ids}
                 except Exception:
                     pass
+                # Always evict stale connections (guards against Mihomo being unavailable)
+                stale_cutoff = time.monotonic() - 300  # 5 minutes
+                self.active_conns = {k: v for k, v in self.active_conns.items() if v.get('_seen', 0) >= stale_cutoff}
                 await asyncio.sleep(1)
 
 monitor = TrafficMonitor()
@@ -187,8 +197,9 @@ class TrafficHistory:
     async def save(self):
         try:
             raw = {"devices": self.data, "nodes": self.nodes, "schedule": self.schedule}
-            async with aiofiles.open(GSG_TRAFFIC_HISTORY_FILE, 'w') as f:
-                await f.write(json.dumps(raw, indent=2))
+            async with _traffic_lock:
+                async with aiofiles.open(GSG_TRAFFIC_HISTORY_FILE, 'w') as f:
+                    await f.write(json.dumps(raw, indent=2))
         except Exception:
             pass
 
@@ -219,12 +230,26 @@ class TrafficHistory:
             d[scope][period_key]['up'] += delta_up
             d[scope][period_key]['down'] += delta_down
 
+    def _prune_old_daily(self):
+        """Remove daily entries older than 90 days; yearly older than 5 years."""
+        day_cutoff  = (datetime.now() - timedelta(days=90)).strftime("%Y-%m-%d")
+        year_cutoff = str(datetime.now().year - 5)
+        for store in (self.data, self.nodes):
+            for entity in store.values():
+                daily = entity.get('daily', {})
+                for k in [k for k in daily if k < day_cutoff]:
+                    del daily[k]
+                yearly = entity.get('yearly', {})
+                for k in [k for k in yearly if k < year_cutoff]:
+                    del yearly[k]
+
     def flush(self, session_stats: dict, node_stats: dict = None):
         for ip, stat in session_stats.items():
             self._flush_bucket(self.data, self._snapshots, ip, stat)
         if node_stats:
             for tag, stat in node_stats.items():
                 self._flush_bucket(self.nodes, self._node_snapshots, tag, stat)
+        self._prune_old_daily()
 
     def reset(self, scope: str, ip: str = None):
         now = datetime.now()
@@ -274,12 +299,14 @@ class TrafficHistory:
 
 traffic_history = TrafficHistory()
 
-_mac_vendor_cache: dict = {}
+_mac_vendor_cache: OrderedDict = OrderedDict()
+_MAC_CACHE_MAX = 1000
 
 @app.get("/api/vendor/{mac}")
 async def get_mac_vendor(mac: str):
     oui = mac.replace(':', '').replace('-', '').upper()[:6]
     if oui in _mac_vendor_cache:
+        _mac_vendor_cache.move_to_end(oui)   # LRU: mark as recently used
         return {"vendor": _mac_vendor_cache[oui]}
     try:
         async with httpx.AsyncClient(timeout=4.0) as client:
@@ -291,18 +318,38 @@ async def get_mac_vendor(mac: str):
     except Exception:
         vendor = ""
     _mac_vendor_cache[oui] = vendor
+    if len(_mac_vendor_cache) > _MAC_CACHE_MAX:
+        _mac_vendor_cache.popitem(last=False)  # evict least recently used
     return {"vendor": vendor}
 
 async def _rotate_log():
-    """Truncate sing-box.log to last 2000 lines every 2 hours to prevent disk fill."""
+    """Truncate sing-box.log to last 2000 lines every 10 min. Reads only tail — no full file in memory."""
+    KEEP_LINES  = 2000
+    THRESHOLD   = 2 * 1024 * 1024   # rotate when file exceeds 2 MB
+    CHUNK       = 65536              # read 64 KB chunks from end
     while True:
-        await asyncio.sleep(7200)
+        await asyncio.sleep(600)
         try:
-            if GSG_LOG_FILE.exists() and GSG_LOG_FILE.stat().st_size > 5 * 1024 * 1024:  # >5 MB
-                async with aiofiles.open(GSG_LOG_FILE, 'r') as f:
-                    lines = await f.readlines()
-                async with aiofiles.open(GSG_LOG_FILE, 'w') as f:
-                    await f.writelines(lines[-2000:])
+            if not GSG_LOG_FILE.exists():
+                continue
+            if GSG_LOG_FILE.stat().st_size <= THRESHOLD:
+                continue
+            # Collect chunks from the end until we have enough newlines
+            buf = b''
+            pos = GSG_LOG_FILE.stat().st_size
+            with open(GSG_LOG_FILE, 'rb') as f:
+                while pos > 0:
+                    read_size = min(CHUNK, pos)
+                    pos -= read_size
+                    f.seek(pos)
+                    buf = f.read(read_size) + buf
+                    if buf.count(b'\n') > KEEP_LINES:
+                        break
+            tail = b'\n'.join(buf.split(b'\n')[-KEEP_LINES:])
+            if not tail.endswith(b'\n'):
+                tail += b'\n'
+            with open(GSG_LOG_FILE, 'wb') as f:
+                f.write(tail)
         except Exception:
             pass
 
@@ -368,7 +415,16 @@ async def read_json(path: Path, default):
     try:
         async with aiofiles.open(path, 'r') as f:
             content = await f.read()
-            return json.loads(content)
+        return json.loads(content)
+    except json.JSONDecodeError:
+        # Corrupt file — save a backup so data isn't silently lost
+        try:
+            bak = path.with_suffix(path.suffix + '.bak')
+            async with aiofiles.open(bak, 'w') as f:
+                await f.write(content)
+        except Exception:
+            pass
+        return default
     except Exception:
         return default
 
@@ -579,8 +635,9 @@ async def get_devices():
     if new_devices:
         for d in new_devices:
             configs[d["ip"]] = {"mode": "smart", "assigned_node": "auto", "tiktok_node": "auto", "custom_name": ""}
-        async with aiofiles.open(GSG_DEVICES_FILE, 'w') as f:
-            await f.write(json.dumps(configs, indent=2))
+        async with _devices_lock:
+            async with aiofiles.open(GSG_DEVICES_FILE, 'w') as f:
+                await f.write(json.dumps(configs, indent=2))
         async with aiofiles.open(GSG_CONFIG_DIR / ".reload_singbox", 'w') as f:
             await f.write("1")
     result = []
@@ -597,10 +654,11 @@ async def get_devices():
 
 @app.put("/api/devices/{ip}")
 async def update_device(ip: str, data: DeviceUpdate):
-    configs = await read_json(GSG_DEVICES_FILE, {})
-    configs[ip] = {"mode": data.mode, "assigned_node": data.assigned_node, "tiktok_node": data.tiktok_node, "custom_name": data.custom_name}
-    async with aiofiles.open(GSG_DEVICES_FILE, 'w') as f:
-        await f.write(json.dumps(configs, indent=2))
+    async with _devices_lock:
+        configs = await read_json(GSG_DEVICES_FILE, {})
+        configs[ip] = {"mode": data.mode, "assigned_node": data.assigned_node, "tiktok_node": data.tiktok_node, "custom_name": data.custom_name}
+        async with aiofiles.open(GSG_DEVICES_FILE, 'w') as f:
+            await f.write(json.dumps(configs, indent=2))
     async with aiofiles.open(GSG_CONFIG_DIR / ".reload_nftables", 'w') as f:
         await f.write("1")
     async with aiofiles.open(GSG_CONFIG_DIR / ".reload_singbox", 'w') as f:
@@ -658,21 +716,23 @@ async def update_sub(data: dict):
         except Exception:
             pass
 
-    sub = await read_json(GSG_SUBSCRIPTION_FILE, {})
-    sub["url"] = url
-    sub["last_update"] = datetime.now().isoformat()
-    async with aiofiles.open(GSG_SUBSCRIPTION_FILE, 'w') as f:
-        await f.write(json.dumps(sub))
+    async with _subscription_lock:
+        sub = await read_json(GSG_SUBSCRIPTION_FILE, {})
+        sub["url"] = url
+        sub["last_update"] = datetime.now().isoformat()
+        async with aiofiles.open(GSG_SUBSCRIPTION_FILE, 'w') as f:
+            await f.write(json.dumps(sub))
     async with aiofiles.open(GSG_CONFIG_DIR / ".reload_singbox", 'w') as f:
         await f.write("1")
     return {"success": True}
 
 @app.put("/api/subscription/node")
 async def update_global_node(data: GlobalNodeUpdate):
-    sub = await read_json(GSG_SUBSCRIPTION_FILE, {"url": "", "global_node": "auto"})
-    sub["global_node"] = data.global_node
-    async with aiofiles.open(GSG_SUBSCRIPTION_FILE, 'w') as f:
-        await f.write(json.dumps(sub))
+    async with _subscription_lock:
+        sub = await read_json(GSG_SUBSCRIPTION_FILE, {"url": "", "global_node": "auto"})
+        sub["global_node"] = data.global_node
+        async with aiofiles.open(GSG_SUBSCRIPTION_FILE, 'w') as f:
+            await f.write(json.dumps(sub))
     async with aiofiles.open(GSG_CONFIG_DIR / ".reload_singbox", 'w') as f:
         await f.write("1")
     return {"success": True}
@@ -761,14 +821,20 @@ async def post_feedback(req: FeedbackRequest):
         raise HTTPException(status_code=400, detail="Сообщение пустое")
     entry = {"ts": datetime.utcnow().isoformat(), "name": req.name.strip(), "message": req.message.strip()}
     try:
-        existing = []
-        try:
-            async with aiofiles.open(GSG_FEEDBACK_FILE, 'r') as f:
-                existing = json.loads(await f.read())
-        except: pass
-        existing.append(entry)
-        async with aiofiles.open(GSG_FEEDBACK_FILE, 'w') as f:
-            await f.write(json.dumps(existing, ensure_ascii=False, indent=2))
+        async with _feedback_lock:
+            existing = []
+            try:
+                async with aiofiles.open(GSG_FEEDBACK_FILE, 'r') as f:
+                    existing = json.loads(await f.read())
+            except: pass
+            existing.append(entry)
+            # Retention: keep last 500 records no older than 1 year
+            cutoff = (datetime.utcnow() - timedelta(days=365)).isoformat()
+            existing = [e for e in existing if e.get("ts", "") >= cutoff]
+            if len(existing) > 500:
+                existing = existing[-500:]
+            async with aiofiles.open(GSG_FEEDBACK_FILE, 'w') as f:
+                await f.write(json.dumps(existing, ensure_ascii=False, indent=2))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
