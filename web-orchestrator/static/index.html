@@ -1777,6 +1777,11 @@
                                 <select class="gsg-select device-node-select" data-ip="${dev.ip}" style="width:100%;" ${isBlocked?'disabled':''}>
                                     ${optionsHtml}
                                 </select>
+                                <input type="text" class="gsg-input static-ip-input" data-ip="${dev.ip}" data-mac="${dev.mac||''}"
+                                    value="${dev.static_ip||''}"
+                                    placeholder="Статич. IP (напр. .150)"
+                                    title="Зарезервировать IP через DHCP"
+                                    style="width:100%;font-size:11px;padding:4px 8px;margin-top:2px;font-family:'JetBrains Mono',monospace;">
                             </div>
                         </div>
                         </div><!-- end mobile-right -->
@@ -2496,13 +2501,13 @@
                     nameEl.textContent = newName;
                     nameEl.style.color = '#93c5fd';
                     const dev = state.devices.find(d => d.ip === ip);
-                    if (dev) await utils.apiCall(`/devices/${ip}`, { method: 'PUT', body: JSON.stringify({ mode: dev.mode, assigned_node: dev.assigned_node || 'auto', tiktok_node: dev.tiktok_node || 'auto', custom_name: newName }) });
+                    if (dev) await utils.apiCall(`/devices/${ip}`, { method: 'PUT', body: JSON.stringify({ mode: dev.mode, assigned_node: dev.assigned_node || 'auto', tiktok_node: dev.tiktok_node || 'auto', custom_name: newName, static_ip: dev.static_ip || '', mac: dev.mac || '' }) });
                 } else if (!newName) {
                     // Clear custom name
                     nameEl.textContent = inputEl.dataset.orig;
                     nameEl.style.color = '#f1f5f9';
                     const dev = state.devices.find(d => d.ip === ip);
-                    if (dev) await utils.apiCall(`/devices/${ip}`, { method: 'PUT', body: JSON.stringify({ mode: dev.mode, assigned_node: dev.assigned_node || 'auto', tiktok_node: dev.tiktok_node || 'auto', custom_name: '' }) });
+                    if (dev) await utils.apiCall(`/devices/${ip}`, { method: 'PUT', body: JSON.stringify({ mode: dev.mode, assigned_node: dev.assigned_node || 'auto', tiktok_node: dev.tiktok_node || 'auto', custom_name: '', static_ip: dev.static_ip || '', mac: dev.mac || '' }) });
                 }
             },
 
@@ -2864,10 +2869,13 @@
         };
 
         const actions = {
-            updateDeviceSettings: utils.debounce(async (ip, mode, assignedNode, tiktokNode) => {
+            updateDeviceSettings: utils.debounce(async (ip, mode, assignedNode, tiktokNode, staticIp) => {
                 const dev = state.devices.find(d => d.ip === ip);
-                const curTiktok = tiktokNode !== undefined ? tiktokNode : (dev?.tiktok_node || 'auto');
-                const result = await utils.apiCall(`/devices/${ip}`, { method: 'PUT', body: JSON.stringify({ mode, assigned_node: assignedNode, tiktok_node: curTiktok }) });
+                const curTiktok  = tiktokNode !== undefined ? tiktokNode  : (dev?.tiktok_node  || 'auto');
+                const curStatic  = staticIp   !== undefined ? staticIp   : (dev?.static_ip    || '');
+                const curCustom  = dev?.custom_name || '';
+                const curMac     = dev?.mac || '';
+                const result = await utils.apiCall(`/devices/${ip}`, { method: 'PUT', body: JSON.stringify({ mode, assigned_node: assignedNode, tiktok_node: curTiktok, custom_name: curCustom, static_ip: curStatic, mac: curMac }) });
                 if (result) {
                     const name = dev?.custom_name || dev?.hostname || ip;
                     const modeLabel = {smart:'Smart',global:'Прокси',bypass:'Напрямую',block:'Блок'}[mode] || mode;
@@ -3275,6 +3283,20 @@
                 state._devicesHash = null;
                 ui.renderDevices(state.devices);
             });
+
+            // Static IP blur
+            document.getElementById('devicesTableBody')?.addEventListener('blur', (e) => {
+                if (!e.target.classList.contains('static-ip-input')) return;
+                const ip  = e.target.dataset.ip;
+                const dev = state.devices.find(d => d.ip === ip);
+                if (!dev) return;
+                const val = e.target.value.trim();
+                // Normalize: if user typed just last octet like "150", expand to full IP
+                const normalized = /^\d{1,3}$/.test(val)
+                    ? ip.split('.').slice(0,3).join('.') + '.' + val
+                    : val;
+                actions.updateDeviceSettings(ip, dev.mode, dev.assigned_node || 'auto', dev.tiktok_node || 'auto', normalized);
+            }, true);
 
             // Device events
             document.getElementById('devicesTableBody')?.addEventListener('change', (e) => {

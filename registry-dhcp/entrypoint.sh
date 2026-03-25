@@ -17,7 +17,7 @@ python3 /app/config_generator.py
 
 # Цикл слежения за изменениями
 inotifywait -m -e modify,create "/etc/gsg" 2>/dev/null | while read path action file; do
-    if [ "$file" = "dhcp.json" ] || [ "$file" = ".reload_dhcp" ]; then
+    if [ "$file" = "dhcp.json" ] || [ "$file" = ".reload_dhcp" ] || [ "$file" = "devices.json" ]; then
         echo "[INFO] Config change detected, regenerating..."
         python3 /app/config_generator.py
         pkill -HUP dnsmasq || true

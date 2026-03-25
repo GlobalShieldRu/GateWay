@@ -428,10 +428,11 @@ async def read_json(path: Path, default):
     except Exception:
         return default
 
-async def parse_arp_and_leases():
-    devices = {}
+async def parse_arp_and_leases(active_ips: set = None):
+    devices: dict = {}  # ip → device
     lan_prefix = GATEWAY_IP.rsplit('.', 1)[0] + '.'
 
+    # ── ARP table ────────────────────────────────────────────────────────────
     try:
         async with aiofiles.open('/proc/net/arp', 'r') as f:
             lines = await f.readlines()
@@ -445,39 +446,71 @@ async def parse_arp_and_leases():
                             hostname = socket.gethostbyaddr(ip)[0]
                         except Exception:
                             pass
-                        devices[ip] = {"ip": ip, "mac": parts[3], "hostname": hostname}
+                        devices[ip] = {"ip": ip, "mac": parts[3].lower(), "hostname": hostname}
     except Exception:
         pass
 
+    # ── DHCP leases ──────────────────────────────────────────────────────────
+    mac_hostname: dict = {}          # mac → best hostname
+    mac_lease: dict = {}             # mac → {ip, expiry}  (latest expiry wins)
+
     if DNSMASQ_LEASES.exists():
         try:
-            # Build mac→hostname map from leases for fallback matching
-            mac_hostname: dict = {}
             async with aiofiles.open(DNSMASQ_LEASES, 'r') as f:
                 async for line in f:
                     parts = line.strip().split()
-                    if len(parts) >= 4:
-                        ip = parts[2]
-                        mac = parts[1].lower()
-                        hostname = parts[3] if parts[3] != "*" else ""
-                        if not hostname:
-                            continue
-                        if hostname:
-                            mac_hostname[mac] = hostname
-                        if ip.startswith(lan_prefix) and not ip.startswith("172."):
-                            if ip in devices:
-                                if devices[ip]["hostname"] in ["Устройство", "Unknown"]:
-                                    devices[ip]["hostname"] = hostname
-                            else:
-                                devices[ip] = {"ip": ip, "mac": mac, "hostname": hostname}
-            # Second pass: fix devices whose IP changed since last lease (match by MAC)
-            for dev in devices.values():
-                if dev["hostname"] in ["Устройство", "Unknown"]:
-                    name = mac_hostname.get(dev["mac"].lower(), "")
+                    if len(parts) < 4:
+                        continue
+                    expiry = int(parts[0]) if parts[0].isdigit() else 0
+                    mac    = parts[1].lower()
+                    ip     = parts[2]
+                    name   = parts[3] if parts[3] != "*" else ""
                     if name:
-                        dev["hostname"] = name
+                        mac_hostname[mac] = name
+                    if mac not in mac_lease or expiry > mac_lease[mac]["expiry"]:
+                        mac_lease[mac] = {"ip": ip, "expiry": expiry}
+                    # Add lease-only entries (device not in ARP yet)
+                    if ip.startswith(lan_prefix) and not ip.startswith("172.") and ip not in devices:
+                        devices[ip] = {"ip": ip, "mac": mac, "hostname": name or "Устройство"}
         except Exception:
             pass
+
+    # Apply lease hostnames to ARP entries whose name is still default
+    for dev in devices.values():
+        if dev["hostname"] in ("Устройство", "Unknown"):
+            name = mac_hostname.get(dev["mac"], "")
+            if name:
+                dev["hostname"] = name
+
+    # ── Deduplicate by MAC ───────────────────────────────────────────────────
+    # For a MAC with multiple IPs, keep the "most alive" one:
+    #   1. prefers IP with recent traffic (active_ips)
+    #   2. falls back to the lease IP
+    mac_keep: dict = {}  # mac → ip to keep
+    for ip, dev in devices.items():
+        mac = dev["mac"]
+        if mac not in mac_keep:
+            mac_keep[mac] = ip
+            continue
+        current_kept = mac_keep[mac]
+        # Rule 1: prefer the IP that has active traffic
+        if active_ips:
+            current_active = current_kept in active_ips
+            this_active    = ip in active_ips
+            if this_active and not current_active:
+                mac_keep[mac] = ip
+                continue
+            if current_active and not this_active:
+                continue
+        # Rule 2: prefer the lease IP
+        lease_ip = mac_lease.get(mac, {}).get("ip")
+        if lease_ip and ip == lease_ip:
+            mac_keep[mac] = ip
+
+    # Remove stale duplicates
+    stale = [ip for ip, dev in devices.items() if mac_keep.get(dev["mac"]) != ip]
+    for ip in stale:
+        del devices[ip]
 
     return list(devices.values())
 
@@ -499,6 +532,8 @@ class DeviceUpdate(BaseModel):
     assigned_node: str
     tiktok_node: str = "auto"
     custom_name: str = ""
+    static_ip: str = ""
+    mac: str = ""
 
 class RulesUpdate(BaseModel):
     direct: List[str]
@@ -642,12 +677,13 @@ async def get_nodes_dash():
 
 @app.get("/api/devices")
 async def get_devices():
-    active_devices = await parse_arp_and_leases()
+    active_ips = set(traffic_monitor.stats.keys())
+    active_devices = await parse_arp_and_leases(active_ips)
     configs = await read_json(GSG_DEVICES_FILE, {})
     new_devices = [d for d in active_devices if d["ip"] not in configs]
     if new_devices:
         for d in new_devices:
-            configs[d["ip"]] = {"mode": "smart", "assigned_node": "auto", "tiktok_node": "auto", "custom_name": ""}
+            configs[d["ip"]] = {"mode": "smart", "assigned_node": "auto", "tiktok_node": "auto", "custom_name": "", "static_ip": "", "mac": d.get("mac", "")}
         async with _devices_lock:
             async with aiofiles.open(GSG_DEVICES_FILE, 'w') as f:
                 await f.write(json.dumps(configs, indent=2))
@@ -656,12 +692,16 @@ async def get_devices():
     result = []
     for d in active_devices:
         conf = configs.get(d["ip"], {})
+        # Keep mac in sync
+        if d.get("mac") and not conf.get("mac"):
+            conf["mac"] = d["mac"]
         result.append({
             **d,
             "mode": conf.get("mode", "smart"),
             "assigned_node": conf.get("assigned_node", "auto"),
             "tiktok_node": conf.get("tiktok_node", "auto"),
-            "custom_name": conf.get("custom_name", "")
+            "custom_name": conf.get("custom_name", ""),
+            "static_ip": conf.get("static_ip", ""),
         })
     return result
 
@@ -669,13 +709,25 @@ async def get_devices():
 async def update_device(ip: str, data: DeviceUpdate):
     async with _devices_lock:
         configs = await read_json(GSG_DEVICES_FILE, {})
-        configs[ip] = {"mode": data.mode, "assigned_node": data.assigned_node, "tiktok_node": data.tiktok_node, "custom_name": data.custom_name}
+        existing = configs.get(ip, {})
+        configs[ip] = {
+            "mode": data.mode,
+            "assigned_node": data.assigned_node,
+            "tiktok_node": data.tiktok_node,
+            "custom_name": data.custom_name,
+            "static_ip": data.static_ip,
+            "mac": data.mac or existing.get("mac", ""),
+        }
         async with aiofiles.open(GSG_DEVICES_FILE, 'w') as f:
             await f.write(json.dumps(configs, indent=2))
     async with aiofiles.open(GSG_CONFIG_DIR / ".reload_nftables", 'w') as f:
         await f.write("1")
     async with aiofiles.open(GSG_CONFIG_DIR / ".reload_singbox", 'w') as f:
         await f.write("1")
+    # Trigger dnsmasq reload if static IP changed
+    if data.static_ip != "" or data.mac:
+        async with aiofiles.open(GSG_CONFIG_DIR / ".reload_dhcp", 'w') as f:
+            await f.write("1")
     return {"success": True}
 
 @app.get("/api/nodes")
