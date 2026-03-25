@@ -33,7 +33,7 @@ if [ ${#MISSING[@]} -gt 0 ]; then
     apt-get update -qq && apt-get install -y -qq "${MISSING[@]}"
 fi
 
-if ! command -v docker &>/dev/null; then
+if ! command -v dockerd &>/dev/null; then
     info "Устанавливаем Docker CE..."
     curl -fsSL https://get.docker.com | sh
     systemctl enable --now docker
