@@ -133,6 +133,12 @@ def main():
     # Находим NY-узел для geo-restricted сервисов (Gemini, Claude)
     ny_node = next((n for n in node_names if re.search(r'ny|new[\s\-]?york', n, re.I)), None)
 
+    # Блокируем инфраструктуру iCloud Private Relay.
+    # iOS обнаружит недоступность relay и автоматически отключит Private Relay для этой сети,
+    # показав уведомление пользователю. Без этого speedtest и ряд диагностик не работают.
+    rules.append("DOMAIN,mask.icloud.com,REJECT")
+    rules.append("DOMAIN,mask-h2.icloud.com,REJECT")
+
     if rulesets.get('rkn_bypass', True):
         rule_providers['rkn-domains'] = {
             "type": "http", "behavior": "domain", "format": "text",
@@ -170,6 +176,12 @@ def main():
             device_sub.append(f"DOMAIN-SUFFIX,openai.com,{us_target}")
             device_sub.append(f"DOMAIN-SUFFIX,chatgpt.com,{us_target}")
 
+            # Сервисы скорости/диагностики — не в RKN-листе, но часто блокируются провайдером
+            device_sub.append(f"DOMAIN-SUFFIX,speedtest.net,{target}")
+            device_sub.append(f"DOMAIN-SUFFIX,ookla.com,{target}")
+            device_sub.append(f"DOMAIN-SUFFIX,fast.com,{target}")
+            device_sub.append(f"DOMAIN-SUFFIX,nperf.com,{target}")
+
             if rulesets.get('rkn_bypass', True):
                 device_sub.append(f"GEOSITE,youtube,{target}")
                 # TikTok: use per-device tiktok_node if set, else device target
@@ -197,7 +209,35 @@ def main():
 
     for d in user_rules.get('direct', []): rules.append(f"DOMAIN-SUFFIX,{d},DIRECT")
     for d in user_rules.get('proxy', []): rules.append(f"DOMAIN-SUFFIX,{d},{global_node}")
-    rules.append(f"MATCH,{global_node}")
+
+    # Smart fallback for devices NOT in devices.json (new/guest devices).
+    # Without this they would hit MATCH,VPN and all traffic goes through the tunnel —
+    # which breaks speedtest, some Russian services, and wastes VPN bandwidth.
+    _ny = ny_node or global_node
+    global_smart = []
+    global_smart.append(f"DOMAIN-SUFFIX,gemini.google.com,{_ny}")
+    global_smart.append(f"DOMAIN-SUFFIX,generativelanguage.googleapis.com,{_ny}")
+    global_smart.append(f"DOMAIN-SUFFIX,claude.ai,{_ny}")
+    global_smart.append(f"DOMAIN-SUFFIX,anthropic.com,{_ny}")
+    global_smart.append(f"DOMAIN-SUFFIX,openai.com,{_ny}")
+    global_smart.append(f"DOMAIN-SUFFIX,chatgpt.com,{_ny}")
+    global_smart.append(f"DOMAIN-SUFFIX,speedtest.net,{global_node}")
+    global_smart.append(f"DOMAIN-SUFFIX,ookla.com,{global_node}")
+    global_smart.append(f"DOMAIN-SUFFIX,fast.com,{global_node}")
+    global_smart.append(f"DOMAIN-SUFFIX,nperf.com,{global_node}")
+    if rulesets.get('rkn_bypass', True):
+        global_smart.append(f"GEOSITE,youtube,{global_node}")
+        global_smart.append(f"GEOSITE,tiktok,{global_node}")
+        global_smart.append(f"GEOSITE,meta,{global_node}")
+        global_smart.append(f"GEOSITE,instagram,{global_node}")
+        global_smart.append(f"GEOSITE,twitter,{global_node}")
+        global_smart.append(f"GEOSITE,telegram,{global_node}")
+        global_smart.append(f"GEOIP,telegram,{global_node}")
+        global_smart.append(f"IP-CIDR,5.28.192.0/18,{global_node}")
+        global_smart.append(f"RULE-SET,rkn-domains,{global_node}")
+    global_smart.append("MATCH,DIRECT")
+    sub_rules["smart_default"] = global_smart
+    rules.append("SUB-RULE,(SRC-IP-CIDR,0.0.0.0/0),smart_default")
 
     server_config["rule-providers"] = rule_providers
     if sub_rules: server_config["sub-rules"] = sub_rules

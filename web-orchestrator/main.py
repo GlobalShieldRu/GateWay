@@ -173,30 +173,34 @@ class TrafficMonitor:
                 # Always evict stale connections (guards against Mihomo being unavailable)
                 stale_cutoff = time.monotonic() - 300  # 5 minutes
                 self.active_conns = {k: v for k, v in self.active_conns.items() if v.get('_seen', 0) >= stale_cutoff}
-                await asyncio.sleep(1)
+                await asyncio.sleep(0.25)
 
 monitor = TrafficMonitor()
 
 
 class TrafficHistory:
     def __init__(self):
-        self.data: dict = {}   # ip -> {alltime_up, alltime_down, yearly, monthly, daily}
-        self.nodes: dict = {}  # tag -> {alltime_up, alltime_down, yearly, monthly, daily}
+        self.data: dict = {}          # ip -> {alltime_up, alltime_down, yearly, monthly, daily}
+        self.nodes: dict = {}         # tag -> {alltime_up, alltime_down, yearly, monthly, daily}
+        self.device_nodes: dict = {}  # ip -> {tag -> {alltime_up, alltime_down, yearly, monthly, daily}}
         self.schedule: dict = {"type": "never", "time": "00:00"}
-        self._snapshots: dict = {}       # ip -> {up, down}
-        self._node_snapshots: dict = {}  # tag -> {up, down}
+        self._snapshots: dict = {}              # ip -> {up, down}
+        self._node_snapshots: dict = {}         # tag -> {up, down}
+        self._device_node_snapshots: dict = {}  # ip -> {tag -> {up, down}}
 
     async def load(self):
         raw = await read_json(GSG_TRAFFIC_HISTORY_FILE, {})
         self.data = raw.get("devices", {})
         self.nodes = raw.get("nodes", {})
+        self.device_nodes = raw.get("device_nodes", {})
         self.schedule = raw.get("schedule", {"type": "never", "time": "00:00"})
         self._snapshots = {}
         self._node_snapshots = {}
+        self._device_node_snapshots = {}
 
     async def save(self):
         try:
-            raw = {"devices": self.data, "nodes": self.nodes, "schedule": self.schedule}
+            raw = {"devices": self.data, "nodes": self.nodes, "device_nodes": self.device_nodes, "schedule": self.schedule}
             async with _traffic_lock:
                 async with aiofiles.open(GSG_TRAFFIC_HISTORY_FILE, 'w') as f:
                     await f.write(json.dumps(raw, indent=2))
@@ -242,13 +246,35 @@ class TrafficHistory:
                 yearly = entity.get('yearly', {})
                 for k in [k for k in yearly if k < year_cutoff]:
                     del yearly[k]
+        for ip_store in self.device_nodes.values():
+            for entity in ip_store.values():
+                daily = entity.get('daily', {})
+                for k in [k for k in daily if k < day_cutoff]:
+                    del daily[k]
+                yearly = entity.get('yearly', {})
+                for k in [k for k in yearly if k < year_cutoff]:
+                    del yearly[k]
 
-    def flush(self, session_stats: dict, node_stats: dict = None):
+    def flush(self, session_stats: dict, node_stats: dict = None, device_chains: dict = None):
         for ip, stat in session_stats.items():
             self._flush_bucket(self.data, self._snapshots, ip, stat)
         if node_stats:
             for tag, stat in node_stats.items():
                 self._flush_bucket(self.nodes, self._node_snapshots, tag, stat)
+        if device_chains:
+            for ip, chains in device_chains.items():
+                if not ip:
+                    continue
+                if ip not in self.device_nodes:
+                    self.device_nodes[ip] = {}
+                if ip not in self._device_node_snapshots:
+                    self._device_node_snapshots[ip] = {}
+                for node_tag, stat in chains.items():
+                    self._flush_bucket(
+                        self.device_nodes[ip],
+                        self._device_node_snapshots[ip],
+                        node_tag, stat
+                    )
         self._prune_old_daily()
 
     def reset(self, scope: str, ip: str = None):
@@ -277,7 +303,7 @@ class TrafficHistory:
         while True:
             await asyncio.sleep(60)
             try:
-                self.flush(dict(mon.stats), dict(mon.node_stats))
+                self.flush(dict(mon.stats), dict(mon.node_stats), {ip: dict(chains) for ip, chains in mon.device_chains.items()})
                 await self.save()
                 now = datetime.now()
                 sched_type = self.schedule.get("type", "never")
@@ -379,7 +405,7 @@ async def get_traffic_nodes():
 
 @app.get("/api/traffic/history")
 async def get_traffic_history():
-    return {"devices": traffic_history.data, "nodes": traffic_history.nodes, "schedule": traffic_history.schedule}
+    return {"devices": traffic_history.data, "nodes": traffic_history.nodes, "device_nodes": traffic_history.device_nodes, "schedule": traffic_history.schedule}
 
 @app.get("/api/debug/node-stats")
 async def debug_node_stats():
@@ -438,7 +464,7 @@ async def parse_arp_and_leases(active_ips: set = None):
             lines = await f.readlines()
             for line in lines[1:]:
                 parts = line.split()
-                if len(parts) >= 4 and parts[3] != "00:00:00:00:00:00" and parts[2] == "0x2":
+                if len(parts) >= 4 and parts[3] != "00:00:00:00:00:00":
                     ip = parts[0]
                     if ip.startswith(lan_prefix) and ip != GATEWAY_IP and not ip.startswith("172."):
                         hostname = "Устройство"
@@ -677,7 +703,7 @@ async def get_nodes_dash():
 
 @app.get("/api/devices")
 async def get_devices():
-    active_ips = set(traffic_monitor.stats.keys())
+    active_ips = set(monitor.stats.keys())
     active_devices = await parse_arp_and_leases(active_ips)
     configs = await read_json(GSG_DEVICES_FILE, {})
     new_devices = [d for d in active_devices if d["ip"] not in configs]
@@ -738,6 +764,20 @@ async def get_nodes():
 @app.get("/api/license")
 async def get_license():
     device = await read_json(GSG_DEVICE_FILE, {})
+    if not device.get("device_id"):
+        try:
+            for iface in ("eth0", "eth1", "br-lan", "enp0s3"):
+                mac_path = f"/sys/class/net/{iface}/address"
+                if os.path.exists(mac_path):
+                    mac = open(mac_path).read().strip().replace(":", "").upper()
+                    if mac and mac != "000000000000":
+                        device["device_id"] = f"GSG-{mac}"
+                        break
+        except Exception:
+            pass
+        if device.get("device_id"):
+            async with aiofiles.open(GSG_DEVICE_FILE, 'w') as f:
+                await f.write(json.dumps(device, indent=2))
     nodes = await read_json(GSG_NODES_FILE, {})
     error = nodes.get("error")
     return {

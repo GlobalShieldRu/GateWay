@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>GlobalShield Gateway</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -220,12 +221,26 @@
         .route-line.red .packet { background: #ef4444; box-shadow: 0 0 8px rgba(239,68,68,0.3); animation: none; width: 4px; height: 4px; left: 50%; }
         .route-line.dim { opacity: 0.3; }
         .route-line.dim .packet { animation: none; left: 50%; }
+        .route-line.gray .packet { background: #94a3b8; box-shadow: 0 0 6px rgba(148,163,184,0.3); }
+        .route-line.gold .packet { background: #c9a84c; box-shadow: 0 0 8px rgba(201,168,76,0.4); }
         @keyframes movePacket {
-            0% { left: -4px; opacity: 0; }
-            5% { opacity: 1; }
-            95% { opacity: 1; }
-            100% { left: calc(100% + 4px); opacity: 0; }
+            0%   { left: 0;    opacity: 0; }
+            5%   { opacity: 1; }
+            95%  { opacity: 1; }
+            100% { left: 100%; opacity: 0; }
         }
+
+        /* Light theme */
+        [data-theme="light"] { --bg:#f0f4f8; --card:rgba(0,0,0,0.04); --card-border:rgba(0,0,0,0.1); --text:#1e293b; --muted:#64748b; }
+        [data-theme="light"] body { background:var(--bg); }
+        [data-theme="light"] body::before { background: radial-gradient(ellipse 80% 60% at 15% 10%,rgba(59,130,246,0.08) 0%,transparent 60%), radial-gradient(ellipse 60% 50% at 85% 90%,rgba(16,185,129,0.06) 0%,transparent 55%), radial-gradient(ellipse 50% 40% at 70% 20%,rgba(201,168,76,0.06) 0%,transparent 50%); }
+        [data-theme="light"] .glass { background:rgba(255,255,255,0.85); border-color:rgba(0,0,0,0.09); box-shadow:0 2px 16px rgba(0,0,0,0.07); }
+        [data-theme="light"] #sidebar { background:rgba(255,255,255,0.92); border-color:rgba(0,0,0,0.09); }
+        [data-theme="light"] .nav-item { color:#475569; }
+        [data-theme="light"] .nav-item:hover { background:rgba(0,0,0,0.04); color:#1e293b; }
+        [data-theme="light"] .nav-item.active { background:rgba(201,168,76,0.12); color:var(--gold); }
+        [data-theme="light"] .gsg-input { background:rgba(0,0,0,0.04); border-color:rgba(0,0,0,0.12); color:#1e293b; }
+        [data-theme="light"] .route-line { background:rgba(0,0,0,0.08); }
 
         /* Node card */
         .node-card {
@@ -262,7 +277,7 @@
         /* Device row grid (desktop) */
         .dev-row-grid {
             display: grid;
-            grid-template-columns: minmax(220px,280px) 120px 228px 1fr 240px 250px;
+            grid-template-columns: minmax(220px,280px) 120px 268px 1fr 240px 250px;
             align-items: center;
             gap: 14px;
             padding: 14px 20px;
@@ -270,6 +285,7 @@
             transition: background 0.15s;
         }
         .dev-row-grid:last-child { border-bottom: none; }
+        .dev-col-route { min-width: 0; overflow: hidden; }
 
         /* Device toggle */
         .dev-toggle { position: relative; width: 42px; height: 24px; }
@@ -508,6 +524,9 @@
         /* Inline rename */
         .rename-btn { background: none; border: none; color: var(--muted); cursor: pointer; padding: 2px 4px; border-radius: 4px; font-size: 11px; opacity: 0; transition: opacity 0.15s; line-height: 1; flex-shrink: 0; }
         *:hover > .rename-btn, .rename-btn:focus { opacity: 1; }
+        /* Static IP edit pencil */
+        .ip-row:hover .static-ip-edit-btn { color: rgba(100,116,139,0.6) !important; }
+        .static-ip-edit-btn:hover { color: #93c5fd !important; }
         .rename-input { background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.4); border-radius: 6px; color: #f1f5f9; font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; padding: 2px 6px; outline: none; max-width: 180px; }
 
         /* ─── Mobile ≤ 768px ────────────────────────────────── */
@@ -739,14 +758,14 @@
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
                 Статистика
             </div>
+            <div class="nav-item" id="nav-visualization" onclick="GatewayApp.ui.switchTab('tab-visualization', this)" style="display:flex;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+                Визуализация
+            </div>
         </nav>
 
         <!-- Feedback + Auth buttons -->
         <div style="padding:10px 14px 16px;margin-top:auto;display:flex;flex-direction:column;gap:6px;">
-            <button onclick="GatewayApp.ui.openFeedback()" style="width:100%;display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:10px;background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.15);color:var(--muted);cursor:pointer;font-family:'Syne',sans-serif;font-size:12px;font-weight:600;transition:all 0.18s ease;" onmouseover="this.style.background='rgba(59,130,246,0.12)';this.style.color='#93c5fd';" onmouseout="this.style.background='rgba(59,130,246,0.06)';this.style.color='var(--muted)';">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                Обратная связь
-            </button>
             <button onclick="GatewayApp.ui.openChangePassword()" style="width:100%;display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);color:var(--muted);cursor:pointer;font-family:'Syne',sans-serif;font-size:12px;font-weight:600;transition:all 0.18s ease;" onmouseover="this.style.background='rgba(255,255,255,0.06)';this.style.color='var(--text)';" onmouseout="this.style.background='rgba(255,255,255,0.03)';this.style.color='var(--muted)';">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                 Сменить пароль
@@ -757,6 +776,11 @@
             </button>
         </div>
     </aside>
+
+    <!-- Sidebar resize handle -->
+    <div id="sidebarDivider" title="Перетащить для изменения ширины" style="width:6px;cursor:col-resize;flex-shrink:0;display:flex;align-items:center;justify-content:center;z-index:10;" onpointerdown="GatewayApp.ui.startSidebarResize(event)">
+        <div style="width:3px;height:40px;border-radius:2px;background:rgba(255,255,255,0.06);transition:background 0.15s;" onmouseover="this.style.background='rgba(201,168,76,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.06)'"></div>
+    </div>
 
     <!-- Change Password Modal -->
     <div id="changePwModal" onclick="if(event.target===this)GatewayApp.ui.closeChangePassword()" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);align-items:center;justify-content:center;">
@@ -842,53 +866,55 @@
             </div>
 
             <!-- Top row: Status + Subscription -->
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;" class="reveal reveal-1" id="topGrid">
+            <div style="display:flex;gap:0;align-items:stretch;" class="reveal reveal-1" id="topGrid">
 
                 <!-- Network Status card -->
-                <div class="glass" style="padding:24px;position:relative;overflow:hidden;">
+                <div class="glass" id="panelStatus" style="padding:24px;position:relative;overflow:hidden;flex:1.8;min-width:320px;">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;">
-                        <div>
-                            <div style="font-size:16px;font-weight:800;color:#f1f5f9;">Состояние сети</div>
-                            <div style="font-size:11px;color:var(--muted);margin-top:2px;">Инспекция маршрута в реальном времени</div>
-                        </div>
+                        <div style="font-size:16px;font-weight:800;color:#f1f5f9;">Состояние сети</div>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <button id="routeVizToggleBtn" onclick="GatewayApp.ui.toggleRouteVizMode();" title="Переключить вид" style="background:none;border:none;cursor:pointer;color:#64748b;padding:2px 4px;font-size:14px;line-height:1;">📊</button>
                         <span id="globalProtectionBadge" class="status-badge loading">
                             <span style="animation:skelPulse 1s infinite;display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;"></span>
                             Проверка...
                         </span>
+                        </div>
                     </div>
 
                     <!-- Route visualization (rendered by JS) -->
                     <div id="routeViz"></div>
 
                     <!-- Traffic sparkline -->
-                    <div style="margin-top:14px;border-top:1px solid rgba(255,255,255,0.04);padding-top:12px;">
+                    <div id="trafficChartSection" style="margin-top:14px;border-top:1px solid rgba(255,255,255,0.04);padding-top:12px;">
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                             <span class="section-label">График трафика · 60 сек</span>
-                            <div style="display:flex;gap:16px;align-items:baseline;">
-                                <div style="display:flex;flex-direction:column;align-items:flex-end;">
-                                    <span id="chartSpeedDown" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:#34d399;">0 B/s</span>
-                                    <span style="font-size:9px;color:rgba(100,116,139,0.6);">↓ <span id="chartTotalDown">0 B</span></span>
+                            <div style="display:flex;gap:12px;align-items:center;">
+                                <div style="display:flex;align-items:center;gap:5px;">
+                                    <span style="width:7px;height:7px;border-radius:50%;background:#c9a84c;display:inline-block;flex-shrink:0;"></span>
+                                    <span id="chartSpeedAuto" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#c9a84c;display:inline-block;min-width:74px;text-align:right;">0 B/s</span>
                                 </div>
-                                <div style="display:flex;flex-direction:column;align-items:flex-end;">
-                                    <span id="chartSpeedUp" style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:#60a5fa;">0 B/s</span>
-                                    <span style="font-size:9px;color:rgba(100,116,139,0.6);">↑ <span id="chartTotalUp">0 B</span></span>
+                                <div style="display:flex;align-items:center;gap:5px;">
+                                    <span style="width:7px;height:7px;border-radius:50%;background:#60a5fa;display:inline-block;flex-shrink:0;"></span>
+                                    <span id="chartSpeedNy" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#60a5fa;display:inline-block;min-width:74px;text-align:right;">0 B/s</span>
+                                </div>
+                                <div style="display:flex;align-items:center;gap:5px;">
+                                    <span style="width:7px;height:7px;border-radius:50%;background:#94a3b8;display:inline-block;flex-shrink:0;"></span>
+                                    <span id="chartSpeedDown" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#94a3b8;display:inline-block;min-width:74px;text-align:right;">0 B/s</span>
                                 </div>
                             </div>
                         </div>
-                        <canvas id="trafficChart" style="width:100%;height:60px;display:block;border-radius:6px;background:rgba(0,0,0,0.2);"></canvas>
+                        <canvas id="trafficChart" style="width:100%;height:110px;display:block;border-radius:6px;background:rgba(0,0,0,0.2);"></canvas>
                     </div>
 
-                    <!-- Events feed -->
-                    <div style="margin-top:12px;border-top:1px solid rgba(255,255,255,0.04);padding-top:12px;">
-                        <div class="section-label" style="margin-bottom:8px;">Лента событий</div>
-                        <div id="eventLogFeed" style="display:flex;flex-direction:column;overflow-y:auto;max-height:140px;">
-                            <div style="font-size:10px;color:rgba(100,116,139,0.35);font-style:italic;padding:4px 0;">Ожидание событий...</div>
-                        </div>
-                    </div>
+                </div>
+
+                <!-- Drag handle -->
+                <div id="topGridDivider" title="Перетащить для изменения размера" style="width:14px;cursor:col-resize;display:flex;align-items:center;justify-content:center;flex-shrink:0;user-select:none;" onpointerdown="GatewayApp.ui.startPanelResize(event)">
+                    <div style="width:3px;height:36px;border-radius:2px;background:rgba(255,255,255,0.07);transition:background 0.15s;" onmouseover="this.style.background='rgba(201,168,76,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.07)'"></div>
                 </div>
 
                 <!-- Subscription + Nodes card -->
-                <div class="glass" style="padding:24px;display:flex;flex-direction:column;gap:20px;">
+                <div class="glass" id="panelSub" style="padding:24px;display:flex;flex-direction:column;gap:20px;flex:1;min-width:240px;">
                     <div>
                         <div style="font-size:16px;font-weight:800;color:#f1f5f9;margin-bottom:16px;">Подписка</div>
                         <div class="section-label" style="margin-bottom:6px;">URL провайдера (V2Ray / Clash)</div>
@@ -957,7 +983,7 @@
                         </div>
                     </div>
                     <!-- Desktop table header -->
-                    <div class="dev-table-hdr" style="display:grid;grid-template-columns:minmax(220px,280px) 120px 190px 1fr 200px 250px;gap:14px;padding:8px 20px;border-bottom:1px solid rgba(255,255,255,0.04);align-items:center;">
+                    <div class="dev-table-hdr" style="display:grid;grid-template-columns:minmax(220px,280px) 120px 268px 1fr 240px 250px;gap:14px;padding:8px 20px;border-bottom:1px solid rgba(255,255,255,0.04);align-items:center;">
                         <div class="section-label sort-hdr" onclick="GatewayApp.ui.setSort('hostname')" style="cursor:pointer;user-select:none;display:flex;align-items:center;gap:3px;white-space:nowrap;">Клиент <span id="sort-ind-hostname" style="font-size:9px;"></span></div>
                         <div class="section-label" style="white-space:nowrap;">Активность</div>
                         <div class="section-label sort-hdr" onclick="GatewayApp.ui.setSort('traffic')" style="cursor:pointer;user-select:none;display:flex;align-items:center;gap:3px;white-space:nowrap;"><span id="sort-ind-traffic" style="font-size:9px;"></span>Трафик</div>
@@ -1185,12 +1211,88 @@
                 </div>
             </div>
 
+            <!-- Visualization tab -->
+            <div id="tab-visualization" class="tab-content reveal reveal-2">
+                <div class="glass" style="padding:24px;margin-bottom:16px;">
+                    <div style="font-size:15px;font-weight:800;color:#f1f5f9;margin-bottom:20px;display:flex;align-items:center;gap:8px;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+                        Набор иконок
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;" id="iconPackGrid">
+
+                        <!-- GSG (custom) -->
+                        <div id="iconPackCustom" onclick="GatewayApp.ui.setIconPack('custom')" style="cursor:pointer;border-radius:14px;border:2px solid rgba(201,168,76,0.5);background:rgba(201,168,76,0.06);padding:16px 12px 14px;display:flex;flex-direction:column;align-items:center;gap:10px;transition:all 0.18s;">
+                            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;width:100%;">
+                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18" stroke-width="3"/></svg></div>
+                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></div>
+                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
+                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></div>
+                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M4.93 4.93a10 10 0 0 0 0 14.14"/></svg></div>
+                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg></div>
+                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.25);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div>
+                            </div>
+                            <div style="text-align:center;">
+                                <div style="font-size:11px;font-weight:700;color:#f1f5f9;">GSG</div>
+                                <div style="font-size:9px;color:var(--muted);margin-top:2px;">Стандартный</div>
+                            </div>
+                        </div>
+
+                        <!-- Phosphor -->
+                        <div id="iconPackPhosphor" onclick="GatewayApp.ui.setIconPack('phosphor')" style="cursor:pointer;border-radius:14px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);padding:16px 12px 14px;display:flex;flex-direction:column;align-items:center;gap:10px;transition:all 0.18s;" onmouseover="this.style.borderColor='rgba(201,168,76,0.3)'" onmouseout="if(localStorage.getItem('gsg_icon_pack')!='phosphor')this.style.borderColor='rgba(255,255,255,0.08)'">
+                            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;width:100%;">
+                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 256 256" fill="#94a3b8"><path d="M200,24H56A32,32,0,0,0,24,56V200a32,32,0,0,0,32,32H200a32,32,0,0,0,32-32V56A32,32,0,0,0,200,24ZM48,80H208v96H48ZM56,48H200a8,8,0,0,1,8,8v8H48V56A8,8,0,0,1,56,48Zm144,168H56a8,8,0,0,1-8-8v-8H208v8A8,8,0,0,1,200,216Z"/></svg></div>
+                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 256 256" fill="#94a3b8"><path d="M208,40H48A16,16,0,0,0,32,56V200a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V56A16,16,0,0,0,208,40ZM48,56H208V88H48ZM48,200V104H208v96Z"/></svg></div>
+                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 256 256" fill="#94a3b8"><path d="M232,96a24,24,0,1,0-40.7,17.3l-30.2,60.4a24.2,24.2,0,0,0-18.2,0L88,104.3A24,24,0,1,0,64,96a24,24,0,0,0,0,.7L113.1,165a24,24,0,1,0,29.8,0L193,96.7A24,24,0,0,0,232,96Z"/></svg></div>
+                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 256 256" fill="#94a3b8"><path d="M224,200h-8V40a8,8,0,0,0-8-8H152a8,8,0,0,0-8,8v56H96a8,8,0,0,0-8,8v40H48a8,8,0,0,0-8,8v48H32a8,8,0,0,0,0,16H224a8,8,0,0,0,0-16Z"/></svg></div>
+                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 256 256" fill="#94a3b8"><path d="M229.7,218.3l-57.4-57.4A88,88,0,1,0,37.7,218.3a8,8,0,0,0,11.3-11.3A72,72,0,1,1,161,49a72,72,0,0,1-10.8,101.5,8,8,0,1,0,10.4,12.2A87.8,87.8,0,0,0,183,143l57.4,57.4a8,8,0,0,0,11.3-11.3Z"/></svg></div>
+                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 256 256" fill="#94a3b8"><path d="M225.6,40.4a8,8,0,0,0-11.2,1.6,72,72,0,0,1-115,0,8,8,0,0,0-11.2-1.6A8.1,8.1,0,0,0,86.4,51.6,87.8,87.8,0,0,0,112,75.6V80H104a8,8,0,0,0,0,16h8v8a8,8,0,0,0,16,0V96h8a8,8,0,0,0,0-16h-8V75.6a87.8,87.8,0,0,0,25.6-24A8,8,0,0,0,225.6,40.4Z"/></svg></div>
+                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 256 256" fill="#94a3b8"><path d="M205.7,50.3a8,8,0,0,0-11.4,0L160,84.7l-18.3-18.4a8.1,8.1,0,0,0-11.4,0L96,100.7,61.7,66.3a8.1,8.1,0,0,0-11.4,11.4L82.4,110,50.3,142.3a8,8,0,1,0,11.4,11.4L94,121.4l34.3,34.3a8.1,8.1,0,0,0,11.4,0L174,121.4l34.3,34.3a8,8,0,1,0,11.4-11.4L185.4,110l20.3-20.3A8,8,0,0,0,205.7,50.3Z"/></svg></div>
+                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 256 256" fill="#94a3b8"><path d="M144,24H64A16,16,0,0,0,48,40V216a16,16,0,0,0,16,16h96a16,16,0,0,0,16-16V40A16,16,0,0,0,144,24Zm0,16V56H64V40Zm0,176H64V72H144v144Z"/></svg></div>
+                            </div>
+                            <div style="text-align:center;">
+                                <div style="font-size:11px;font-weight:700;color:#f1f5f9;">Phosphor</div>
+                                <div style="font-size:9px;color:var(--muted);margin-top:2px;">Filled</div>
+                            </div>
+                        </div>
+
+                        <!-- Heroicons -->
+                        <div id="iconPackHeroicons" onclick="GatewayApp.ui.setIconPack('heroicons')" style="cursor:pointer;border-radius:14px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);padding:16px 12px 14px;display:flex;flex-direction:column;align-items:center;gap:10px;transition:all 0.18s;" onmouseover="this.style.borderColor='rgba(201,168,76,0.3)'" onmouseout="if(localStorage.getItem('gsg_icon_pack')!='heroicons')this.style.borderColor='rgba(255,255,255,0.08)'">
+                            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;width:100%;">
+                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="17" r="1" fill="currentColor"/></svg></div>
+                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div>
+                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg></div>
+                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/></svg></div>
+                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.34 18m.38-4.171A42.08 42.08 0 0 1 12 13.5c1.88.001 3.71.186 5.433.485m0 0L17.66 18m0-4.515A42.08 42.08 0 0 1 18 13.5m0 0 .27 4.5"/></svg></div>
+                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M8.288 15.038a5.25 5.25 0 0 1 7.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 17.69l-.53.53-.53-.53a.75.75 0 0 1 1.06 0Z"/></svg></div>
+                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M9.53 16.122a3 3 0 0 0-5.78 1.128 2.25 2.25 0 0 1-2.4 2.245 4.5 4.5 0 0 0 8.4-2.245c0-.399-.078-.78-.22-1.128Zm0 0a15.998 15.998 0 0 0 3.388-1.62m-5.043-.025a15.994 15.994 0 0 1 1.622-3.395m3.42 3.42a15.995 15.995 0 0 0 4.764-4.648l3.876-5.814a1.151 1.151 0 0 0-1.597-1.597L14.146 6.32a15.996 15.996 0 0 0-4.649 4.763m3.42 3.42a6.776 6.776 0 0 0-3.42-3.42"/></svg></div>
+                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M2.25 18 9 11.25l4.306 4.306a11.95 11.95 0 0 1 5.814-5.518l2.74-1.22m0 0-5.94-2.281m5.94 2.28-2.28 5.941"/></svg></div>
+                            </div>
+                            <div style="text-align:center;">
+                                <div style="font-size:11px;font-weight:700;color:#f1f5f9;">Heroicons</div>
+                                <div style="font-size:9px;color:var(--muted);margin-top:2px;">Tailwind UI</div>
+                            </div>
+                        </div>
+
+                    </div>
+                    <div id="iconPackNote" style="margin-top:10px;font-size:10px;color:var(--muted);display:none;">Требуется перезагрузка страницы для применения иконок.</div>
+                </div>
+            </div>
+
         </main>
     </div>
 </div>
 
 <!-- Toast container -->
-<div id="toastContainer" style="position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column-reverse;gap:8px;pointer-events:none;"></div>
+<div id="toastContainer" style="position:fixed;top:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none;"></div>
+
+<!-- Feedback FAB -->
+<div id="feedbackFab" onclick="GatewayApp.ui.openFeedback()" title="Обратная связь"
+    style="display:none;position:fixed;bottom:28px;right:28px;z-index:9990;width:44px;height:44px;border-radius:50%;background:rgba(30,41,59,0.95);border:1px solid rgba(59,130,246,0.3);cursor:pointer;display:flex;align-items:center;justify-content:center;color:#60a5fa;box-shadow:0 4px 20px rgba(0,0,0,0.4);transition:transform 0.18s,box-shadow 0.18s,opacity 0.3s;opacity:0;"
+    onmouseover="this.style.transform='scale(1.12)';this.style.boxShadow='0 6px 24px rgba(59,130,246,0.3)';"
+    onmouseout="this.style.transform='';this.style.boxShadow='0 4px 20px rgba(0,0,0,0.4)';">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+</div>
 
 <!-- Context menu -->
 <div id="ctxMenu">
@@ -1279,10 +1381,10 @@
             laptop:  { bg:'rgba(99,102,241,0.1)',    border:'rgba(99,102,241,0.25)',  color:'#818cf8' },
             tv:      { bg:'rgba(168,85,247,0.1)',    border:'rgba(168,85,247,0.25)',  color:'#c084fc' },
             router:  { bg:'rgba(16,185,129,0.1)',    border:'rgba(16,185,129,0.25)',  color:'#34d399' },
-            speaker: { bg:'rgba(245,158,11,0.1)',    border:'rgba(245,158,11,0.25)',  color:'#fbbf24' },
+            speaker: { bg:'rgba(6,182,212,0.08)',     border:'rgba(6,182,212,0.22)',   color:'#67e8f9' },
             gaming:  { bg:'rgba(239,68,68,0.1)',     border:'rgba(239,68,68,0.25)',   color:'#f87171' },
             printer: { bg:'rgba(107,114,128,0.1)',   border:'rgba(107,114,128,0.25)', color:'#9ca3af' },
-            watch:   { bg:'rgba(201,168,76,0.1)',    border:'rgba(201,168,76,0.25)',  color:'#c9a84c' },
+            watch:   { bg:'rgba(167,139,250,0.1)',   border:'rgba(167,139,250,0.25)', color:'#a78bfa' },
             desktop: { bg:'rgba(71,85,105,0.1)',     border:'rgba(71,85,105,0.25)',   color:'#94a3b8' },
             server:  { bg:'rgba(6,182,212,0.1)',     border:'rgba(6,182,212,0.25)',   color:'#22d3ee' },
             iot:     { bg:'rgba(16,185,129,0.08)',   border:'rgba(16,185,129,0.2)',   color:'#6ee7b7' },
@@ -1395,12 +1497,14 @@
             networkData: null,
             _devicesHash: null,
             trafficHistory: [],
+            routeVizMode: 0,
             sessionStats: { totalDown: 0, totalUp: 0, peakDown: 0, peakUp: 0 },
             events: [],
             _prevNodeStatuses: {},
             _prevDeviceIPs: [],
             vendorCache: {},
             deviceTrafficHistory: {},
+            deviceChainHistory: {},
             nodeTraffic: {},
             deviceHistory: {},
             nodeHistory: {},
@@ -1461,7 +1565,8 @@
                 return 'ping-good';
             },
             formatBytes: (bytes, decimals = 1) => {
-                if (!+bytes) return '0 B';
+                bytes = Math.max(0, Number(bytes) || 0);
+                if (!bytes) return '0 B';
                 const k = 1024, dm = decimals < 0 ? 0 : decimals;
                 const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
                 const i = Math.floor(Math.log(bytes) / Math.log(k));
@@ -1618,7 +1723,7 @@
                 tbody.innerHTML = sortedDevices.map(dev => {
                     const isBlocked = dev.mode === 'block';
                     const isProtected = dev.mode !== 'bypass' && !isBlocked;
-                    const statusColor = isBlocked ? '#ef4444' : (isProtected ? '#10b981' : '#f59e0b');
+                    const statusColor = isBlocked ? '#ef4444' : (isProtected ? '#10b981' : '#94a3b8');
 
                     const isLocalMAC = (mac) => (parseInt((mac||'').split(':')[0], 16) & 0x02) !== 0;
                     const cachedVendor = state.vendorCache[dev.mac];
@@ -1644,7 +1749,7 @@
                         ? `<span style="display:inline-flex;align-items:center;gap:3px;margin-top:4px;padding:1px 6px;border-radius:4px;background:${ist.bg};border:1px solid ${ist.border};font-size:9px;font-weight:700;color:${ist.color};letter-spacing:0.04em;text-transform:uppercase;">${TYPE_LABELS[deviceType]||deviceType}</span>`
                         : '';
 
-                    const modeColors = {smart:'#3b82f6',global:'#a855f7',bypass:'#f59e0b',block:'#ef4444'};
+                    const modeColors = {smart:'#3b82f6',global:'#a855f7',bypass:'#94a3b8',block:'#ef4444'};
                     const modeLabels = {smart:'Smart',global:'Global',bypass:'Bypass',block:'Block'};
                     const modeBadge = `<span style="display:inline-flex;align-items:center;padding:1px 6px;border-radius:4px;background:${modeColors[dev.mode]||'#64748b'}18;border:1px solid ${modeColors[dev.mode]||'#64748b'}33;font-size:9px;font-weight:700;color:${modeColors[dev.mode]||'#64748b'};margin-top:4px;letter-spacing:0.04em;text-transform:uppercase;">${modeLabels[dev.mode]||dev.mode}</span>`;
 
@@ -1674,25 +1779,25 @@
 
                     // Compute effective route for this device
                     let routeNode = null;
+                    let routeIsManual = false;
                     if (dev.mode !== 'bypass' && dev.mode !== 'block') {
                         const nodeTag = dev.assigned_node && dev.assigned_node !== 'auto' ? dev.assigned_node : (state.globalNode !== 'auto' ? state.globalNode : null);
-                        if (nodeTag) routeNode = state.nodes.find(n => n.tag === nodeTag) || state.nodes.find(n => n.tag.toLowerCase().includes(nodeTag.toLowerCase()));
+                        if (nodeTag) {
+                            const found = state.nodes.find(n => n.tag === nodeTag) || state.nodes.find(n => n.tag.toLowerCase().includes(nodeTag.toLowerCase()));
+                            if (found) { routeNode = found; routeIsManual = true; }
+                        }
                         if (!routeNode) routeNode = state.nodes.filter(n => n.status === 'online').sort((a,b) => a.ping-b.ping)[0] || null;
                     }
                     let routeHtml;
                     if (dev.mode === 'bypass') {
-                        routeHtml = `<div style="display:flex;align-items:center;gap:8px;"><span style="font-size:20px;">⚡</span><div><div style="font-size:12px;font-weight:700;color:#f59e0b;">Напрямую</div><div style="font-size:10px;color:var(--muted);">без прокси</div></div></div>`;
+                        routeHtml = `<div style="display:flex;align-items:center;gap:8px;"><span style="font-size:20px;">🔓</span><div><div style="font-size:12px;font-weight:700;color:#94a3b8;">Напрямую</div><div style="font-size:10px;color:var(--muted);">без прокси</div></div></div>`;
                     } else if (dev.mode === 'block') {
                         routeHtml = `<div style="display:flex;align-items:center;gap:8px;"><span style="font-size:20px;">🚫</span><div><div style="font-size:12px;font-weight:700;color:#ef4444;">Заблокировано</div></div></div>`;
                     } else if (routeNode) {
                         const rn = routeNode;
-                        const rflag = utils.getFlagEmoji(rn.tag);
-                        const rpingColor = rn.ping < 100 ? '#34d399' : rn.ping < 250 ? '#f59e0b' : '#ef4444';
+                        const nodeColor = dev.mode === 'global' ? '#3b82f6' : '#c9a84c';
                         const ronline = rn.status === 'online';
-                        const modeBadge = dev.mode === 'smart'
-                            ? `<span style="font-size:9px;color:#60a5fa;font-weight:700;background:rgba(59,130,246,0.12);padding:1px 5px;border-radius:3px;margin-left:4px;">Smart</span>`
-                            : `<span style="font-size:9px;color:#a78bfa;font-weight:700;background:rgba(167,139,250,0.12);padding:1px 5px;border-radius:3px;margin-left:4px;">Global</span>`;
-                        routeHtml = `<div style="display:flex;align-items:center;gap:8px;min-width:0;"><div style="min-width:0;"><div style="font-size:12px;font-weight:700;color:${ronline?'#f1f5f9':'var(--muted)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${rn.tag}${modeBadge}</div></div></div>`;
+                        routeHtml = `<div style="min-width:0;"><div title="${rn.tag}" style="font-size:12px;font-weight:700;color:${ronline ? nodeColor : 'var(--muted)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${rn.tag}</div></div>`;
                     } else {
                         routeHtml = `<div style="font-size:11px;color:var(--muted);">Нет узлов</div>`;
                     }
@@ -1704,7 +1809,7 @@
                         <div style="display:flex;align-items:center;gap:10px;min-width:0;">
                             <div data-icon-mac="${dev.mac}" title="${cachedVendor || dev.hostname}" style="width:36px;height:36px;border-radius:10px;background:${ist.bg};border:1px solid ${ist.border};display:flex;align-items:center;justify-content:center;color:${ist.color};flex-shrink:0;position:relative;overflow:visible;">
                                 ${brandLogoHtml || ''}
-                                <span style="display:${brandLogoHtml ? 'none' : 'flex'};align-items:center;justify-content:center;">${DEVICE_ICONS[deviceType] || DEVICE_ICONS.unknown}</span>
+                                <span class="dev-type-icon" style="display:${brandLogoHtml ? 'none' : 'flex'};align-items:center;justify-content:center;line-height:0;">${DEVICE_ICONS[deviceType] || DEVICE_ICONS.unknown}</span>
                                 <div style="position:absolute;bottom:-3px;right:-3px;width:10px;height:10px;border-radius:50%;background:${statusColor};border:2px solid var(--bg);z-index:1;"></div>
                             </div>
                             <div style="min-width:0;flex:1;">
@@ -1718,14 +1823,21 @@
                                         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                                     </button>
                                 </div>
-                                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);margin-top:1px;">${dev.ip} · <span style="color:rgba(100,116,139,0.5);">${dev.mac}</span></div>
+                                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);margin-top:1px;display:flex;flex-direction:column;gap:1px;" class="ip-row" data-ip="${dev.ip}">
+                                    <div style="display:flex;align-items:center;gap:4px;">
+                                        <span class="ip-display">${dev.static_ip||dev.ip}</span>
+                                        <button class="static-ip-edit-btn" data-ip="${dev.ip}" title="Статичный IP (DHCP резерв)" onclick="event.stopPropagation();GatewayApp.ui.startStaticIpEdit('${dev.ip}')" style="background:none;border:none;color:rgba(100,116,139,0);cursor:pointer;padding:0;line-height:1;transition:color 0.15s;flex-shrink:0;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                                        <span class="static-ip-prefix" style="display:none;font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">${dev.ip.split('.').slice(0,3).join('.')}.</span><input class="static-ip-input gsg-input" type="number" min="1" max="254" data-ip="${dev.ip}" data-mac="${dev.mac||''}" value="${(dev.static_ip||dev.ip).split('.')[3]||''}" placeholder="${dev.ip.split('.')[3]}" style="display:none;width:44px;font-size:10px;padding:2px 5px;font-family:'JetBrains Mono',monospace;">
+                                    </div>
+                                    <span style="font-size:9px;color:rgba(100,116,139,0.5);">${dev.mac}</span>
+                                </div>
                                 ${vendorLabel}
                                 <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px;">${typeLabel}</div>
                             </div>
                         </div>
                         <!-- Col 2: ACTIVITY -->
                         <div class="dev-col-spark dev-spark" data-ip="${dev.ip}" style="display:flex;align-items:flex-end;gap:1px;height:26px;padding:2px 0;overflow:hidden;">
-                            ${ui.makeSparkBars(state.deviceTrafficHistory[dev.ip] || [])}
+                            ${ui.makeSparkBars(state.deviceTrafficHistory[dev.ip] || [], state.deviceChainHistory[dev.ip])}
                         </div>
                         <!-- Col 3: TRAFFIC -->
                         <div class="dev-col-trafik">
@@ -1777,11 +1889,6 @@
                                 <select class="gsg-select device-node-select" data-ip="${dev.ip}" style="width:100%;" ${isBlocked?'disabled':''}>
                                     ${optionsHtml}
                                 </select>
-                                <input type="text" class="gsg-input static-ip-input" data-ip="${dev.ip}" data-mac="${dev.mac||''}"
-                                    value="${dev.static_ip||''}"
-                                    placeholder="Статич. IP (напр. .150)"
-                                    title="Зарезервировать IP через DHCP"
-                                    style="width:100%;font-size:11px;padding:4px 8px;margin-top:2px;font-family:'JetBrains Mono',monospace;">
                             </div>
                         </div>
                         </div><!-- end mobile-right -->
@@ -1840,12 +1947,34 @@
                     } else {
                         setHistCells(ip, {down: showDown, up: showUp}, {down:0, up:0}, 0, 0);
                     }
-                    // Update sparkbar
+                    // Update sparkbar history (total)
                     if (!state.deviceTrafficHistory[ip]) state.deviceTrafficHistory[ip] = [];
                     state.deviceTrafficHistory[ip].push(data.speed_down || 0);
                     if (state.deviceTrafficHistory[ip].length > 36) state.deviceTrafficHistory[ip].shift();
+                    // Update per-chain breakdown history for stacked bars
+                    // Use total_down proportions × current speed to avoid racing with backend speed zeroing
+                    const _nyTagSp = (state.nodes.find(n => /ny|new[\s-]?york/i.test(n.tag)))?.tag;
+                    const _chains = state.deviceChains[ip] || {};
+                    let _totA = 0, _totN = 0, _totD = 0;
+                    Object.entries(_chains).forEach(([ch, d]) => {
+                        const tot = d.total_down || 0;
+                        if (ch === 'DIRECT') _totD += tot;
+                        else if (ch === _nyTagSp) _totN += tot;
+                        else _totA += tot;
+                    });
+                    const _totalChains = _totA + _totN + _totD;
+                    const _curSpd = data.speed_down || 0;
+                    let _spA = 0, _spN = 0, _spD = 0;
+                    if (_totalChains > 0 && _curSpd > 0) {
+                        _spA = (_totA / _totalChains) * _curSpd;
+                        _spN = (_totN / _totalChains) * _curSpd;
+                        _spD = (_totD / _totalChains) * _curSpd;
+                    }
+                    if (!state.deviceChainHistory[ip]) state.deviceChainHistory[ip] = [];
+                    state.deviceChainHistory[ip].push({ a: _spA, n: _spN, d: _spD });
+                    if (state.deviceChainHistory[ip].length > 36) state.deviceChainHistory[ip].shift();
                     const sparkEl = document.querySelector(`.dev-spark[data-ip="${ip}"]`);
-                    if (sparkEl) sparkEl.innerHTML = ui.makeSparkBars(state.deviceTrafficHistory[ip]);
+                    if (sparkEl) sparkEl.innerHTML = ui.makeSparkBars(state.deviceTrafficHistory[ip], state.deviceChainHistory[ip]);
                 });
                 // Update route column with live chain breakdown (hash-gated to prevent flicker)
                 if (state.deviceChains) {
@@ -1855,6 +1984,7 @@
                         const rowEl = document.querySelector(`.device-row-item[data-ip="${ip}"]`);
                         const routeEl = rowEl?.querySelector('.dev-col-route');
                         if (!routeEl) return;
+                        const dev = state.devices?.find(d => d.ip === ip);
                         const sortedChains = Object.entries(chains)
                             .filter(([, d]) => d.total_down > 0 || d.total_up > 0)
                             .sort(([, a], [, b]) => (b.total_down + b.total_up) - (a.total_down + a.total_up));
@@ -1866,26 +1996,41 @@
                         routeEl.innerHTML = `<div style="display:flex;flex-direction:column;gap:5px;min-width:0;">${
                             sortedChains.map(([chain, data]) => {
                                 const isDirect = chain === 'DIRECT';
-                                const color = isDirect ? '#f59e0b' : '#60a5fa';
+                                const color = isDirect ? '#94a3b8' : (dev?.mode === 'global' ? '#3b82f6' : '#c9a84c');
                                 const label = isDirect ? 'Напрямую' : chain;
                                 const hasSpeed = data.speed_down > 0 || data.speed_up > 0;
                                 const speedHtml = hasSpeed
                                     ? `<span style="color:#34d399;">↓${utils.formatBytes(data.speed_down)}/s</span> <span style="color:#60a5fa;">↑${utils.formatBytes(data.speed_up)}/s</span>`
                                     : `<span style="color:rgba(100,116,139,0.6);">${utils.formatBytes(data.total_down + data.total_up)}</span>`;
-                                return `<div style="min-width:0;"><div style="font-size:11px;font-weight:700;color:${color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px;">${label}</div><div style="font-family:'JetBrains Mono',monospace;font-size:9px;margin-top:1px;">${speedHtml}</div></div>`;
+                                return `<div style="min-width:0;"><div title="${label}" style="font-size:11px;font-weight:700;color:${color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${label}</div><div style="font-family:'JetBrains Mono',monospace;font-size:9px;margin-top:1px;">${speedHtml}</div></div>`;
                             }).join('')
                         }</div>`;
                     });
                 }
             },
 
-            makeSparkBars: (history) => {
+            makeSparkBars: (history, chainHistory) => {
                 const bars = history.slice(-36);
+                const chains = chainHistory ? chainHistory.slice(-36) : null;
                 const max = Math.max(1, ...bars);
-                return bars.map(v => {
+                return bars.map((v, i) => {
                     const h = Math.max(2, Math.round((v / max) * 22));
-                    const active = v > 0;
-                    return `<div style="width:3px;height:${h}px;background:${active ? '#10b981' : 'rgba(255,255,255,0.07)'};border-radius:1px;align-self:flex-end;transition:height 0.3s;"></div>`;
+                    if (!v) return `<div style="width:3px;height:2px;background:rgba(255,255,255,0.07);border-radius:1px;align-self:flex-end;"></div>`;
+                    const c = chains?.[i];
+                    if (c && (c.a + c.n + c.d) > 0) {
+                        // Stacked bar: auto=gold, ny=blue, direct=gray (bottom→top)
+                        const tot = c.a + c.n + c.d;
+                        const hA = Math.round((c.a / tot) * h);
+                        const hN = Math.round((c.n / tot) * h);
+                        const hD = h - hA - hN;
+                        return `<div style="width:3px;height:${h}px;display:flex;flex-direction:column-reverse;border-radius:1px;overflow:hidden;align-self:flex-end;transition:height 0.3s;">`
+                            + (hA > 0 ? `<div style="height:${hA}px;background:#c9a84c;flex-shrink:0;"></div>` : '')
+                            + (hN > 0 ? `<div style="height:${hN}px;background:#60a5fa;flex-shrink:0;"></div>` : '')
+                            + (hD > 0 ? `<div style="height:${hD}px;background:#94a3b8;flex-shrink:0;"></div>` : '')
+                            + `</div>`;
+                    }
+                    // Fallback: solid green (no chain data yet)
+                    return `<div style="width:3px;height:${h}px;background:#10b981;border-radius:1px;align-self:flex-end;transition:height 0.3s;"></div>`;
                 }).join('');
             },
 
@@ -2056,8 +2201,64 @@
                 const nyPingCls = nyNode ? utils.getPingClass(nyNode.ping) : '';
                 const nyLineOk  = nyNode && nyNode.status === 'online';
 
-                const pkt2 = '<div class="packet"></div>'.repeat(2);
-                const pkt3 = '<div class="packet"></div>'.repeat(3);
+                // Use real per-node traffic from Mihomo (state.nodeTraffic)
+                const nyTag = nyNode?.tag;
+                let spAuto = 0, spNy = 0;
+                Object.entries(state.nodeTraffic || {}).forEach(([tag, nt]) => {
+                    const spd = (nt.speed_down||0) + (nt.speed_up||0);
+                    if (tag === nyTag) spNy += spd; else spAuto += spd;
+                });
+                const spAll = spAuto + spNy;
+
+                // Stable clock reference: prevents dot-jump on DOM rebuild
+                const _now = performance.now() / 1000;
+                const mkPkts = (n, dur, sz, phase=0, bg='', glow='') => Array.from({length: n}, (_, i) => {
+                    const delay = ((_now + dur*i/Math.max(n,1) + phase) % dur).toFixed(3);
+                    const extra = bg ? `background:${bg};box-shadow:${glow};` : '';
+                    return `<div class="packet" style="animation-duration:${dur}s;animation-delay:-${delay}s;width:${sz}px;height:${sz}px;${extra}"></div>`;
+                }).join('');
+
+                // Direct traffic = total device speed minus VPN node traffic
+                const totalDeviceSpeed = Object.values(state.traffic||{}).reduce((s,v)=>s+(v.speed_down||0)+(v.speed_up||0),0);
+                const spDirect = Math.max(0, totalDeviceSpeed - spAuto - spNy);
+
+                // EMA smoothing: prevents abrupt speed jumps (alpha=0.25 → ~4 ticks to settle)
+                if (!state._smSp) state._smSp = { auto: 0, ny: 0, direct: 0 };
+                const alpha = 0.25;
+                state._smSp.auto   = state._smSp.auto   * (1 - alpha) + spAuto   * alpha;
+                state._smSp.ny     = state._smSp.ny     * (1 - alpha) + spNy     * alpha;
+                state._smSp.direct = state._smSp.direct * (1 - alpha) + spDirect * alpha;
+                const smAuto = state._smSp.auto, smNy = state._smSp.ny, smDirect = state._smSp.direct;
+
+                // Normalize dot count proportionally between nodes
+                const nodeSpeedMax = Math.max(smAuto, smNy, smDirect, 1024);
+                const toStep  = (bps) => Math.floor(Math.min(bps / nodeSpeedMax, 1) * 10);
+                const toCount = (bps) => { if (bps < 512) return 0; const s = toStep(bps); return s >= 7 ? 3 : s >= 3 ? 2 : 1; };
+                const toSize  = (bps) => +(4 + toStep(bps) * 0.3).toFixed(1);
+
+                const n_auto = toCount(smAuto), n_ny = toCount(smNy), n_direct = toCount(smDirect);
+
+                // ONE speed for all dots — GSG is not an accelerator
+                const busiest = Math.max(smAuto, smNy, smDirect);
+                const durAll  = +(3.0 - toStep(busiest) * 0.18).toFixed(2);
+
+                // All segments use same dot size — no size difference before/after pill
+                // Right segments lag 0.2s so dots appear to exit the node sequentially after entering
+                const lag = 0.2;
+
+                const pkt2auto_l   = mkPkts(n_auto,   durAll, toSize(smAuto),   0);
+                const pkt2ny_l     = mkPkts(n_ny,     durAll, toSize(smNy),     durAll / 3);
+                const pkt2direct_l = mkPkts(n_direct, durAll, toSize(smDirect), durAll * 2 / 3);
+
+                const pkt2auto_r   = mkPkts(n_auto,   durAll, toSize(smAuto),   lag);
+                const pkt2ny_r     = mkPkts(n_ny,     durAll, toSize(smNy),     durAll / 3 + lag);
+                const pkt2direct_r = mkPkts(n_direct, durAll, toSize(smDirect), durAll * 2 / 3 + lag);
+
+                // Incoming (devices → GSG): same size and timing as left segments, cyan
+                const _gGlow = '0 0 7px rgba(34,211,238,0.35)';
+                const pktGsg = mkPkts(n_auto,   durAll, toSize(smAuto),   0,          '#22d3ee', _gGlow)
+                             + mkPkts(n_ny,     durAll, toSize(smNy),     durAll/3,   '#22d3ee', _gGlow)
+                             + mkPkts(n_direct, durAll, toSize(smDirect), durAll*2/3, '#22d3ee', _gGlow);
 
                 // Aggregate active apps across all devices
                 const activeAppIds = new Set();
@@ -2086,71 +2287,380 @@
                 const devTotal  = state.devices.length;
                 const devOnline = state.devices.filter(d => d.online !== false).length;
                 const onlineDevs = state.devices.filter(d => d.online !== false);
-                const devPreview = onlineDevs.map(d => {
+                const DEV_PREVIEW_MAX = 9;
+                const devPreview = onlineDevs.slice(0, DEV_PREVIEW_MAX).map(d => {
                     const dtype = d.device_type || vendorToType(d.vendor, d.hostname);
                     const st = ICON_STYLE[dtype] || ICON_STYLE.unknown;
                     const ic = DEVICE_ICONS[dtype] || DEVICE_ICONS.unknown;
                     return `<div title="${d.custom_name || d.hostname || d.ip}" style="width:22px;height:22px;border-radius:6px;background:${st.bg};border:1px solid ${st.border};display:flex;align-items:center;justify-content:center;color:${st.color};">${ic.replace('width="18"','width="13"').replace('height="18"','height="13"')}</div>`;
-                }).join('');
+                }).join('') + (onlineDevs.length > DEV_PREVIEW_MAX
+                    ? `<div title="+${onlineDevs.length - DEV_PREVIEW_MAX} устройств" style="width:22px;height:22px;border-radius:6px;background:rgba(100,116,139,0.15);border:1px solid rgba(100,116,139,0.3);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:rgba(148,163,184,0.8);">+${onlineDevs.length - DEV_PREVIEW_MAX}</div>`
+                    : '');
 
+                // ── Mode 0: animated dots via requestAnimationFrame ───────────────────
+                // Each packet travels the FULL path: device → rl-in (green) → GSG → branch (branch color) → apps.
+                // Uses RAF so a single JS object can move across two different DOM containers.
+                if (state.routeVizMode === 0) {
+                    const _T = [
+                        { dur: 3.0, sz: 4.0, n: 0 },
+                        { dur: 2.8, sz: 4.0, n: 1 },
+                        { dur: 2.3, sz: 4.5, n: 1 },
+                        { dur: 1.7, sz: 5.0, n: 2 },
+                        { dur: 1.2, sz: 5.5, n: 2 },
+                        { dur: 0.8, sz: 6.0, n: 3 },
+                    ];
+                    const getTier = (bps) => {
+                        if (bps < 200)           return _T[0];
+                        if (bps < 10*1024)       return _T[1];
+                        if (bps < 100*1024)      return _T[2];
+                        if (bps < 1024*1024)     return _T[3];
+                        if (bps < 10*1024*1024)  return _T[4];
+                        return _T[5];
+                    };
+
+                    const gTier     = getTier(totalDeviceSpeed);
+                    const globalDur = gTier.dur;
+                    const globalSz  = gTier.sz;
+
+                    const rn_auto   = spAuto   < 200 ? 0 : getTier(spAuto).n;
+                    const rn_ny     = spNy     < 200 ? 0 : getTier(spNy).n;
+                    const rn_direct = spDirect < 200 ? 0 : getTier(spDirect).n;
+
+                    // Rebuild DOM only on topology change
+                    const appIdsStr = [...activeAppIds].sort().join(',');
+                    const devPreviewKey = onlineDevs.slice(0, DEV_PREVIEW_MAX).map(d => d.ip).join(',');
+                    const structKey = `${autoName}|${autoLineOk}|${nyName}|${nyLineOk}|${appIdsStr}|${devOnline}|${devTotal}|${devPreviewKey}`;
+                    const topoChanged = box.dataset.structKey !== structKey || !document.getElementById('rl-auto');
+
+                    if (topoChanged) {
+                        box.dataset.structKey = structKey;
+                        // Clear existing packets — their DOM elements are about to be destroyed
+                        if (box._vizPackets) {
+                            box._vizPackets.forEach(p => { try { p.el?.parentNode?.removeChild(p.el); } catch(e){} });
+                            box._vizPackets = [];
+                        }
+                        box._vizSpawn  = { auto: 0, ny: 0, direct: 0 };
+                        box._vizSeeded = false;
+
+                        const lc = 'rgba(52,211,153,0.2)', lo = 'rgba(52,211,153,0.06)';
+                        const alBg = autoLineOk ? lc : lo, nlBg = nyLineOk ? lc : lo;
+                        // Pill sits BELOW the route line so dots are fully visible end-to-end
+                        const pillBase = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10;display:flex;align-items:center;border-radius:9px;padding:5px 10px;width:180px;box-sizing:border-box;';
+                        const nameStyle = 'font-size:10px;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;min-width:0;';
+                        box.innerHTML = `<div style="display:grid;grid-template-columns:90px 172px 46px 12px 1fr;grid-template-rows:auto auto auto;row-gap:10px;align-items:center;margin-bottom:18px;">
+  <div style="grid-row:1/4;display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;width:90px;min-width:0;">
+    <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);">Устройства</div>
+    <div style="display:flex;gap:3px;flex-wrap:wrap;justify-content:center;max-width:84px;">${devPreview || '<div style="width:22px;height:22px;border-radius:6px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);display:flex;align-items:center;justify-content:center;font-size:11px;">💻</div>'}</div>
+    <div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;font-weight:700;color:#60a5fa;">${devOnline}<span style="font-size:8px;color:var(--muted);font-weight:400;"> / ${devTotal}</span></div>
+  </div>
+  <div style="grid-row:1/4;align-self:stretch;position:relative;">
+    <div style="position:absolute;top:46%;left:0;right:0;height:2px;background:rgba(52,211,153,0.15);transform:translateY(-50%);border-radius:1px;"></div>
+    <div id="rl-in" style="position:absolute;top:46%;left:0;right:0;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
+  </div>
+  <div style="grid-row:1/4;display:flex;flex-direction:column;align-items:center;gap:3px;position:relative;z-index:5;">
+    <div style="width:46px;height:46px;border-radius:13px;background:rgba(10,9,8,0.98);border:1.5px solid rgba(201,168,76,0.4);display:flex;align-items:center;justify-content:center;box-shadow:0 0 20px rgba(201,168,76,0.2);overflow:hidden;"><img src="/static/logo.png" style="width:42px;height:42px;object-fit:contain;border-radius:10px;" alt="GSG"></div>
+    <div style="font-size:9px;font-weight:800;color:#c9a84c;letter-spacing:0.09em;text-shadow:0 0 10px rgba(201,168,76,0.5);">GSG</div>
+  </div>
+  <div style="grid-row:1/4;"></div>
+  <div style="display:flex;align-items:center;gap:6px;height:58px;">
+    <div style="position:relative;flex:1;height:100%;overflow:visible;">
+      <div style="position:absolute;left:0;right:0;top:35%;height:2px;background:${alBg};transform:translateY(-50%);border-radius:1px;"></div>
+      <div id="rl-auto" style="position:absolute;left:0;right:0;top:35%;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
+      <div style="${pillBase}background:rgba(10,9,8,0.96);border:1px solid rgba(52,211,153,0.35);">
+        <div style="min-width:0;flex:1;">
+          <div style="${nameStyle}">${autoName}</div>
+          <div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;font-weight:600;white-space:nowrap;" class="${autoPingCls}">${autoPingStr}</div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:4px;align-items:center;width:196px;">
+      ${appBadge('#229ED9',APP_ICONS.telegram,'Telegram',activeAppIds.has('telegram'))}${appBadge('#ee1d52',APP_ICONS.tiktok,'TikTok',activeAppIds.has('tiktok'))}${appBadge('#ff0000',APP_ICONS.youtube,'YouTube',activeAppIds.has('youtube'))}${appBadge('#e1306c',APP_ICONS.instagram,'Instagram',activeAppIds.has('instagram'))}${appBadge('#e7e9ea',APP_ICONS.twitter,'X',activeAppIds.has('twitter'))}
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:6px;height:58px;">
+    <div style="position:relative;flex:1;height:100%;overflow:visible;">
+      <div style="position:absolute;left:0;right:0;top:35%;height:2px;background:${nlBg};transform:translateY(-50%);border-radius:1px;"></div>
+      <div id="rl-ny" style="position:absolute;left:0;right:0;top:35%;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
+      <div style="${pillBase}background:rgba(10,9,8,0.96);border:1px solid rgba(52,211,153,0.35);">
+        <div style="min-width:0;flex:1;">
+          <div style="${nameStyle}">${nyName}</div>
+          <div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;font-weight:600;white-space:nowrap;" class="${nyPingCls}">${nyPingStr}</div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:4px;align-items:center;width:196px;">
+      ${appBadge('#8ab4f8',APP_ICONS.gemini,'Gemini',true)}${appBadge('#d97706',APP_ICONS.claude,'Claude',true)}${appBadge('#10a37f',APP_ICONS.chatgpt,'ChatGPT',true)}${appBadge('#E50914',APP_ICONS.netflix,'Netflix',activeAppIds.has('netflix'))}${appBadge('#1ce783',APP_ICONS.hulu,'Hulu',activeAppIds.has('hulu'))}
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:6px;height:58px;">
+    <div style="position:relative;flex:1;height:100%;overflow:visible;">
+      <div style="position:absolute;left:0;right:0;top:35%;height:2px;background:rgba(52,211,153,0.15);transform:translateY(-50%);border-radius:1px;"></div>
+      <div id="rl-dir" style="position:absolute;left:0;right:0;top:35%;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
+      <div style="${pillBase}background:rgba(10,9,8,0.96);border:1px solid rgba(52,211,153,0.35);">
+        <div style="min-width:0;flex:1;">
+          <div style="${nameStyle}">Напрямую</div>
+          <div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:rgba(148,163,184,0.5);white-space:nowrap;">прямой</div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:4px;align-items:center;width:196px;">
+      <div title="Интернет напрямую" style="width:36px;height:36px;border-radius:9px;background:rgba(148,163,184,0.07);border:1px solid rgba(148,163,184,0.2);display:flex;align-items:center;justify-content:center;font-size:18px;">🌐</div>
+    </div>
+  </div>
+</div>`;
+                    }
+
+                    // Measure widths (route-line containers, not the track divs)
+                    const rlInEl  = document.getElementById('rl-in');
+                    const rlOutEl = document.getElementById('rl-auto');
+                    const inW  = rlInEl  ? (rlInEl.offsetWidth  || 172) : 172;
+                    const outW = rlOutEl ? (rlOutEl.offsetWidth || 212) : 212;
+
+                    // Push current traffic params — RAF loop reads this every frame
+                    box._vizParams = { rn_auto, rn_ny, rn_direct, globalDur, globalSz, inW, outW };
+
+                    // Start RAF loop once; it self-stops when mode changes or box leaves DOM
+                    if (!box._vizRaf) {
+                        box._vizPackets = box._vizPackets || [];
+                        box._vizSpawn   = box._vizSpawn   || { auto: 0, ny: 0, direct: 0 };
+
+                        const B_ID    = { auto: 'rl-auto', ny: 'rl-ny', direct: 'rl-dir' };
+                        const B_COLOR = { auto: '#c9a84c',  ny: '#60a5fa',  direct: '#94a3b8' };
+                        const B_GLOW  = {
+                            auto:   '0 0 8px rgba(201,168,76,0.5)',
+                            ny:     '0 0 8px rgba(96,165,250,0.4)',
+                            direct: '0 0 6px rgba(148,163,184,0.3)'
+                        };
+
+                        const mkDot = (color, glow, sz) => {
+                            const d = document.createElement('div');
+                            d.style.cssText = `position:absolute;top:50%;transform:translateY(-50%);border-radius:50%;` +
+                                `width:${sz}px;height:${sz}px;background:${color};box-shadow:${glow};pointer-events:none;`;
+                            return d;
+                        };
+
+                        let lastTs = null;
+
+                        const tick = (ts) => {
+                            if (!document.body.contains(box) || state.routeVizMode !== 0) {
+                                // Cleanup and stop
+                                if (box._vizPackets) {
+                                    box._vizPackets.forEach(p => { try { p.el?.parentNode?.removeChild(p.el); } catch(e){} });
+                                    box._vizPackets = [];
+                                }
+                                box._vizRaf = null;
+                                return;
+                            }
+                            box._vizRaf = requestAnimationFrame(tick);
+
+                            if (!lastTs) { lastTs = ts; return; }
+                            const dt = Math.min((ts - lastTs) / 1000, 0.05);
+                            lastTs = ts;
+
+                            const vp = box._vizParams;
+                            if (!vp || vp.inW <= 0 || vp.outW <= 0) return;
+
+                            const pixPerSec = vp.outW / vp.globalDur;
+                            const pkts = box._vizPackets;
+
+                            // Pre-seed on first tick so there's no startup blank period
+                            if (!box._vizSeeded && (vp.rn_auto + vp.rn_ny + vp.rn_direct) > 0) {
+                                box._vizSeeded = true;
+                                const totalLen = vp.inW + vp.outW;
+                                const branches = [
+                                    ...Array(vp.rn_auto).fill('auto'),
+                                    ...Array(vp.rn_ny).fill('ny'),
+                                    ...Array(vp.rn_direct).fill('direct')
+                                ];
+                                branches.forEach((branch, i) => {
+                                    const x = (i / branches.length) * totalLen;
+                                    if (x < vp.inW) {
+                                        const el = document.getElementById('rl-in');
+                                        if (!el) return;
+                                        const dot = mkDot('#34d399', '0 0 8px rgba(52,211,153,0.6)', vp.globalSz);
+                                        dot.style.left = x + 'px';
+                                        el.appendChild(dot);
+                                        pkts.push({ el: dot, phase: 'in', x, branch });
+                                    } else {
+                                        const el = document.getElementById(B_ID[branch]);
+                                        if (!el) return;
+                                        const bx = x - vp.inW;
+                                        const dot = mkDot(B_COLOR[branch], B_GLOW[branch], vp.globalSz);
+                                        dot.style.left = bx + 'px';
+                                        el.appendChild(dot);
+                                        pkts.push({ el: dot, phase: 'out', x: bx, branch });
+                                    }
+                                });
+                            }
+
+                            // Update each packet
+                            for (let i = pkts.length - 1; i >= 0; i--) {
+                                const pk = pkts[i];
+                                pk.x += pixPerSec * dt;
+                                // Update dot size if tier changed
+                                pk.el.style.width  = vp.globalSz + 'px';
+                                pk.el.style.height = vp.globalSz + 'px';
+
+                                if (pk.phase === 'in') {
+                                    if (pk.x >= vp.inW) {
+                                        // Arrived at GSG — switch to branch with new color
+                                        try { pk.el.parentNode?.removeChild(pk.el); } catch(e){}
+                                        const bEl = document.getElementById(B_ID[pk.branch]);
+                                        if (!bEl) { pkts.splice(i, 1); continue; }
+                                        const dot = mkDot(B_COLOR[pk.branch], B_GLOW[pk.branch], vp.globalSz);
+                                        dot.style.left = '0px';
+                                        bEl.appendChild(dot);
+                                        pk.el = dot; pk.phase = 'out'; pk.x = 0;
+                                    } else {
+                                        pk.el.style.left = pk.x + 'px';
+                                    }
+                                } else {
+                                    if (pk.x >= vp.outW) {
+                                        // Reached apps — remove
+                                        try { pk.el.parentNode?.removeChild(pk.el); } catch(e){}
+                                        pkts.splice(i, 1);
+                                        continue;
+                                    }
+                                    pk.el.style.left = pk.x + 'px';
+                                }
+                            }
+
+                            // Spawn new packets at rate = n_branch / globalDur per second
+                            const spwn = box._vizSpawn;
+                            for (const br of ['auto', 'ny', 'direct']) {
+                                const rate = (br === 'auto' ? vp.rn_auto : br === 'ny' ? vp.rn_ny : vp.rn_direct) / vp.globalDur;
+                                spwn[br] = (spwn[br] || 0) + rate * dt;
+                                while (spwn[br] >= 1) {
+                                    spwn[br] -= 1;
+                                    const el = document.getElementById('rl-in');
+                                    if (!el) break;
+                                    const dot = mkDot('#34d399', '0 0 8px rgba(52,211,153,0.6)', vp.globalSz);
+                                    dot.style.left = '0px';
+                                    el.appendChild(dot);
+                                    pkts.push({ el: dot, phase: 'in', x: 0, branch: br });
+                                }
+                            }
+                        };
+
+                        box._vizRaf = requestAnimationFrame(tick);
+                    }
+
+                    return;
+                }
+
+                // ── Mode 1: replace animated dots with mini sparkline charts ──────────
                 box.innerHTML = `
-                <!-- Route map: 8-column grid -->
-                <div style="display:grid;grid-template-columns:90px 1fr 46px 14px 1fr minmax(110px,145px) 1fr auto;grid-template-rows:auto auto;row-gap:12px;align-items:center;margin-bottom:18px;">
-
-                    <!-- Col 1: Devices (spans both rows) -->
-                    <div style="grid-row:1/3;display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;width:90px;min-width:0;">
+                <div style="display:grid;grid-template-columns:90px 1fr 46px 14px 1fr auto;grid-template-rows:auto auto auto;row-gap:10px;align-items:center;margin-bottom:18px;">
+                    <div style="grid-row:1/4;display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;width:90px;min-width:0;">
                         <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);">Устройства</div>
-                        <div style="display:flex;gap:3px;flex-wrap:wrap;justify-content:center;max-width:84px;">
-                            ${devPreview || '<div style="width:22px;height:22px;border-radius:6px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);display:flex;align-items:center;justify-content:center;font-size:11px;">💻</div>'}
-                        </div>
+                        <div style="display:flex;gap:3px;flex-wrap:wrap;justify-content:center;max-width:84px;">${devPreview || '<div style="width:22px;height:22px;border-radius:6px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);display:flex;align-items:center;justify-content:center;font-size:11px;">💻</div>'}</div>
                         <div style="font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:#60a5fa;">${devOnline}<span style="font-size:8px;color:var(--muted);font-weight:400;"> / ${devTotal}</span></div>
                     </div>
-
-                    <!-- Col 2: Line devices→GSG (spans both rows, 1fr) -->
-                    <div style="grid-row:1/3;padding:0 8px;"><div class="route-line">${pkt3}</div></div>
-
-                    <!-- Col 3: GSG (spans both rows) -->
-                    <div style="grid-row:1/3;display:flex;flex-direction:column;align-items:center;gap:3px;">
-                        <div style="width:52px;height:52px;border-radius:14px;background:rgba(201,168,76,0.1);border:1.5px solid rgba(201,168,76,0.35);display:flex;align-items:center;justify-content:center;box-shadow:0 0 22px rgba(201,168,76,0.2);overflow:hidden;">
-                            <img src="/static/logo.png" style="width:46px;height:46px;object-fit:contain;border-radius:10px;" alt="GSG">
+                    <!-- Col 2: total incoming chart -->
+                    <div style="grid-row:1/4;padding:0 8px;display:flex;flex-direction:column;justify-content:center;gap:2px;min-width:0;">
+                        <div style="position:relative;height:40px;border-radius:4px;overflow:hidden;background:rgba(0,0,0,0.2);">
+                            <canvas id="gsgInMiniChart" style="width:100%;height:100%;display:block;"></canvas>
+                            <span id="gsgInMiniSpd" style="position:absolute;top:2px;right:4px;font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:700;color:#c9a84c;"></span>
                         </div>
+                        <div style="font-size:8px;color:var(--muted);text-align:center;">→ GSG</div>
+                    </div>
+                    <div style="grid-row:1/4;display:flex;flex-direction:column;align-items:center;gap:3px;">
+                        <div style="width:52px;height:52px;border-radius:14px;background:rgba(201,168,76,0.1);border:1.5px solid rgba(201,168,76,0.35);display:flex;align-items:center;justify-content:center;box-shadow:0 0 22px rgba(201,168,76,0.2);overflow:hidden;"><img src="/static/logo.png" style="width:46px;height:46px;object-fit:contain;border-radius:10px;" alt="GSG"></div>
                         <div style="font-size:9px;font-weight:800;color:#c9a84c;letter-spacing:0.09em;text-shadow:0 0 10px rgba(201,168,76,0.5);">GSG</div>
                     </div>
-
-                    <!-- Col 4: spacer -->
-                    <div style="grid-row:1/3;"></div>
-
-                    <!-- Row 1: Auto branch — Col 5: short connector -->
-                    <div><div class="route-line ${autoLineOk ? 'emerald' : 'dim'}">${pkt2}</div></div>
-                    <!-- Row 1: Col 6: node pill -->
-                    ${nodePill(autoFlag, autoName, autoPingStr, autoPingCls, 'rgba(16,185,129,0.07)', 'rgba(16,185,129,0.22)')}
-                    <!-- Row 1: Col 7: line node→apps (1fr, equal to col 2) -->
-                    <div style="padding:0 10px;"><div class="route-line ${autoLineOk ? 'emerald' : 'dim'}">${pkt2}</div></div>
-                    <!-- Row 1: Col 8: app icons -->
-                    <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;">
-                        ${appBadge('#229ED9', APP_ICONS.telegram,  'Telegram',  activeAppIds.has('telegram'))}
-                        ${appBadge('#ee1d52', APP_ICONS.tiktok,    'TikTok',    activeAppIds.has('tiktok'))}
-                        ${appBadge('#ff0000', APP_ICONS.youtube,   'YouTube',   activeAppIds.has('youtube'))}
-                        ${appBadge('#e1306c', APP_ICONS.instagram, 'Instagram', activeAppIds.has('instagram'))}
-                        ${appBadge('#e7e9ea', APP_ICONS.twitter,   'X',         activeAppIds.has('twitter'))}
+                    <div style="grid-row:1/4;"></div>
+                    <!-- Auto branch: chart + apps -->
+                    <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+                        <div style="display:flex;flex-direction:column;gap:2px;min-width:0;flex:1;">
+                            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+                                <span style="font-size:10px;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${autoName}</span>
+                                <span style="font-family:'JetBrains Mono',monospace;font-size:9px;" class="${autoPingCls}">${autoPingStr}</span>
+                            </div>
+                            <div style="position:relative;height:40px;border-radius:4px;overflow:hidden;background:rgba(0,0,0,0.2);">
+                                <canvas id="autoMiniChart" style="width:100%;height:100%;display:block;"></canvas>
+                                <span id="autoMiniSpd" style="position:absolute;top:2px;right:4px;font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:700;color:#34d399;"></span>
+                            </div>
+                        </div>
                     </div>
-
-                    <!-- Row 2: NY branch — Col 5: short connector -->
-                    <div><div class="route-line ${nyLineOk ? 'blue' : 'dim'}">${pkt2}</div></div>
-                    <!-- Row 2: Col 6: node pill -->
-                    ${nodePill(nyFlag, nyName, nyPingStr, nyPingCls, 'rgba(59,130,246,0.07)', 'rgba(59,130,246,0.22)')}
-                    <!-- Row 2: Col 7: line node→apps (1fr) -->
-                    <div style="padding:0 10px;"><div class="route-line ${nyLineOk ? 'blue' : 'dim'}">${pkt2}</div></div>
-                    <!-- Row 2: Col 8: app icons -->
-                    <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;">
-                        ${appBadge('#8ab4f8', APP_ICONS.gemini,  'Gemini',  true)}
-                        ${appBadge('#d97706', APP_ICONS.claude,  'Claude',  true)}
-                        ${appBadge('#10a37f', APP_ICONS.chatgpt, 'ChatGPT', true)}
-                        ${appBadge('#E50914', APP_ICONS.netflix, 'Netflix', activeAppIds.has('netflix'))}
-                        ${appBadge('#1ce783', APP_ICONS.hulu,    'Hulu',    activeAppIds.has('hulu'))}
+                    <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;padding-left:6px;">
+                        ${appBadge('#229ED9',APP_ICONS.telegram,'Telegram',activeAppIds.has('telegram'))}${appBadge('#ee1d52',APP_ICONS.tiktok,'TikTok',activeAppIds.has('tiktok'))}${appBadge('#ff0000',APP_ICONS.youtube,'YouTube',activeAppIds.has('youtube'))}${appBadge('#e1306c',APP_ICONS.instagram,'Instagram',activeAppIds.has('instagram'))}${appBadge('#e7e9ea',APP_ICONS.twitter,'X',activeAppIds.has('twitter'))}
                     </div>
-
+                    <!-- NY branch: chart + apps -->
+                    <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+                        <div style="display:flex;flex-direction:column;gap:2px;min-width:0;flex:1;">
+                            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+                                <span style="font-size:10px;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${nyName}</span>
+                                <span style="font-family:'JetBrains Mono',monospace;font-size:9px;" class="${nyPingCls}">${nyPingStr}</span>
+                            </div>
+                            <div style="position:relative;height:40px;border-radius:4px;overflow:hidden;background:rgba(0,0,0,0.2);">
+                                <canvas id="nyMiniChart" style="width:100%;height:100%;display:block;"></canvas>
+                                <span id="nyMiniSpd" style="position:absolute;top:2px;right:4px;font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:700;color:#60a5fa;"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;padding-left:6px;">
+                        ${appBadge('#8ab4f8',APP_ICONS.gemini,'Gemini',true)}${appBadge('#d97706',APP_ICONS.claude,'Claude',true)}${appBadge('#10a37f',APP_ICONS.chatgpt,'ChatGPT',true)}${appBadge('#E50914',APP_ICONS.netflix,'Netflix',activeAppIds.has('netflix'))}${appBadge('#1ce783',APP_ICONS.hulu,'Hulu',activeAppIds.has('hulu'))}
+                    </div>
+                    <!-- Direct branch: chart + internet -->
+                    <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+                        <div style="display:flex;flex-direction:column;gap:2px;min-width:0;flex:1;">
+                            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+                                <span style="font-size:10px;font-weight:700;color:#94a3b8;white-space:nowrap;">Напрямую</span>
+                                <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(148,163,184,0.5);">прямой</span>
+                            </div>
+                            <div style="position:relative;height:40px;border-radius:4px;overflow:hidden;background:rgba(0,0,0,0.2);">
+                                <canvas id="directMiniChart" style="width:100%;height:100%;display:block;"></canvas>
+                                <span id="directMiniSpd" style="position:absolute;top:2px;right:4px;font-family:'JetBrains Mono',monospace;font-size:8px;font-weight:700;color:#94a3b8;"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:4px;align-items:center;padding-left:6px;">
+                        <div title="Интернет напрямую" style="width:36px;height:36px;border-radius:9px;background:rgba(148,163,184,0.07);border:1px solid rgba(148,163,184,0.2);display:flex;align-items:center;justify-content:center;font-size:18px;">🌐</div>
+                    </div>
                 </div>`;
+                // Draw mini charts after layout (setTimeout for reliable offsetWidth)
+                setTimeout(() => ui.drawNodeMiniCharts(), 30);
+            },
+
+            drawNodeMiniCharts: () => {
+                const drawMini = (id, histKey, color, fill, spdId) => {
+                    const canvas = document.getElementById(id);
+                    if (!canvas) return;
+                    const dpr = window.devicePixelRatio || 1;
+                    const W = canvas.offsetWidth * dpr, H = canvas.offsetHeight * dpr;
+                    if (!W || !H) return;
+                    if (canvas.width !== W) canvas.width = W;
+                    if (canvas.height !== H) canvas.height = H;
+                    const ctx = canvas.getContext('2d');
+                    ctx.clearRect(0, 0, W, H);
+                    const hist = state.trafficHistory;
+                    if (hist.length < 2) return;
+                    const maxVal = Math.max(1024, ...hist.map(p => p[histKey]||0));
+                    const pts = hist.map((p, i) => ({
+                        x: (i / (hist.length - 1)) * W,
+                        y: H - ((p[histKey]||0) / maxVal) * H * 0.9 - H * 0.05
+                    }));
+                    ctx.beginPath(); ctx.moveTo(pts[0].x, H); ctx.lineTo(pts[0].x, pts[0].y);
+                    for (let i = 1; i < pts.length; i++) {
+                        const cpx = (pts[i-1].x + pts[i].x) / 2;
+                        ctx.bezierCurveTo(cpx, pts[i-1].y, cpx, pts[i].y, pts[i].x, pts[i].y);
+                    }
+                    ctx.lineTo(pts[pts.length-1].x, H); ctx.closePath();
+                    ctx.fillStyle = fill; ctx.fill();
+                    ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+                    for (let i = 1; i < pts.length; i++) {
+                        const cpx = (pts[i-1].x + pts[i].x) / 2;
+                        ctx.bezierCurveTo(cpx, pts[i-1].y, cpx, pts[i].y, pts[i].x, pts[i].y);
+                    }
+                    ctx.strokeStyle = color; ctx.lineWidth = 1.5 * dpr; ctx.lineJoin = 'round'; ctx.stroke();
+                    const last = hist[hist.length-1] || {};
+                    const spdEl = document.getElementById(spdId);
+                    if (spdEl) spdEl.textContent = utils.formatBytes((last[histKey]||0)) + '/s';
+                };
+                drawMini('gsgInMiniChart',    'down',        '#c9a84c', 'rgba(201,168,76,0.15)',  'gsgInMiniSpd');
+                drawMini('autoMiniChart',     'autoDown',    '#c9a84c', 'rgba(201,168,76,0.2)',   'autoMiniSpd');
+                drawMini('nyMiniChart',       'nyDown',      '#3b82f6', 'rgba(59,130,246,0.15)',  'nyMiniSpd');
+                drawMini('directMiniChart',   'directDown',  '#94a3b8', 'rgba(148,163,184,0.12)', 'directMiniSpd');
             },
 
             _unusedServiceRoutes: () => {
@@ -2225,30 +2735,27 @@
                 ctx.clearRect(0, 0, W, H);
                 const hist = state.trafficHistory;
                 if (hist.length < 2) return;
-                const maxVal = Math.max(1024, ...hist.map(p => Math.max(p.down, p.up)));
-                const drawLine = (key, stroke, fill) => {
+                // All series share the same Y scale (max across all)
+                const maxVal = Math.max(1024, ...hist.map(p =>
+                    Math.max(p.down||0, p.autoDown||0, p.nyDown||0, p.directDown||0)));
+                const drawLine = (key, stroke, fill, lw) => {
                     const pts = hist.map((p, i) => ({
                         x: (i / (hist.length - 1)) * W,
-                        y: H - (p[key] / maxVal) * H * 0.88 - H * 0.06
+                        y: H - ((p[key]||0) / maxVal) * H * 0.88 - H * 0.06
                     }));
-                    // Smooth curve via cubic bezier
-                    const smooth = (p, i, arr) => {
-                        const cp = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
-                        return i === 0 ? null : { c1: cp(arr[i-1], p), c2: cp(arr[i-1], p) };
-                    };
-                    // Fill
-                    ctx.beginPath();
-                    ctx.moveTo(pts[0].x, H);
-                    ctx.lineTo(pts[0].x, pts[0].y);
-                    for (let i = 1; i < pts.length; i++) {
-                        const cpx = (pts[i-1].x + pts[i].x) / 2;
-                        ctx.bezierCurveTo(cpx, pts[i-1].y, cpx, pts[i].y, pts[i].x, pts[i].y);
+                    if (fill) {
+                        ctx.beginPath();
+                        ctx.moveTo(pts[0].x, H);
+                        ctx.lineTo(pts[0].x, pts[0].y);
+                        for (let i = 1; i < pts.length; i++) {
+                            const cpx = (pts[i-1].x + pts[i].x) / 2;
+                            ctx.bezierCurveTo(cpx, pts[i-1].y, cpx, pts[i].y, pts[i].x, pts[i].y);
+                        }
+                        ctx.lineTo(pts[pts.length-1].x, H);
+                        ctx.closePath();
+                        ctx.fillStyle = fill;
+                        ctx.fill();
                     }
-                    ctx.lineTo(pts[pts.length-1].x, H);
-                    ctx.closePath();
-                    ctx.fillStyle = fill;
-                    ctx.fill();
-                    // Stroke
                     ctx.beginPath();
                     ctx.moveTo(pts[0].x, pts[0].y);
                     for (let i = 1; i < pts.length; i++) {
@@ -2256,40 +2763,32 @@
                         ctx.bezierCurveTo(cpx, pts[i-1].y, cpx, pts[i].y, pts[i].x, pts[i].y);
                     }
                     ctx.strokeStyle = stroke;
-                    ctx.lineWidth = 1.5 * dpr;
+                    ctx.lineWidth = (lw || 1.5) * dpr;
                     ctx.lineJoin = 'round';
                     ctx.stroke();
                 };
-                drawLine('down', '#10b981', 'rgba(16,185,129,0.15)');
-                drawLine('up', '#3b82f6', 'rgba(59,130,246,0.1)');
-                const last = hist[hist.length - 1] || {down:0, up:0};
-                const dEl = document.getElementById('chartSpeedDown');
-                const uEl = document.getElementById('chartSpeedUp');
-                const tdEl = document.getElementById('chartTotalDown');
-                const tuEl = document.getElementById('chartTotalUp');
-                if (dEl) dEl.textContent = utils.formatBytes(last.down) + '/s';
-                if (uEl) uEl.textContent = utils.formatBytes(last.up) + '/s';
-                if (tdEl) tdEl.textContent = utils.formatBytes(state.sessionStats.totalDown);
-                if (tuEl) tuEl.textContent = utils.formatBytes(state.sessionStats.totalUp);
+                // Direct (gray) — bottom layer, thinner to not dominate visually
+                drawLine('directDown', '#94a3b8', 'rgba(148,163,184,0.05)', 1.0);
+                // NY node (blue)
+                drawLine('nyDown', '#3b82f6', 'rgba(59,130,246,0.10)', 1.5);
+                // Auto node (gold) — top layer
+                drawLine('autoDown', '#c9a84c', 'rgba(201,168,76,0.13)', 1.5);
+                const last = hist[hist.length - 1] || {};
+                const autoSpd   = (last.autoDown||0)   + (last.autoUp||0);
+                const nySpd     = (last.nyDown||0)      + (last.nyUp||0);
+                const directSpd = (last.directDown||0)  + (last.directUp||0);
+                const el = (id) => document.getElementById(id);
+                if (el('chartSpeedAuto')) el('chartSpeedAuto').textContent = utils.formatBytes(autoSpd)   + '/s';
+                if (el('chartSpeedNy'))   el('chartSpeedNy').textContent   = utils.formatBytes(nySpd)     + '/s';
+                if (el('chartSpeedDown')) el('chartSpeedDown').textContent = utils.formatBytes(directSpd) + '/s';
             },
 
             addEvent: (icon, text, color) => {
-                state.events.unshift({ time: new Date(), icon, text, color: color || 'var(--muted)' });
-                if (state.events.length > 20) state.events.pop();
-                ui.renderEventLog();
-            },
-
-            renderEventLog: () => {
-                const feed = document.getElementById('eventLogFeed');
-                if (!feed) return;
-                if (!state.events.length) return;
-                const fmt = d => d.toLocaleTimeString('ru', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
-                feed.innerHTML = state.events.map(e => `
-                    <div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.04);">
-                        <span style="font-size:13px;flex-shrink:0;">${e.icon}</span>
-                        <span style="font-size:11px;color:${e.color};flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${e.text}</span>
-                        <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(100,116,139,0.5);flex-shrink:0;">${fmt(e.time)}</span>
-                    </div>`).join('');
+                const type = /34d399|10b981/.test(color||'') ? 'success'
+                           : /f87171|ef4444/.test(color||'') ? 'error'
+                           : /f59e0b|fbbf24/.test(color||'') ? 'warning'
+                           : 'info';
+                ui.showToast(`${icon} ${text}`, type);
             },
 
             renderSessionStats: () => {
@@ -2342,10 +2841,11 @@
                 set('summaryTodayDown', todayDown, '↓'); set('summaryTodayUp',  todayUp,  '↑');
                 set('summaryMonthDown', monthDown, '↓'); set('summaryMonthUp',  monthUp,  '↑');
                 set('summaryAllDown',   allDown,   '↓'); set('summaryAllUp',    allUp,    '↑');
+                const toMBs = (bps) => (bps / 1048576).toFixed(2) + ' MB/с';
                 const peakEl = document.getElementById('summaryPeakDown');
-                if (peakEl) peakEl.textContent = (state.sessionStats.peakDown > 0 ? '↓ ' + utils.formatBytes(state.sessionStats.peakDown) + '/с' : '—');
+                if (peakEl) peakEl.textContent = state.sessionStats.peakDown > 0 ? '↓ ' + toMBs(state.sessionStats.peakDown) : '—';
                 const peakUpEl = document.getElementById('summaryPeakUp');
-                if (peakUpEl) peakUpEl.textContent = (state.sessionStats.peakUp > 0 ? '↑ ' + utils.formatBytes(state.sessionStats.peakUp) + '/с' : '—');
+                if (peakUpEl) peakUpEl.textContent = state.sessionStats.peakUp > 0 ? '↑ ' + toMBs(state.sessionStats.peakUp) : '—';
             },
 
             showToast: (msg, type = 'info') => {
@@ -2356,17 +2856,167 @@
                 const color  = colors[type] || colors.info;
                 const icon   = icons[type]  || icons.info;
                 const el = document.createElement('div');
-                el.style.cssText = `pointer-events:auto;display:flex;align-items:center;gap:10px;padding:12px 16px;background:rgba(15,20,35,0.95);border:1px solid ${color}40;border-left:3px solid ${color};border-radius:10px;backdrop-filter:blur(12px);box-shadow:0 8px 32px rgba(0,0,0,0.4);font-family:'Syne',sans-serif;font-size:13px;color:#f1f5f9;max-width:320px;opacity:0;transform:translateX(20px);transition:all 0.25s ease;`;
-                el.innerHTML = `<span style="color:${color};font-weight:700;font-size:14px;">${icon}</span><span>${msg}</span>`;
+                el.style.cssText = `pointer-events:auto;display:flex;align-items:center;gap:10px;padding:12px 16px;background:rgba(15,20,35,0.95);border:1px solid ${color}40;border-left:3px solid ${color};border-radius:10px;backdrop-filter:blur(12px);box-shadow:0 8px 32px rgba(0,0,0,0.4);font-family:'Syne',sans-serif;font-size:13px;color:#f1f5f9;max-width:340px;opacity:0;transform:translateX(20px);transition:all 0.25s ease;`;
+                const dismiss = () => { el.style.opacity='0'; el.style.transform='translateX(20px)'; setTimeout(()=>el.remove(),300); };
+                el.innerHTML = `<span style="color:${color};font-weight:700;font-size:14px;">${icon}</span><span style="flex:1;">${msg}</span><button onclick="this.closest('div').remove()" style="background:none;border:none;color:rgba(148,163,184,0.5);cursor:pointer;font-size:14px;padding:0 0 0 6px;line-height:1;flex-shrink:0;" onmouseover="this.style.color='#f1f5f9'" onmouseout="this.style.color='rgba(148,163,184,0.5)'">✕</button>`;
                 container.appendChild(el);
                 requestAnimationFrame(() => { el.style.opacity = '1'; el.style.transform = 'translateX(0)'; });
-                setTimeout(() => {
-                    el.style.opacity = '0'; el.style.transform = 'translateX(20px)';
-                    setTimeout(() => el.remove(), 300);
-                }, 3500);
+                const tid = setTimeout(dismiss, 8000);
+                el.querySelector('button').addEventListener('click', () => clearTimeout(tid));
+            },
+
+            setTheme: (theme) => {
+                localStorage.setItem('gsg_theme', theme);
+                document.documentElement.setAttribute('data-theme', theme);
+                const dark = theme !== 'light';
+                const _td = document.getElementById('themeCardDark');
+                const _tl = document.getElementById('themeCardLight');
+                if (_td) { _td.style.border = dark ? '2px solid rgba(201,168,76,0.5)' : '1px solid rgba(255,255,255,0.08)'; _td.style.background = dark ? 'rgba(201,168,76,0.06)' : 'rgba(255,255,255,0.03)'; }
+                if (_tl) { _tl.style.border = !dark ? '2px solid rgba(201,168,76,0.5)' : '1px solid rgba(255,255,255,0.08)'; _tl.style.background = !dark ? 'rgba(201,168,76,0.06)' : 'rgba(255,255,255,0.03)'; }
+            },
+
+            setIconPack: (pack) => {
+                localStorage.setItem('gsg_icon_pack', pack);
+                const packs = ['custom','phosphor','heroicons'];
+                packs.forEach(p => {
+                    const el = document.getElementById('iconPack' + p.charAt(0).toUpperCase() + p.slice(1));
+                    if (!el) return;
+                    el.style.border = p === pack ? '2px solid rgba(201,168,76,0.5)' : '1px solid rgba(255,255,255,0.08)';
+                    el.style.background = p === pack ? 'rgba(201,168,76,0.06)' : 'rgba(255,255,255,0.03)';
+                });
+                const note = document.getElementById('iconPackNote');
+                if (note) note.style.display = pack !== 'custom' ? 'block' : 'none';
+                // Load icon CSS for Phosphoricons
+                if (pack === 'phosphor' && !document.getElementById('phosphor-css')) {
+                    const l = document.createElement('link');
+                    l.id = 'phosphor-css'; l.rel = 'stylesheet';
+                    l.href = 'https://unpkg.com/@phosphor-icons/web@2.0.3/src/regular/style.css';
+                    document.head.appendChild(l);
+                }
+                if (pack === 'heroicons' && !document.getElementById('heroicons-css')) {
+                    const l = document.createElement('link');
+                    l.id = 'heroicons-css'; l.rel = 'stylesheet';
+                    l.href = 'https://cdn.jsdelivr.net/npm/@tailwindcss/typography@0.5.14/dist/typography.min.css';
+                    document.head.appendChild(l);
+                }
+                ui.applyNavIcons(pack);
+            },
+
+            applyNavIcons: (pack) => {
+                const icons = {
+                    'nav-devices':       { custom: '<rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18" stroke-width="3"/>', phosphor: 'M200,24H56A32,32,0,0,0,24,56V200a32,32,0,0,0,32,32H200a32,32,0,0,0,32-32V56A32,32,0,0,0,200,24ZM48,80H208v96H48ZM56,48H200a8,8,0,0,1,8,8v8H48V56A8,8,0,0,1,56,48Zm144,168H56a8,8,0,0,1-8-8v-8H208v8A8,8,0,0,1,200,216Z', heroicons: '<rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="17" r="1" fill="currentColor"/>' },
+                    'nav-routing':       { custom: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>', phosphor: 'M208,40H48A16,16,0,0,0,32,56V200a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V56A16,16,0,0,0,208,40ZM48,56H208V88H48ZM48,200V104H208v96Z', heroicons: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>' },
+                    'nav-dhcp':          { custom: '<circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M4.93 4.93a10 10 0 0 0 0 14.14"/>', phosphor: 'M225.6,40.4a8,8,0,0,0-11.2,1.6,72,72,0,0,1-115,0,8,8,0,0,0-11.2-1.6A8.1,8.1,0,0,0,86.4,51.6,87.8,87.8,0,0,0,112,75.6V80H104a8,8,0,0,0,0,16h8v8a8,8,0,0,0,16,0V96h8a8,8,0,0,0,0-16h-8V75.6a87.8,87.8,0,0,0,25.6-24A8,8,0,0,0,225.6,40.4Z', heroicons: '<path d="M8.288 15.038a5.25 5.25 0 0 1 7.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 17.69l-.53.53-.53-.53a.75.75 0 0 1 1.06 0Z"/>' },
+                    'nav-proxy':         { custom: '<polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>', phosphor: 'M229.7,218.3l-57.4-57.4A88,88,0,1,0,37.7,218.3a8,8,0,0,0,11.3-11.3A72,72,0,1,1,161,49a72,72,0,0,1-10.8,101.5,8,8,0,1,0,10.4,12.2A87.8,87.8,0,0,0,183,143l57.4,57.4a8,8,0,0,0,11.3-11.3Z', heroicons: '<path d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.34 18m.38-4.171A42.08 42.08 0 0 1 12 13.5c1.88.001 3.71.186 5.433.485m0 0L17.66 18m0-4.515A42.08 42.08 0 0 1 18 13.5m0 0 .27 4.5"/>' },
+                    'nav-connections':   { custom: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>', phosphor: 'M232,96a24,24,0,1,0-40.7,17.3l-30.2,60.4a24.2,24.2,0,0,0-18.2,0L88,104.3A24,24,0,1,0,64,96a24,24,0,0,0,0,.7L113.1,165a24,24,0,1,0,29.8,0L193,96.7a24,24,0,0,0,0-.7,23.6,23.6,0,0,0-.7-5.4Z', heroicons: '<path d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/>' },
+                    'nav-stats':         { custom: '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>', phosphor: 'M224,200h-8V40a8,8,0,0,0-8-8H152a8,8,0,0,0-8,8v56H96a8,8,0,0,0-8,8v40H48a8,8,0,0,0-8,8v48H32a8,8,0,0,0,0,16H224a8,8,0,0,0,0-16Z', heroicons: '<path d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/>' },
+                    'nav-visualization': { custom: '<circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>', phosphor: 'M205.7,50.3a8,8,0,0,0-11.4,0L160,84.7l-18.3-18.4a8.1,8.1,0,0,0-11.4,0L96,100.7,61.7,66.3a8.1,8.1,0,0,0-11.4,11.4L82.4,110,50.3,142.3a8,8,0,1,0,11.4,11.4L94,121.4l34.3,34.3a8.1,8.1,0,0,0,11.4,0L174,121.4l34.3,34.3a8,8,0,1,0,11.4-11.4L185.4,110l20.3-20.3A8,8,0,0,0,205.7,50.3Z', heroicons: '<path d="M9.53 16.122a3 3 0 0 0-5.78 1.128 2.25 2.25 0 0 1-2.4 2.245 4.5 4.5 0 0 0 8.4-2.245c0-.399-.078-.78-.22-1.128Zm0 0a15.998 15.998 0 0 0 3.388-1.62m-5.043-.025a15.994 15.994 0 0 1 1.622-3.395m3.42 3.42a15.995 15.995 0 0 0 4.764-4.648l3.876-5.814a1.151 1.151 0 0 0-1.597-1.597L14.146 6.32a15.996 15.996 0 0 0-4.649 4.763m3.42 3.42a6.776 6.776 0 0 0-3.42-3.42"/>' },
+                };
+                Object.entries(icons).forEach(([navId, packs]) => {
+                    const navEl = document.getElementById(navId);
+                    if (!navEl) return;
+                    const svgEl = navEl.querySelector('svg');
+                    if (!svgEl) return;
+                    const rawPath = packs[pack] || packs.custom;
+                    const isPhosphor = pack === 'phosphor';
+                    svgEl.setAttribute('viewBox', isPhosphor ? '0 0 256 256' : '0 0 24 24');
+                    svgEl.setAttribute('fill', isPhosphor ? 'currentColor' : 'none');
+                    svgEl.setAttribute('stroke', isPhosphor ? 'none' : 'currentColor');
+                    // Phosphor paths are raw 'd' data, not markup — wrap in <path>
+                    svgEl.innerHTML = rawPath.startsWith('<') ? rawPath : `<path d="${rawPath}"/>`;
+                });
+            },
+
+            setAnimEnabled: (enabled) => {
+                localStorage.setItem('gsg_anim', enabled ? 'on' : 'off');
+                const style = document.getElementById('gsg-anim-override') || (() => {
+                    const s = document.createElement('style'); s.id = 'gsg-anim-override'; document.head.appendChild(s); return s;
+                })();
+                style.textContent = enabled ? '' : '.route-line .packet { animation: none !important; display: none; }';
+                const track = document.getElementById('animToggleTrack');
+                const thumb = document.getElementById('animToggleThumb');
+                if (track) track.style.background = enabled ? 'rgba(201,168,76,0.7)' : 'rgba(100,116,139,0.5)';
+                if (thumb) thumb.style.transform = enabled ? 'translateX(18px)' : 'translateX(0)';
+            },
+
+            setAccent: (color, glow) => {
+                localStorage.setItem('gsg_accent', JSON.stringify({color, glow}));
+                document.documentElement.style.setProperty('--gold', color);
+                document.documentElement.style.setProperty('--gold-border', glow);
+                document.documentElement.style.setProperty('--gold-dim', glow.replace('0.3)', '0.1)'));
+                // Update accent swatches
+                document.querySelectorAll('[onclick^="GatewayApp.ui.setAccent"]').forEach(el => {
+                    el.style.border = el.getAttribute('onclick').includes(color) ? '2px solid rgba(255,255,255,0.6)' : '2px solid transparent';
+                });
+            },
+
+            startSidebarResize: (e) => {
+                const sidebar = document.getElementById('sidebar');
+                if (!sidebar) return;
+                e.currentTarget.setPointerCapture(e.pointerId);
+                const startX = e.clientX;
+                const startW = sidebar.getBoundingClientRect().width;
+                const onMove = (ev) => {
+                    const newW = Math.min(Math.max(startW + ev.clientX - startX, 180), 420);
+                    document.documentElement.style.setProperty('--sidebar-w', newW + 'px');
+                };
+                const onUp = () => {
+                    e.currentTarget.removeEventListener('pointermove', onMove);
+                    localStorage.setItem('gsg_sidebar_w', document.documentElement.style.getPropertyValue('--sidebar-w').trim());
+                };
+                e.currentTarget.addEventListener('pointermove', onMove);
+                e.currentTarget.addEventListener('pointerup', onUp, { once: true });
+            },
+
+            startPanelResize: (e) => {
+                const left  = document.getElementById('panelStatus');
+                const right = document.getElementById('panelSub');
+                const grid  = document.getElementById('topGrid');
+                if (!left || !right || !grid) return;
+                e.currentTarget.setPointerCapture(e.pointerId);
+                const startX  = e.clientX;
+                const startLW = left.getBoundingClientRect().width;
+                const totalW  = () => grid.getBoundingClientRect().width - 14; // minus divider
+                const onMove = (ev) => {
+                    const dx  = ev.clientX - startX;
+                    const tot = totalW();
+                    const newW = Math.min(Math.max(startLW + dx, 320), tot - 240);
+                    left.style.flex  = `0 0 ${newW}px`;
+                    right.style.flex = `0 0 ${tot - newW}px`;
+                };
+                const onUp = () => {
+                    e.currentTarget.removeEventListener('pointermove', onMove);
+                    const tot = totalW();
+                    const lw  = left.getBoundingClientRect().width;
+                    localStorage.setItem('gsg_panel_split', (lw / tot).toFixed(3));
+                };
+                e.currentTarget.addEventListener('pointermove', onMove);
+                e.currentTarget.addEventListener('pointerup', onUp, { once: true });
+            },
+
+            toggleRouteVizMode: () => {
+                state.routeVizMode = state.routeVizMode === 0 ? 1 : 0;
+                localStorage.setItem('gsg_viz_mode', state.routeVizMode);
+                const btn = document.getElementById('vizModeBtn');
+                if (btn) btn.textContent = state.routeVizMode === 0 ? 'Точки' : 'Графики';
+                // Force structure rebuild; cancel any running RAF loop
+                const box = document.getElementById('routeViz');
+                if (box) {
+                    delete box.dataset.structKey;
+                    if (box._vizRaf) { cancelAnimationFrame(box._vizRaf); box._vizRaf = null; }
+                    if (box._vizPackets) { box._vizPackets.forEach(p => { try { p.el?.parentNode?.removeChild(p.el); } catch(e){} }); box._vizPackets = []; }
+                }
+                ui.renderRouteViz();
             },
 
             openFeedback: () => {
+                const last = parseInt(localStorage.getItem('gsg_feedback_last') || '0');
+                const cooldown = 60 * 60 * 1000; // 1 hour
+                if (Date.now() - last < cooldown) {
+                    const mins = Math.ceil((cooldown - (Date.now() - last)) / 60000);
+                    ui.showToast(`Следующее сообщение можно отправить через ${mins} мин.`, 'info');
+                    return;
+                }
                 const modal = document.getElementById('feedbackModal');
                 modal.style.display = 'flex';
                 document.getElementById('feedbackText').focus();
@@ -2390,6 +3040,134 @@
                 document.getElementById('changePwModal').style.display = 'none';
             },
             openHistoryModal: (ip) => {
+                const _buildHistoryContent = (ip, todayD, allD, hd) => {
+                    const _nyTag = state.nodes.find(n => /ny|new[\s-]?york/i.test(n.tag))?.tag;
+                    const histNodes = (ip && state.deviceNodeHistory?.[ip]) || {};
+                    const liveNodes = (ip && state.deviceChains?.[ip]) || {};
+                    const today = new Date().toISOString().slice(0, 10);
+                    const days7keys = Array.from({length:7}, (_, i) => {
+                        const d = new Date(); d.setDate(d.getDate() - (6 - i));
+                        return d.toISOString().slice(0, 10);
+                    });
+
+                    // Per-node data for each period
+                    const dayNodes = (() => {
+                        const m = {};
+                        for (const [tag, h] of Object.entries(histNodes)) {
+                            const v = h.daily?.[today] || {down:0, up:0};
+                            if (v.down + v.up > 0) m[tag] = {down: v.down, up: v.up};
+                        }
+                        for (const [tag, l] of Object.entries(liveNodes)) {
+                            if (!m[tag]) m[tag] = {down:0, up:0};
+                            m[tag].down = Math.max(m[tag].down, l.total_down||0);
+                            m[tag].up   = Math.max(m[tag].up,   l.total_up||0);
+                        }
+                        return Object.entries(m).filter(([,d])=>d.down+d.up>0).sort((a,b)=>b[1].down-a[1].down);
+                    })();
+
+                    const weekNodes = (() => {
+                        const m = {};
+                        for (const [tag, h] of Object.entries(histNodes)) {
+                            let down=0, up=0;
+                            for (const k of days7keys) { down += h.daily?.[k]?.down||0; up += h.daily?.[k]?.up||0; }
+                            if (down+up > 0) m[tag] = {down, up};
+                        }
+                        return Object.entries(m).filter(([,d])=>d.down+d.up>0).sort((a,b)=>b[1].down-a[1].down);
+                    })();
+
+                    const alltimeNodes = (() => {
+                        const m = {};
+                        for (const [tag, h] of Object.entries(histNodes)) {
+                            const down = h.alltime_down||0, up = h.alltime_up||0;
+                            if (down+up > 0) m[tag] = {down, up};
+                        }
+                        for (const [tag, l] of Object.entries(liveNodes)) {
+                            if (!m[tag]) m[tag] = {down:0, up:0};
+                            m[tag].down = Math.max(m[tag].down, l.total_down||0);
+                            m[tag].up   = Math.max(m[tag].up,   l.total_up||0);
+                        }
+                        return Object.entries(m).filter(([,d])=>d.down+d.up>0).sort((a,b)=>b[1].down-a[1].down);
+                    })();
+
+                    const weekTotal = days7keys.reduce((s,k)=>({
+                        down: s.down+(hd?.daily?.[k]?.down||0),
+                        up:   s.up  +(hd?.daily?.[k]?.up  ||0)
+                    }), {down:0, up:0});
+
+                    window._hmPeriods = {
+                        day:     {nodes: dayNodes,     total: todayD},
+                        week:    {nodes: weekNodes,    total: weekTotal},
+                        alltime: {nodes: alltimeNodes, total: allD}
+                    };
+
+                    const _nodeColor = (tag) => {
+                        if (tag === 'DIRECT') return {col:'#94a3b8', bg:'rgba(148,163,184,0.3)', label:'Напрямую'};
+                        if (_nyTag && /ny|new[\s-]?york/i.test(tag)) return {col:'#60a5fa', bg:'rgba(96,165,250,0.4)', label:tag};
+                        return {col:'#c9a84c', bg:'rgba(201,168,76,0.4)', label:tag};
+                    };
+
+                    window._hmRenderPeriod = (period) => {
+                        const container = document.getElementById('hm-nodes');
+                        if (!container) return;
+                        document.querySelectorAll('.hm-tab').forEach(t => {
+                            const active = t.dataset.period === period;
+                            t.style.background = active ? 'rgba(201,168,76,0.12)' : 'transparent';
+                            t.style.color      = active ? '#c9a84c' : '#64748b';
+                            t.style.borderColor= active ? 'rgba(201,168,76,0.35)' : 'rgba(255,255,255,0.07)';
+                        });
+                        const {nodes, total} = window._hmPeriods[period];
+                        const nodeDownTotal = nodes.reduce((s,[,d])=>s+d.down,0) || 1;
+                        if (nodes.length === 0) {
+                            container.innerHTML = `<div style="text-align:center;padding:28px 0;color:#475569;font-size:12px;">Нет данных за этот период</div>`;
+                            return;
+                        }
+                        container.innerHTML = nodes.map(([tag, d], i) => {
+                            const {col, bg, label} = _nodeColor(tag);
+                            const pct = Math.round((d.down / nodeDownTotal) * 100);
+                            const isLast = i === nodes.length - 1;
+                            return `<div style="padding:11px 14px;${isLast?'':'border-bottom:1px solid rgba(255,255,255,0.05);'}">
+                                <div style="display:flex;align-items:center;gap:9px;margin-bottom:7px;">
+                                    <div style="width:8px;height:8px;border-radius:50%;background:${col};flex-shrink:0;box-shadow:0 0 6px ${col};"></div>
+                                    <div style="font-size:11px;color:#e2e8f0;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${label}</div>
+                                    <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#34d399;">↓\u202f${utils.formatBytes(d.down)}</div>
+                                    <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#60a5fa;margin-left:4px;">↑\u202f${utils.formatBytes(d.up)}</div>
+                                    <div style="font-size:11px;color:${col};font-weight:700;min-width:32px;text-align:right;">${pct}%</div>
+                                </div>
+                                <div style="height:4px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;">
+                                    <div style="width:${pct}%;height:100%;background:${bg};border-radius:2px;transition:width 0.45s ease;"></div>
+                                </div>
+                            </div>`;
+                        }).join('') + `<div style="padding:10px 14px;border-top:1px solid rgba(255,255,255,0.08);display:flex;justify-content:space-between;align-items:center;">
+                            <div style="font-size:10px;color:#475569;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;">Итого</div>
+                            <div style="display:flex;gap:14px;">
+                                <div style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:#34d399;">↓\u202f${utils.formatBytes(total.down)}</div>
+                                <div style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:#60a5fa;">↑\u202f${utils.formatBytes(total.up)}</div>
+                            </div>
+                        </div>`;
+                    };
+
+                    return `
+                        <div style="display:flex;gap:6px;margin-bottom:13px;">
+                            <button class="hm-tab" data-period="day" onclick="window._hmRenderPeriod('day')"
+                                style="flex:1;padding:7px 0;font-size:11px;font-weight:600;border-radius:8px;border:1px solid;cursor:pointer;background:transparent;transition:all 0.18s;letter-spacing:0.02em;">
+                                Сегодня
+                            </button>
+                            <button class="hm-tab" data-period="week" onclick="window._hmRenderPeriod('week')"
+                                style="flex:1;padding:7px 0;font-size:11px;font-weight:600;border-radius:8px;border:1px solid;cursor:pointer;background:transparent;transition:all 0.18s;letter-spacing:0.02em;">
+                                Неделя
+                            </button>
+                            <button class="hm-tab" data-period="alltime" onclick="window._hmRenderPeriod('alltime')"
+                                style="flex:1;padding:7px 0;font-size:11px;font-weight:600;border-radius:8px;border:1px solid;cursor:pointer;background:transparent;transition:all 0.18s;letter-spacing:0.02em;">
+                                Всё время
+                            </button>
+                        </div>
+                        <div id="hm-nodes" style="border:1px solid rgba(255,255,255,0.07);border-radius:10px;overflow:hidden;"></div>
+                        <div style="margin-top:10px;padding:7px 10px;background:rgba(251,191,36,0.05);border:1px solid rgba(251,191,36,0.12);border-radius:7px;display:flex;align-items:flex-start;gap:7px;">
+                            <span style="font-size:12px;flex-shrink:0;margin-top:1px;">⚠️</span>
+                            <span style="font-size:10px;color:rgba(100,116,139,0.8);line-height:1.5;">Данные приблизительны: короткие соединения (&lt;0.25 сек) могут не учитываться. Для потоков QUIC/UDP реальный трафик может быть выше на 10–30%.</span>
+                        </div>`;
+                };
+
                 if (!ip) {
                     // Show aggregate summary
                     const today = new Date().toISOString().slice(0, 10);
@@ -2410,65 +3188,67 @@
                     const modal = document.getElementById('historyModal');
                     document.getElementById('historyModalTitle').textContent = 'Все устройства';
                     document.getElementById('historyModalIp').textContent = 'Суммарная статистика';
-                    const cell = (label, data) => `<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:14px;text-align:center;"><div style="font-size:10px;color:var(--muted);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:8px;">${label}</div><div style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:#34d399;">↓ ${utils.formatBytes(data.down)}</div><div style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:#60a5fa;margin-top:2px;">↑ ${utils.formatBytes(data.up)}</div></div>`;
-                    document.getElementById('historyModalCells').innerHTML = cell('Сегодня',s.todayD)+cell('Месяц',s.monthD)+cell('Год',s.yearD)+cell('Всё время',s.allD);
-                    document.getElementById('historyModalBars').innerHTML = '';
+                    document.getElementById('historyModalContent').innerHTML = _buildHistoryContent(null, s.todayD, s.allD, null);
+                    window._hmRenderPeriod('day');
                     document.getElementById('historyModalIpStore').value = '';
                     modal.style.display = 'flex';
                     setTimeout(()=>{modal.style.opacity='1';},10);
                     return;
                 }
+
                 const dev = state.devices.find(d => d.ip === ip);
                 const hd = state.deviceHistory[ip] || {};
                 const today = new Date().toISOString().slice(0, 10);
-                const thisMonth = today.slice(0, 7);
-                const thisYear = today.slice(0, 4);
 
                 const todayD = hd.daily?.[today] || {up:0, down:0};
-                const monthD = Object.entries(hd.monthly || {}).filter(([k]) => k === thisMonth).reduce((s,[,v])=>({up:s.up+v.up,down:s.down+v.down}), {up:0,down:0});
-                const yearD  = Object.entries(hd.yearly  || {}).filter(([k]) => k === thisYear ).reduce((s,[,v])=>({up:s.up+v.up,down:s.down+v.down}), {up:0,down:0});
                 const allD   = {up: hd.alltime_up||0, down: hd.alltime_down||0};
-
-                // Last 7 days
-                const days7 = Array.from({length:7}, (_, i) => {
-                    const d = new Date(); d.setDate(d.getDate() - (6 - i));
-                    const key = d.toISOString().slice(0,10);
-                    const label = d.toLocaleDateString('ru', {weekday:'short', day:'numeric'});
-                    const val = hd.daily?.[key] || {up:0, down:0};
-                    return {key, label, val};
-                });
-                const maxDay = Math.max(1, ...days7.map(d => d.val.down + d.val.up));
-
-                const cell = (label, data, color) => `
-                    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:14px;text-align:center;">
-                        <div style="font-size:10px;color:var(--muted);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:8px;">${label}</div>
-                        <div style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:#34d399;">↓ ${utils.formatBytes(data.down)}</div>
-                        <div style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:#60a5fa;margin-top:2px;">↑ ${utils.formatBytes(data.up)}</div>
-                    </div>`;
-
-                const barsHtml = days7.map(d => {
-                    const total = d.val.down + d.val.up;
-                    const h = Math.max(2, Math.round((total / maxDay) * 40));
-                    return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;">
-                        <div style="width:100%;max-width:28px;height:${h}px;background:linear-gradient(to top,rgba(16,185,129,0.5),rgba(59,130,246,0.5));border-radius:3px;align-self:flex-end;min-height:2px;" title="${d.key}: ${utils.formatBytes(total)}"></div>
-                        <div style="font-size:9px;color:var(--muted);white-space:nowrap;">${d.label}</div>
-                    </div>`;
-                }).join('');
-
                 const name = dev ? (dev.custom_name || (dev.hostname === 'Устройство' ? dev.ip : dev.hostname)) : ip;
 
                 const modal = document.getElementById('historyModal');
                 document.getElementById('historyModalTitle').textContent = name;
                 document.getElementById('historyModalIp').textContent = ip;
-                document.getElementById('historyModalCells').innerHTML =
-                    cell('Сегодня', todayD, '#34d399') +
-                    cell('Месяц', monthD, '#60a5fa') +
-                    cell('Год', yearD, '#a78bfa') +
-                    cell('За всё время', allD, '#fbbf24');
-                document.getElementById('historyModalBars').innerHTML = barsHtml;
+                document.getElementById('historyModalContent').innerHTML = _buildHistoryContent(ip, todayD, allD, hd);
+                window._hmRenderPeriod('day');
+
                 document.getElementById('historyModalIpStore').value = ip;
                 modal.style.display = 'flex';
                 setTimeout(() => { modal.style.opacity = '1'; }, 10);
+            },
+
+            startStaticIpEdit: (ip) => {
+                const row = document.querySelector(`.ip-row[data-ip="${ip}"]`);
+                if (!row) return;
+                const display = row.querySelector('.ip-display');
+                const btn = row.querySelector('.static-ip-edit-btn');
+                const prefix = row.querySelector('.static-ip-prefix');
+                const input = row.querySelector('.static-ip-input');
+                if (!input) return;
+                const subnet = ip.split('.').slice(0,3).join('.');
+                const dev = state.devices.find(d => d.ip === ip);
+                display.style.display = 'none';
+                if (btn) btn.style.display = 'none';
+                if (prefix) prefix.style.display = 'inline';
+                input.style.display = 'inline-block';
+                input.focus(); input.select();
+                const finish = async () => {
+                    const octet = parseInt(input.value.trim(), 10);
+                    input.style.display = 'none';
+                    if (prefix) prefix.style.display = 'none';
+                    if (btn) btn.style.display = '';
+                    display.style.display = '';
+                    if (!isNaN(octet) && octet >= 1 && octet <= 254) {
+                        const normalized = subnet + '.' + octet;
+                        display.textContent = normalized;
+                        if (dev) actions.updateDeviceSettings(ip, dev.mode, dev.assigned_node||'auto', dev.tiktok_node||'auto', normalized);
+                    } else {
+                        display.textContent = dev?.static_ip || ip;
+                    }
+                };
+                input.onblur = finish;
+                input.onkeydown = (e) => {
+                    if (e.key==='Enter') { e.preventDefault(); input.blur(); }
+                    if (e.key==='Escape') { input.value=(dev?.static_ip||ip).split('.')[3]||''; input.blur(); }
+                };
             },
 
             startRename: (ip) => {
@@ -2592,7 +3372,7 @@
                     const srcName = devNames[c.src] || c.src;
                     const chain   = c.chain || 'DIRECT';
                     const isDirect = chain === 'DIRECT';
-                    const chainColor = isDirect ? '#f59e0b' : '#60a5fa';
+                    const chainColor = isDirect ? '#94a3b8' : '#60a5fa';
                     const host = c.host ? (c.dst_port ? `${c.host}:${c.dst_port}` : c.host) : (c.dst_port || '—');
                     const upFmt   = utils.formatBytes(c.upload);
                     const downFmt = utils.formatBytes(c.download);
@@ -2669,7 +3449,7 @@
                     const vpn = state.allConnections.length - direct;
                     const total = state.allConnections.length;
                     routeEl.innerHTML = [
-                        { label: 'Напрямую', count: direct, color: '#f59e0b' },
+                        { label: 'Напрямую', count: direct, color: '#94a3b8' },
                         { label: 'Через VPN', count: vpn, color: '#60a5fa' }
                     ].map(r => `<div style="flex:1;min-width:120px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:14px;">
                         <div style="font-size:22px;font-weight:800;color:${r.color};font-family:'JetBrains Mono',monospace;">${r.count}</div>
@@ -2923,11 +3703,13 @@
             },
 
             fetchTraffic: async () => {
-                const [traffic, deviceChains] = await Promise.all([
+                const [traffic, deviceChains, nodeTrafficFresh] = await Promise.all([
                     utils.apiCall('/traffic', { _silent: true }),
-                    utils.apiCall('/traffic/device-chains', { _silent: true })
+                    utils.apiCall('/traffic/device-chains', { _silent: true }),
+                    utils.apiCall('/traffic/nodes', { _silent: true })
                 ]);
                 if (deviceChains) state.deviceChains = deviceChains;
+                if (nodeTrafficFresh) { state.nodeTraffic = nodeTrafficFresh; ui.updateNodeTrafficDOM(); }
                 if (traffic) {
                     state.traffic = traffic;
                     ui.updateTrafficDOM();
@@ -2935,14 +3717,27 @@
                     const msd = document.getElementById('mobileSpeedDown');
                     if (msd) {
                         const totalDown = Object.values(traffic).reduce((s,v)=>s+(v.speed_down||0),0);
-                        msd.textContent = utils.formatBytes(totalDown) + '/s';
+                        msd.textContent = (totalDown / 1048576).toFixed(2) + ' MB/s';
                     }
                     const mdc = document.getElementById('mobileDeviceCount');
                     if (mdc) mdc.textContent = state.devices.length ? state.devices.length + ' уст.' : '';
                     const vals = Object.values(traffic);
                     const totalDown = vals.reduce((s, v) => s + (v.speed_down || 0), 0);
                     const totalUp   = vals.reduce((s, v) => s + (v.speed_up   || 0), 0);
-                    state.trafficHistory.push({ down: totalDown, up: totalUp });
+                    // Per-node breakdown using real Mihomo stats (state.nodeTraffic)
+                    const nyTag_ = (state.nodes.find(n=>/ny|new[\s-]?york/i.test(n.tag)))?.tag;
+                    let autoDown_ = 0, autoUp_ = 0, nyDown_ = 0, nyUp_ = 0;
+                    Object.entries(state.nodeTraffic || {}).forEach(([tag, nt]) => {
+                        if (tag === nyTag_) { nyDown_ += (nt.speed_down||0); nyUp_ += (nt.speed_up||0); }
+                        else { autoDown_ += (nt.speed_down||0); autoUp_ += (nt.speed_up||0); }
+                    });
+                    state.trafficHistory.push({
+                        down: Math.max(0, totalDown), up: Math.max(0, totalUp),
+                        autoDown: Math.max(0, autoDown_), autoUp: Math.max(0, autoUp_),
+                        nyDown: Math.max(0, nyDown_), nyUp: Math.max(0, nyUp_),
+                        directDown: Math.max(0, totalDown - autoDown_ - nyDown_),
+                        directUp:   Math.max(0, totalUp   - autoUp_   - nyUp_)
+                    });
                     if (state.trafficHistory.length > 60) state.trafficHistory.shift();
                     // Store history for stats live chart
                     state._trafficHistory.push({ down: totalDown, up: totalUp });
@@ -2966,8 +3761,7 @@
                     ss.peakUp    = Math.max(ss.peakUp, totalUp);
                     ui.drawTrafficChart();
                     ui.renderSessionStats();
-                    const nodeTraffic = await utils.apiCall('/traffic/nodes', { _silent: true });
-                    if (nodeTraffic) { state.nodeTraffic = nodeTraffic; ui.updateNodeTrafficDOM(); }
+                    ui.renderRouteViz();
                     ui.updateSidebarNetStats();
                 }
             },
@@ -3141,6 +3935,7 @@
                 if (data) {
                     state.deviceHistory = data.devices || {};
                     state.nodeHistory   = data.nodes   || {};
+                    state.deviceNodeHistory = data.device_nodes || {};
                     // Debug: if nodeHistory is empty but we have nodes, log live stats for diagnosis
                     if (Object.keys(state.nodeHistory).length === 0 && state.nodes.length > 0) {
                         utils.apiCall('/debug/node-stats').then(dbg => {
@@ -3204,6 +3999,10 @@
                 btn.disabled = false; btn.style.opacity = '1';
                 if (res?.ok) {
                     statusEl.style.color = '#34d399'; statusEl.textContent = 'Отправлено, спасибо!';
+                    localStorage.setItem('gsg_feedback_last', Date.now().toString());
+                    // Hide FAB for 24h after submission
+                    const fab = document.getElementById('feedbackFab');
+                    if (fab) { fab.style.opacity = '0'; setTimeout(() => { fab.style.display = 'none'; }, 300); }
                     setTimeout(() => ui.closeFeedback(), 1800);
                 } else {
                     statusEl.style.color = '#f87171'; statusEl.textContent = 'Ошибка, попробуйте снова';
@@ -3284,19 +4083,7 @@
                 ui.renderDevices(state.devices);
             });
 
-            // Static IP blur
-            document.getElementById('devicesTableBody')?.addEventListener('blur', (e) => {
-                if (!e.target.classList.contains('static-ip-input')) return;
-                const ip  = e.target.dataset.ip;
-                const dev = state.devices.find(d => d.ip === ip);
-                if (!dev) return;
-                const val = e.target.value.trim();
-                // Normalize: if user typed just last octet like "150", expand to full IP
-                const normalized = /^\d{1,3}$/.test(val)
-                    ? ip.split('.').slice(0,3).join('.') + '.' + val
-                    : val;
-                actions.updateDeviceSettings(ip, dev.mode, dev.assigned_node || 'auto', dev.tiktok_node || 'auto', normalized);
-            }, true);
+            // Static IP blur — handled inside startStaticIpEdit via input.onblur
 
             // Device events
             document.getElementById('devicesTableBody')?.addEventListener('change', (e) => {
@@ -3396,7 +4183,6 @@
                 }
             });
 
-            ui.addEvent('🚀', 'Панель управления GSG запущена', '#c9a84c');
             ui.renderSessionStats();
 
             // Init data
@@ -3476,7 +4262,57 @@
         return { init, state, ui, actions };
     })();
 
-    document.addEventListener('DOMContentLoaded', GatewayApp.init);
+    document.addEventListener('DOMContentLoaded', () => {
+        // Apply saved visualization preferences
+        const savedTheme = localStorage.getItem('gsg_theme') || 'dark';
+        GatewayApp.ui.setTheme(savedTheme);
+
+        const savedPack = localStorage.getItem('gsg_icon_pack') || 'custom';
+        GatewayApp.ui.setIconPack(savedPack);
+
+        const savedSidebarW = localStorage.getItem('gsg_sidebar_w');
+        if (savedSidebarW) document.documentElement.style.setProperty('--sidebar-w', savedSidebarW);
+
+        const savedSplit = parseFloat(localStorage.getItem('gsg_panel_split') || '0.62');
+        const panelStatus = document.getElementById('panelStatus');
+        const panelSub    = document.getElementById('panelSub');
+        if (panelStatus && panelSub) {
+            panelStatus.style.flex = `0 0 ${(savedSplit * 100).toFixed(1)}%`;
+            panelSub.style.flex    = `0 0 ${((1 - savedSplit) * 100).toFixed(1)}%`;
+        }
+
+        const savedAnim = localStorage.getItem('gsg_anim');
+        if (savedAnim === 'off') {
+            const cb = document.getElementById('animToggle');
+            if (cb) cb.checked = false;
+            GatewayApp.ui.setAnimEnabled(false);
+        }
+
+        const savedAccent = localStorage.getItem('gsg_accent');
+        if (savedAccent) {
+            try { const a = JSON.parse(savedAccent); GatewayApp.ui.setAccent(a.color, a.glow); } catch(e) {}
+        }
+
+        const savedVizMode = localStorage.getItem('gsg_viz_mode');
+        if (savedVizMode !== null) GatewayApp.state.routeVizMode = parseInt(savedVizMode) || 0;
+        const vizBtn = document.getElementById('vizModeBtn');
+        if (vizBtn) vizBtn.textContent = GatewayApp.state.routeVizMode === 0 ? 'Точки' : 'Графики';
+
+        GatewayApp.init();
+
+        // Show feedback FAB after 3 min if last submission was > 24h ago
+        (() => {
+            const fab = document.getElementById('feedbackFab');
+            if (!fab) return;
+            const last = parseInt(localStorage.getItem('gsg_feedback_last') || '0');
+            const hiddenFor = 24 * 60 * 60 * 1000; // 24h
+            if (Date.now() - last < hiddenFor) return; // still in cooldown
+            setTimeout(() => {
+                fab.style.display = 'flex';
+                requestAnimationFrame(() => requestAnimationFrame(() => { fab.style.opacity = '1'; }));
+            }, 3 * 60 * 1000); // 3 minutes
+        })();
+    });
 </script>
 
 <!-- Traffic History Modal -->
@@ -3490,13 +4326,8 @@
             </div>
             <button onclick="GatewayApp.ui.closeHistoryModal()" style="width:28px;height:28px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:var(--muted);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">×</button>
         </div>
-        <!-- 4-cell stats grid -->
-        <div id="historyModalCells" style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:16px;"></div>
-        <!-- 7-day bar chart -->
-        <div style="margin-bottom:16px;">
-            <div style="font-size:10px;color:var(--muted);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:8px;">Последние 7 дней</div>
-            <div id="historyModalBars" style="display:flex;gap:4px;align-items:flex-end;height:60px;padding-bottom:4px;"></div>
-        </div>
+        <!-- Main content: stat cells + chart + nodes -->
+        <div id="historyModalContent"></div>
         <!-- Reset buttons -->
         <div style="border-top:1px solid rgba(255,255,255,0.07);padding-top:14px;">
             <div style="font-size:10px;color:var(--muted);font-weight:600;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:8px;">Сбросить для этого устройства</div>
