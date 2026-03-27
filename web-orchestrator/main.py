@@ -174,7 +174,7 @@ class TrafficMonitor:
                 # Always evict stale connections (guards against Mihomo being unavailable)
                 stale_cutoff = time.monotonic() - 300  # 5 minutes
                 self.active_conns = {k: v for k, v in self.active_conns.items() if v.get('_seen', 0) >= stale_cutoff}
-                await asyncio.sleep(0.25)
+                await asyncio.sleep(2.0)
 
 monitor = TrafficMonitor()
 
