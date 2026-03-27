@@ -209,6 +209,12 @@
             0% { opacity: 0.6; transform: scale(0.8); }
             100% { opacity: 0; transform: scale(2); }
         }
+        @keyframes app-flash {
+            0%   { filter: brightness(1) saturate(1); }
+            30%  { filter: brightness(3) saturate(1.6); }
+            100% { filter: brightness(1) saturate(1); }
+        }
+        .app-flash { animation: app-flash 0.55s ease-out; }
 
         /* Route line animation */
         .route-line { position: relative; height: 2px; background: rgba(255,255,255,0.06); border-radius: 1px; overflow: visible; }
@@ -2401,8 +2407,9 @@
                             box._vizPackets.forEach(p => { try { p.el?.parentNode?.removeChild(p.el); } catch(e){} });
                             box._vizPackets = [];
                         }
-                        box._vizSpawn  = { auto: 0, ny: 0, direct: 0 };
-                        box._vizSeeded = false;
+                        box._vizSpawn    = { auto: 0, ny: 0, direct: 0 };
+                        box._appFlashIdx = { auto: 0, ny: 0, direct: 0 };
+                        box._vizSeeded   = false;
 
                         const lc = 'rgba(52,211,153,0.2)', lo = 'rgba(52,211,153,0.06)';
                         const alBg = autoLineOk ? lc : lo, nlBg = nyLineOk ? lc : lo;
@@ -2436,7 +2443,7 @@
         </div>
       </div>
     </div>
-    <div style="display:flex;gap:4px;align-items:center;width:196px;">
+    <div id="rl-auto-apps" style="display:flex;gap:4px;align-items:center;width:196px;">
       ${appBadge('#229ED9',APP_ICONS.telegram,'Telegram',activeAppIds.has('telegram'))}${appBadge('#ee1d52',APP_ICONS.tiktok,'TikTok',activeAppIds.has('tiktok'))}${appBadge('#ff0000',APP_ICONS.youtube,'YouTube',activeAppIds.has('youtube'))}${appBadge('#e1306c',APP_ICONS.instagram,'Instagram',activeAppIds.has('instagram'))}${appBadge('#e7e9ea',APP_ICONS.twitter,'X',activeAppIds.has('twitter'))}
     </div>
   </div>
@@ -2452,7 +2459,7 @@
         </div>
       </div>
     </div>
-    <div style="display:flex;gap:4px;align-items:center;width:196px;">
+    <div id="rl-ny-apps" style="display:flex;gap:4px;align-items:center;width:196px;">
       ${appBadge('#8ab4f8',APP_ICONS.gemini,'Gemini',true)}${appBadge('#d97706',APP_ICONS.claude,'Claude',true)}${appBadge('#10a37f',APP_ICONS.chatgpt,'ChatGPT',true)}${appBadge('#E50914',APP_ICONS.netflix,'Netflix',activeAppIds.has('netflix'))}${appBadge('#1ce783',APP_ICONS.hulu,'Hulu',activeAppIds.has('hulu'))}
     </div>
   </div>
@@ -2469,7 +2476,7 @@
         </div>
       </div>
     </div>
-    <div style="display:flex;gap:4px;align-items:center;width:196px;">
+    <div id="rl-dir-apps" style="display:flex;gap:4px;align-items:center;width:196px;">
       <div title="Интернет напрямую" style="width:36px;height:36px;border-radius:9px;background:rgba(148,163,184,0.07);border:1px solid rgba(148,163,184,0.2);display:flex;align-items:center;justify-content:center;font-size:18px;">🌐</div>
     </div>
   </div>
@@ -2610,9 +2617,24 @@
                                     }
                                 } else {
                                     if (pk.x >= vp.outW) {
-                                        // Reached apps — remove
+                                        // Reached apps — flash icon, remove dot
                                         try { pk.el.parentNode?.removeChild(pk.el); } catch(e){}
                                         if (box._activeDots) box._activeDots[pk.branch] = Math.max(0, (box._activeDots[pk.branch] || 1) - 1);
+                                        // Flash next app icon (round-robin)
+                                        const _appsId = pk.branch === 'direct' ? 'rl-dir-apps' : pk.branch === 'ny' ? 'rl-ny-apps' : 'rl-auto-apps';
+                                        const _appsEl = document.getElementById(_appsId);
+                                        if (_appsEl?.children.length) {
+                                            if (!box._appFlashIdx) box._appFlashIdx = { auto: 0, ny: 0, direct: 0 };
+                                            const _fi = box._appFlashIdx[pk.branch] || 0;
+                                            const _icon = _appsEl.children[_fi % _appsEl.children.length];
+                                            if (_icon) {
+                                                _icon.classList.remove('app-flash');
+                                                void _icon.offsetWidth;
+                                                _icon.classList.add('app-flash');
+                                                setTimeout(() => _icon.classList.remove('app-flash'), 600);
+                                            }
+                                            box._appFlashIdx[pk.branch] = (_fi + 1) % _appsEl.children.length;
+                                        }
                                         pkts.splice(i, 1);
                                         continue;
                                     }
