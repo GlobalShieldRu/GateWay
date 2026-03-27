@@ -2321,7 +2321,7 @@
                     const border = active ? `${color}55` : `${color}22`;
                     const opacity = active ? '1' : '0.38';
                     const glow   = active ? `box-shadow:0 0 8px ${color}44;` : '';
-                    return `<div title="${title}" style="width:44px;height:44px;border-radius:11px;background:${bg};border:1px solid ${border};display:flex;align-items:center;justify-content:center;color:${color};flex-shrink:0;opacity:${opacity};${glow}transition:transform 0.15s,opacity 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform=''"><div style="transform:scale(1.28);display:flex;">${icon}</div></div>`;
+                    return `<div title="${title}" style="width:52px;height:52px;border-radius:13px;background:${bg};border:1px solid ${border};display:flex;align-items:center;justify-content:center;color:${color};flex-shrink:0;opacity:${opacity};${glow}transition:transform 0.15s,opacity 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform=''"><div style="transform:scale(1.5);display:flex;">${icon}</div></div>`;
                 };
 
                 const nodePill = (flag, name, ping, pingCls, bg, border) =>
@@ -2443,7 +2443,7 @@
         </div>
       </div>
     </div>
-    <div id="rl-auto-apps" style="display:flex;gap:5px;align-items:center;width:236px;">
+    <div id="rl-auto-apps" style="display:flex;gap:5px;align-items:center;width:280px;">
       ${appBadge('#229ED9',APP_ICONS.telegram,'Telegram',activeAppIds.has('telegram'))}${appBadge('#ee1d52',APP_ICONS.tiktok,'TikTok',activeAppIds.has('tiktok'))}${appBadge('#ff0000',APP_ICONS.youtube,'YouTube',activeAppIds.has('youtube'))}${appBadge('#e1306c',APP_ICONS.instagram,'Instagram',activeAppIds.has('instagram'))}${appBadge('#e7e9ea',APP_ICONS.twitter,'X',activeAppIds.has('twitter'))}
     </div>
   </div>
@@ -2459,7 +2459,7 @@
         </div>
       </div>
     </div>
-    <div id="rl-ny-apps" style="display:flex;gap:5px;align-items:center;width:236px;">
+    <div id="rl-ny-apps" style="display:flex;gap:5px;align-items:center;width:280px;">
       ${appBadge('#8ab4f8',APP_ICONS.gemini,'Gemini',true)}${appBadge('#d97706',APP_ICONS.claude,'Claude',true)}${appBadge('#10a37f',APP_ICONS.chatgpt,'ChatGPT',true)}${appBadge('#E50914',APP_ICONS.netflix,'Netflix',activeAppIds.has('netflix'))}${appBadge('#1ce783',APP_ICONS.hulu,'Hulu',activeAppIds.has('hulu'))}
     </div>
   </div>
@@ -2476,8 +2476,8 @@
         </div>
       </div>
     </div>
-    <div id="rl-dir-apps" style="display:flex;gap:5px;align-items:center;width:236px;">
-      <div title="Интернет напрямую" style="width:44px;height:44px;border-radius:11px;background:rgba(148,163,184,0.07);border:1px solid rgba(148,163,184,0.2);display:flex;align-items:center;justify-content:center;font-size:22px;">🌐</div>
+    <div id="rl-dir-apps" style="display:flex;gap:5px;align-items:center;width:280px;">
+      <div title="Интернет напрямую" style="width:52px;height:52px;border-radius:13px;background:rgba(148,163,184,0.07);border:1px solid rgba(148,163,184,0.2);display:flex;align-items:center;justify-content:center;font-size:26px;">🌐</div>
     </div>
   </div>
 </div>`;
@@ -2624,16 +2624,14 @@
                                         const _appsId = pk.branch === 'direct' ? 'rl-dir-apps' : pk.branch === 'ny' ? 'rl-ny-apps' : 'rl-auto-apps';
                                         const _appsEl = document.getElementById(_appsId);
                                         if (_appsEl?.children.length) {
-                                            if (!box._appFlashIdx) box._appFlashIdx = { auto: 0, ny: 0, direct: 0 };
-                                            const _fi = box._appFlashIdx[pk.branch] || 0;
-                                            const _icon = _appsEl.children[_fi % _appsEl.children.length];
+                                            const _ri = Math.floor(Math.random() * _appsEl.children.length);
+                                            const _icon = _appsEl.children[_ri];
                                             if (_icon) {
                                                 _icon.classList.remove('app-flash');
                                                 void _icon.offsetWidth;
                                                 _icon.classList.add('app-flash');
                                                 setTimeout(() => _icon.classList.remove('app-flash'), 600);
                                             }
-                                            box._appFlashIdx[pk.branch] = (_fi + 1) % _appsEl.children.length;
                                         }
                                         pkts.splice(i, 1);
                                         continue;
@@ -2738,7 +2736,7 @@
                         </div>
                     </div>
                     <div style="display:flex;gap:4px;align-items:center;padding-left:6px;">
-                        <div title="Интернет напрямую" style="width:44px;height:44px;border-radius:11px;background:rgba(148,163,184,0.07);border:1px solid rgba(148,163,184,0.2);display:flex;align-items:center;justify-content:center;font-size:22px;">🌐</div>
+                        <div title="Интернет напрямую" style="width:52px;height:52px;border-radius:13px;background:rgba(148,163,184,0.07);border:1px solid rgba(148,163,184,0.2);display:flex;align-items:center;justify-content:center;font-size:26px;">🌐</div>
                     </div>
                 </div>`;
                 // Draw mini charts after layout (setTimeout for reliable offsetWidth)
