@@ -594,7 +594,9 @@ async def get_status():
     }
 
 _net_cache: dict = {"data": None, "ts": 0}
-_NET_CACHE_TTL = 30  # обновлять раз в 30 секунд
+_NET_CACHE_TTL = 30   # обновлять раз в 30 секунд
+_tunnel_last_ok: dict = {"data": None, "ts": 0}
+_TUNNEL_OK_GRACE = 90  # после успешного чека не считать туннель упавшим N секунд (покрывает спидтест)
 
 @app.get("/api/network-status")
 async def get_network_status():
@@ -643,6 +645,13 @@ async def get_network_status():
                 youtube = {"status": "ok", "ping": int((time.time() - start) * 1000)}
     except Exception:
         pass
+
+    # Если прокси-чек упал, но туннель был жив ≤90с назад — не сообщаем о падении (покрывает спидтест)
+    global _tunnel_last_ok
+    if tunnel["status"] == "ok":
+        _tunnel_last_ok = {"data": tunnel, "ts": now}
+    elif _tunnel_last_ok["data"] and (now - _tunnel_last_ok["ts"]) < _TUNNEL_OK_GRACE:
+        tunnel = _tunnel_last_ok["data"]
 
     result = {"direct": direct, "tunnel": tunnel, "youtube": youtube}
     _net_cache = {"data": result, "ts": now}
