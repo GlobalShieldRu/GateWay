@@ -1,5 +1,6 @@
-# Claude Code
-.claude/
+# Claude Code — всё кроме agents/
+.claude/*
+!.claude/agents/
 
 
 # Runtime / secrets (created on device, not tracked)
