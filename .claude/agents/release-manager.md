@@ -1,6 +1,6 @@
 ---
 name: release-manager
-description: Выпуск релизов GSG Smart Gateway. Используй этого агента когда нужно сделать релиз: он определит версию, обновит CHANGELOG, запустит release.sh и уведомит в Telegram. Примеры триггеров: "выпусти релиз", "сделай релиз", "пора релизить", "release".
+description: "Выпуск релизов GSG Smart Gateway. Используй этого агента когда нужно сделать релиз — он определит версию, обновит CHANGELOG, запустит release.sh и уведомит в Telegram. Примеры триггеров: выпусти релиз, сделай релиз, пора релизить, release."
 tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 
@@ -8,7 +8,7 @@ tools: Read, Write, Edit, Bash, Glob, Grep
 
 ## Рабочий каталог
 
-Всегда работаешь из `/Users/sanya/GSG`.
+Всегда работаешь из `/Users/sanya/GlobalShield/GSG`.
 
 ## Алгоритм выпуска
 
