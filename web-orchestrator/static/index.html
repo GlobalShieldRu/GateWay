@@ -1867,7 +1867,7 @@
                         <div class="dev-row-mobile-body" style="display:contents;">
                         <!-- Col 1: CLIENT -->
                         <div style="display:flex;align-items:center;gap:10px;min-width:0;">
-                            <div data-icon-mac="${dev.mac}" title="${cachedVendor || dev.hostname}" style="width:36px;height:36px;border-radius:10px;background:${ist.bg};border:2px solid ${_modeC}${_ms==='minimal'?'99':'bb'};display:flex;align-items:center;justify-content:center;color:${ist.color};flex-shrink:0;position:relative;overflow:visible;${_ms==='neon'?`box-shadow:0 0 8px ${_modeC}66,0 0 16px ${_modeC}33;`:''}"  >
+                            <div data-icon-mac="${dev.mac}" title="${cachedVendor || dev.hostname}" style="width:36px;height:36px;border-radius:10px;background:${(_ms==='pill'||_ms==='neon')?`${_modeC}1a`:ist.bg};border:${_ms==='emoji'?`1px solid ${ist.border}`:`2px solid ${_modeC}${_ms==='minimal'?'88':'bb'}`};display:flex;align-items:center;justify-content:center;color:${(_ms==='pill'||_ms==='neon')?_modeC:ist.color};flex-shrink:0;position:relative;overflow:visible;${_ms==='neon'?`box-shadow:0 0 8px ${_modeC}66,0 0 16px ${_modeC}33;`:''}">
                                 ${brandLogoHtml || ''}
                                 <span class="dev-type-icon" style="display:${brandLogoHtml ? 'none' : 'flex'};align-items:center;justify-content:center;line-height:0;">${DEVICE_ICONS[deviceType] || DEVICE_ICONS.unknown}</span>
                                 <div style="position:absolute;bottom:-3px;right:-3px;width:10px;height:10px;border-radius:50%;background:${statusColor};border:2px solid var(--bg);z-index:1;"></div>
@@ -2374,11 +2374,19 @@
                 const devOnline = state.devices.filter(d => d.online !== false).length;
                 const onlineDevs = state.devices.filter(d => d.online !== false);
                 const DEV_PREVIEW_MAX = 9;
+                const _pvModeColors = { global:'#3b82f6', smart:'#c9a84c', bypass:'#f59e0b', block:'#ef4444' };
+                const _pvMs = state._modeStyle || 'emoji';
+                const _pvFull = _pvMs === 'pill' || _pvMs === 'neon';
                 const devPreview = onlineDevs.slice(0, DEV_PREVIEW_MAX).map(d => {
                     const dtype = d.device_type || vendorToType(d.vendor, d.hostname);
                     const st = ICON_STYLE[dtype] || ICON_STYLE.unknown;
                     const ic = DEVICE_ICONS[dtype] || DEVICE_ICONS.unknown;
-                    return `<div title="${d.custom_name || d.hostname || d.ip}" style="width:22px;height:22px;border-radius:6px;background:${st.bg};border:1px solid ${st.border};display:flex;align-items:center;justify-content:center;color:${st.color};">${ic.replace('width="18"','width="13"').replace('height="18"','height="13"')}</div>`;
+                    const _mc = _pvModeColors[d.mode] || '#64748b';
+                    const _bg    = _pvFull ? `${_mc}1a` : st.bg;
+                    const _bdr   = _pvMs === 'emoji' ? `1px solid ${st.border}` : `1px solid ${_mc}${_pvMs === 'minimal' ? '88' : 'bb'}`;
+                    const _color = _pvFull ? _mc : st.color;
+                    const _glow  = _pvMs === 'neon' ? `box-shadow:0 0 6px ${_mc}55,0 0 12px ${_mc}33;` : '';
+                    return `<div title="${d.custom_name || d.hostname || d.ip}" style="width:22px;height:22px;border-radius:6px;background:${_bg};border:${_bdr};display:flex;align-items:center;justify-content:center;color:${_color};${_glow}">${ic.replace('width="18"','width="13"').replace('height="18"','height="13"')}</div>`;
                 }).join('') + (onlineDevs.length > DEV_PREVIEW_MAX
                     ? `<div title="+${onlineDevs.length - DEV_PREVIEW_MAX} устройств" style="width:22px;height:22px;border-radius:6px;background:rgba(100,116,139,0.15);border:1px solid rgba(100,116,139,0.3);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:rgba(148,163,184,0.8);">+${onlineDevs.length - DEV_PREVIEW_MAX}</div>`
                     : '');
@@ -2435,7 +2443,7 @@
                     // Rebuild DOM only on topology change
                     const appIdsStr = [...activeAppIds].sort().join(',');
                     const devPreviewKey = onlineDevs.slice(0, DEV_PREVIEW_MAX).map(d => d.ip).join(',');
-                    const structKey = `${autoName}|${autoLineOk}|${nyName}|${nyLineOk}|${appIdsStr}|${devOnline}|${devTotal}|${devPreviewKey}`;
+                    const structKey = `${autoName}|${autoLineOk}|${nyName}|${nyLineOk}|${appIdsStr}|${devOnline}|${devTotal}|${devPreviewKey}|${state._modeStyle||'emoji'}|${onlineDevs.slice(0,DEV_PREVIEW_MAX).map(d=>d.mode).join(',')}`;
                     const topoChanged = box.dataset.structKey !== structKey || !document.getElementById('rl-auto');
 
                     if (topoChanged) {
@@ -3045,6 +3053,7 @@
                     el.style.background = s === style ? 'rgba(201,168,76,0.06)' : 'rgba(255,255,255,0.03)';
                 });
                 ui.renderDevices(state.devices);
+                ui.renderRouteViz();
             },
 
                         setAnimEnabled: (enabled) => {
