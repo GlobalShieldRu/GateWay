@@ -595,8 +595,8 @@ async def get_status():
 
 _net_cache: dict = {"data": None, "ts": 0}
 _NET_CACHE_TTL = 30   # обновлять раз в 30 секунд
-_tunnel_last_ok: dict = {"data": None, "ts": 0}
-_TUNNEL_OK_GRACE = 90  # после успешного чека не считать туннель упавшим N секунд (покрывает спидтест)
+_tunnel_ip_cache: dict = {"data": None, "ts": 0}  # кэш внешнего IP туннеля (долгоживущий)
+_TUNNEL_IP_TTL = 300  # обновлять внешний IP туннеля раз в 5 минут
 
 @app.get("/api/network-status")
 async def get_network_status():
@@ -631,27 +631,42 @@ async def get_network_status():
             except Exception:
                 continue
 
-    proxies = {"http://": "http://127.0.0.1:2080", "https://": "http://127.0.0.1:2080"}
+    # ── Tunnel health: проверяем Mihomo API (порт 9090, не занят спидтестом) ──
+    # Если Mihomo отвечает → туннель жив. Внешний IP получаем отдельно, с долгим кэшем.
+    global _tunnel_ip_cache
+    mihomo_ok = False
     try:
-        async with httpx.AsyncClient(proxies=proxies, timeout=5.0) as client:
-            r = await client.get("http://ip-api.com/json")
-            if r.status_code == 200:
-                d = r.json()
-                tunnel = {"ip": d.get("query"), "country": d.get("countryCode"), "status": "ok"}
-
-            start = time.time()
-            yt = await client.get("https://www.youtube.com/favicon.ico", follow_redirects=True)
-            if yt.status_code == 200:
-                youtube = {"status": "ok", "ping": int((time.time() - start) * 1000)}
+        async with httpx.AsyncClient(timeout=2.0) as mc:
+            mr = await mc.get("http://127.0.0.1:9090/version")
+            mihomo_ok = mr.status_code == 200
     except Exception:
         pass
 
-    # Если прокси-чек упал, но туннель был жив ≤90с назад — не сообщаем о падении (покрывает спидтест)
-    global _tunnel_last_ok
-    if tunnel["status"] == "ok":
-        _tunnel_last_ok = {"data": tunnel, "ts": now}
-    elif _tunnel_last_ok["data"] and (now - _tunnel_last_ok["ts"]) < _TUNNEL_OK_GRACE:
-        tunnel = _tunnel_last_ok["data"]
+    if mihomo_ok:
+        # Mihomo работает — туннель поднят
+        # Обновляем внешний IP только если кэш устарел
+        if not _tunnel_ip_cache["data"] or (now - _tunnel_ip_cache["ts"]) > _TUNNEL_IP_TTL:
+            try:
+                proxies = {"http://": "http://127.0.0.1:2080", "https://": "http://127.0.0.1:2080"}
+                async with httpx.AsyncClient(proxies=proxies, timeout=5.0) as client:
+                    r = await client.get("http://ip-api.com/json")
+                    if r.status_code == 200:
+                        d = r.json()
+                        _tunnel_ip_cache = {"data": {"ip": d.get("query"), "country": d.get("countryCode")}, "ts": now}
+            except Exception:
+                pass
+        ip_data = _tunnel_ip_cache["data"] or {}
+        tunnel = {"ip": ip_data.get("ip", "—"), "country": ip_data.get("country", ""), "status": "ok"}
+
+        try:
+            proxies = {"http://": "http://127.0.0.1:2080", "https://": "http://127.0.0.1:2080"}
+            async with httpx.AsyncClient(proxies=proxies, timeout=5.0) as client:
+                start = time.time()
+                yt = await client.get("https://www.youtube.com/favicon.ico", follow_redirects=True)
+                if yt.status_code == 200:
+                    youtube = {"status": "ok", "ping": int((time.time() - start) * 1000)}
+        except Exception:
+            pass
 
     result = {"direct": direct, "tunnel": tunnel, "youtube": youtube}
     _net_cache = {"data": result, "ts": now}
