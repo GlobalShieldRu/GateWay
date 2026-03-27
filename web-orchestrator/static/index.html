@@ -891,7 +891,6 @@
                         <div style="font-size:16px;font-weight:800;color:#f1f5f9;">Состояние сети</div>
                         <div style="display:flex;align-items:center;gap:8px;">
                             <button id="routeVizToggleBtn" onclick="GatewayApp.ui.toggleRouteVizMode();" title="Переключить вид" style="background:none;border:none;cursor:pointer;color:#64748b;padding:2px 4px;font-size:14px;line-height:1;">📊</button>
-                            <button id="routeVizLayoutBtn" onclick="GatewayApp.ui.toggleRouteVizLayout();" title="Компактный вид: иконки крупнее, без плашки на линии" style="background:none;border:none;cursor:pointer;color:#64748b;padding:2px 4px;font-size:12px;line-height:1;font-family:'JetBrains Mono',monospace;letter-spacing:-0.05em;">⊞</button>
                         <span id="globalProtectionBadge" class="status-badge loading">
                             <span style="animation:skelPulse 1s infinite;display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;"></span>
                             Проверка...
@@ -1508,7 +1507,6 @@
             _devicesHash: null,
             trafficHistory: [],
             routeVizMode: 0,
-            routeVizLayout: 0,
             _modeStyle: 'emoji',
             sessionStats: { totalDown: 0, totalUp: 0, peakDown: 0, peakUp: 0 },
             events: [],
@@ -2388,7 +2386,7 @@
                     // Rebuild DOM only on topology change
                     const appIdsStr = [...activeAppIds].sort().join(',');
                     const devPreviewKey = onlineDevs.slice(0, DEV_PREVIEW_MAX).map(d => d.ip).join(',');
-                    const structKey = `${autoName}|${autoLineOk}|${nyName}|${nyLineOk}|${appIdsStr}|${devOnline}|${devTotal}|${devPreviewKey}|${state.routeVizLayout}`;
+                    const structKey = `${autoName}|${autoLineOk}|${nyName}|${nyLineOk}|${appIdsStr}|${devOnline}|${devTotal}|${devPreviewKey}`;
                     const topoChanged = box.dataset.structKey !== structKey || !document.getElementById('rl-auto');
 
                     if (topoChanged) {
@@ -2405,75 +2403,22 @@
                         const lc = 'rgba(52,211,153,0.2)', lo = 'rgba(52,211,153,0.06)';
                         const alBg = autoLineOk ? lc : lo, nlBg = nyLineOk ? lc : lo;
 
-                        const devCol = `<div style="grid-row:1/4;display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;width:90px;min-width:0;">
+                        const pillBase = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10;display:flex;align-items:center;border-radius:9px;padding:5px 10px;width:180px;box-sizing:border-box;';
+                        const nameStyle = 'font-size:10px;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;min-width:0;';
+                        box.innerHTML = `<div style="display:grid;grid-template-columns:90px 172px 46px 12px 1fr;grid-template-rows:auto auto auto;row-gap:10px;align-items:center;margin-bottom:18px;">
+  <div style="grid-row:1/4;display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;width:90px;min-width:0;">
     <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);">Устройства</div>
     <div style="display:flex;gap:3px;flex-wrap:wrap;justify-content:center;max-width:84px;">${devPreview || '<div style="width:22px;height:22px;border-radius:6px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);display:flex;align-items:center;justify-content:center;font-size:11px;">💻</div>'}</div>
     <div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;font-weight:700;color:#60a5fa;">${devOnline}<span style="font-size:8px;color:var(--muted);font-weight:400;"> / ${devTotal}</span></div>
-  </div>`;
-                        const inLineCol = `<div style="grid-row:1/4;align-self:stretch;position:relative;">
+  </div>
+  <div style="grid-row:1/4;align-self:stretch;position:relative;">
     <div id="rl-in-track" style="position:absolute;top:46%;left:0;right:0;height:2px;background:rgba(52,211,153,0.15);transform:translateY(-50%);border-radius:1px;transition:height 0.4s ease;"></div>
     <div id="rl-in" style="position:absolute;top:46%;left:0;right:0;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
-  </div>`;
-                        const gsgCol = `<div style="grid-row:1/4;display:flex;flex-direction:column;align-items:center;gap:3px;position:relative;z-index:5;">
+  </div>
+  <div style="grid-row:1/4;display:flex;flex-direction:column;align-items:center;gap:3px;position:relative;z-index:5;">
     <div style="width:46px;height:46px;border-radius:13px;background:rgba(10,9,8,0.98);border:1.5px solid rgba(201,168,76,0.4);display:flex;align-items:center;justify-content:center;box-shadow:0 0 20px rgba(201,168,76,0.2);overflow:hidden;"><img src="/static/logo.png" style="width:42px;height:42px;object-fit:contain;border-radius:10px;" alt="GSG"></div>
     <div style="font-size:9px;font-weight:800;color:#c9a84c;letter-spacing:0.09em;text-shadow:0 0 10px rgba(201,168,76,0.5);">GSG</div>
-  </div>`;
-
-                        if (state.routeVizLayout === 1) {
-                            // ── Compact layout: no pill, node info + 48px icons ──────────────
-                            const ab48 = (color, icon, title, active) => {
-                                const bg = active ? `${color}26` : `${color}0d`;
-                                const bd = active ? `${color}55` : `${color}22`;
-                                const op = active ? '1' : '0.38';
-                                const gl = active ? `box-shadow:0 0 10px ${color}44;` : '';
-                                return `<div title="${title}" style="width:48px;height:48px;border-radius:11px;background:${bg};border:1px solid ${bd};display:flex;align-items:center;justify-content:center;color:${color};flex-shrink:0;opacity:${op};${gl}transition:transform 0.15s,opacity 0.2s;" onmouseover="this.style.transform='scale(1.08)'" onmouseout="this.style.transform=''"><div style="transform:scale(1.35);display:flex;">${icon}</div></div>`;
-                            };
-                            const ni = (name, sub, subCls, spdId, nc) =>
-                                `<div style="flex-shrink:0;width:80px;text-align:right;padding-right:6px;border-right:1px solid rgba(255,255,255,0.06);margin-right:2px;">
-                                  <div style="font-size:10px;font-weight:700;color:${nc};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${name}">${name}</div>
-                                  <div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;font-weight:600;white-space:nowrap;" class="${subCls}">${sub}</div>
-                                  <span id="${spdId}" style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:rgba(148,163,184,0.6);white-space:nowrap;"></span>
-                                </div>`;
-                            box.innerHTML = `<div style="display:grid;grid-template-columns:90px 172px 46px 12px 1fr;grid-template-rows:auto auto auto;row-gap:12px;align-items:center;margin-bottom:18px;">
-  ${devCol}${inLineCol}${gsgCol}
-  <div style="grid-row:1/4;"></div>
-  <div id="rl-auto-row" style="display:flex;align-items:center;gap:6px;height:68px;transition:opacity 0.5s ease;">
-    <div style="position:relative;flex:1;height:100%;overflow:visible;">
-      <div id="rl-auto-track" style="position:absolute;left:0;right:0;top:50%;height:2px;background:${alBg};transform:translateY(-50%);border-radius:1px;transition:height 0.4s ease;"></div>
-      <div id="rl-auto" style="position:absolute;left:0;right:0;top:50%;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
-    </div>
-    ${ni(autoName, autoPingStr, autoPingCls, 'rl-auto-spd', '#f1f5f9')}
-    <div id="rl-auto-apps" style="display:flex;gap:5px;align-items:center;">
-      ${ab48('#229ED9',APP_ICONS.telegram,'Telegram',activeAppIds.has('telegram'))}${ab48('#ee1d52',APP_ICONS.tiktok,'TikTok',activeAppIds.has('tiktok'))}${ab48('#ff0000',APP_ICONS.youtube,'YouTube',activeAppIds.has('youtube'))}${ab48('#e1306c',APP_ICONS.instagram,'Instagram',activeAppIds.has('instagram'))}${ab48('#e7e9ea',APP_ICONS.twitter,'X',activeAppIds.has('twitter'))}
-    </div>
   </div>
-  <div id="rl-ny-row" style="display:flex;align-items:center;gap:6px;height:68px;transition:opacity 0.5s ease;">
-    <div style="position:relative;flex:1;height:100%;overflow:visible;">
-      <div id="rl-ny-track" style="position:absolute;left:0;right:0;top:50%;height:2px;background:${nlBg};transform:translateY(-50%);border-radius:1px;transition:height 0.4s ease;"></div>
-      <div id="rl-ny" style="position:absolute;left:0;right:0;top:50%;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
-    </div>
-    ${ni(nyName, nyPingStr, nyPingCls, 'rl-ny-spd', '#60a5fa')}
-    <div id="rl-ny-apps" style="display:flex;gap:5px;align-items:center;">
-      ${ab48('#8ab4f8',APP_ICONS.gemini,'Gemini',true)}${ab48('#d97706',APP_ICONS.claude,'Claude',true)}${ab48('#10a37f',APP_ICONS.chatgpt,'ChatGPT',true)}${ab48('#E50914',APP_ICONS.netflix,'Netflix',activeAppIds.has('netflix'))}${ab48('#1ce783',APP_ICONS.hulu,'Hulu',activeAppIds.has('hulu'))}
-    </div>
-  </div>
-  <div id="rl-dir-row" style="display:flex;align-items:center;gap:6px;height:68px;transition:opacity 0.5s ease;">
-    <div style="position:relative;flex:1;height:100%;overflow:visible;">
-      <div id="rl-dir-track" style="position:absolute;left:0;right:0;top:50%;height:2px;background:rgba(52,211,153,0.15);transform:translateY(-50%);border-radius:1px;transition:height 0.4s ease;"></div>
-      <div id="rl-dir" style="position:absolute;left:0;right:0;top:50%;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
-    </div>
-    ${ni('Напрямую', shortIspViz || directIp, '', 'rl-dir-spd', '#94a3b8')}
-    <div id="rl-dir-apps" style="display:flex;gap:5px;align-items:center;">
-      <div title="Интернет напрямую" style="width:48px;height:48px;border-radius:11px;background:rgba(148,163,184,0.07);border:1px solid rgba(148,163,184,0.2);display:flex;align-items:center;justify-content:center;font-size:22px;">🌐</div>
-    </div>
-  </div>
-</div>`;
-                        } else {
-                            // ── Standard layout: pill on line ────────────────────────────────
-                            const pillBase = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10;display:flex;align-items:center;border-radius:9px;padding:5px 10px;width:180px;box-sizing:border-box;';
-                            const nameStyle = 'font-size:10px;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;min-width:0;';
-                            box.innerHTML = `<div style="display:grid;grid-template-columns:90px 172px 46px 12px 1fr;grid-template-rows:auto auto auto;row-gap:10px;align-items:center;margin-bottom:18px;">
-  ${devCol}${inLineCol}${gsgCol}
   <div style="grid-row:1/4;"></div>
   <div id="rl-auto-row" style="display:flex;align-items:center;gap:6px;height:58px;transition:opacity 0.5s ease;">
     <div style="position:relative;flex:1;height:100%;overflow:visible;">
@@ -2525,7 +2470,6 @@
     </div>
   </div>
 </div>`;
-                        }
                     }
 
                     // ── Dynamic line thickness, opacity, speed badges ─────────────────
@@ -3121,20 +3065,6 @@
                 };
                 e.currentTarget.addEventListener('pointermove', onMove);
                 e.currentTarget.addEventListener('pointerup', onUp, { once: true });
-            },
-
-            toggleRouteVizLayout: () => {
-                state.routeVizLayout = state.routeVizLayout === 0 ? 1 : 0;
-                localStorage.setItem('gsg_viz_layout', state.routeVizLayout);
-                const btn = document.getElementById('routeVizLayoutBtn');
-                if (btn) btn.style.color = state.routeVizLayout === 1 ? '#c9a84c' : '#64748b';
-                const box = document.getElementById('routeViz');
-                if (box) {
-                    delete box.dataset.structKey;
-                    if (box._vizRaf) { cancelAnimationFrame(box._vizRaf); box._vizRaf = null; }
-                    if (box._vizPackets) { box._vizPackets.forEach(p => { try { p.el?.parentNode?.removeChild(p.el); } catch(e){} }); box._vizPackets = []; }
-                }
-                ui.renderRouteViz();
             },
 
             toggleRouteVizMode: () => {
@@ -4483,11 +4413,6 @@
         if (savedVizMode !== null) GatewayApp.state.routeVizMode = parseInt(savedVizMode) || 0;
         const vizBtn = document.getElementById('vizModeBtn');
         if (vizBtn) vizBtn.textContent = GatewayApp.state.routeVizMode === 0 ? 'Точки' : 'Графики';
-
-        const savedVizLayout = localStorage.getItem('gsg_viz_layout');
-        if (savedVizLayout !== null) GatewayApp.state.routeVizLayout = parseInt(savedVizLayout) || 0;
-        const layoutBtn = document.getElementById('routeVizLayoutBtn');
-        if (layoutBtn) layoutBtn.style.color = GatewayApp.state.routeVizLayout === 1 ? '#c9a84c' : '#64748b';
 
         GatewayApp.init();
 
