@@ -146,50 +146,71 @@ echo ""
 # ── Системные настройки ───────────────────────
 info "Настройка параметров ядра..."
 
-# BBR — лучший алгоритм TCP для VPN/proxy (загружаем модуль)
-echo 'tcp_bbr' > /etc/modules-load.d/gsg-bbr.conf
-modprobe tcp_bbr 2>/dev/null || true
+# Применяет sysctl только если параметр существует в текущем ядре
+sysctl_set() {
+    local key="$1" val="$2"
+    if sysctl -n "$key" &>/dev/null 2>&1; then
+        echo "${key} = ${val}" >> /etc/sysctl.d/99-gsg.conf
+    else
+        warn "sysctl ${key} не поддерживается этим ядром — пропущено"
+    fi
+}
 
+# Пересоздаём файл
 cat > /etc/sysctl.d/99-gsg.conf << 'EOF'
-# ── Routing ──────────────────────────────────────────────────────────────────
+# GSG Smart Gateway — параметры ядра
+# Сгенерировано install.sh, параметры проверяются на совместимость с текущим ядром
+
+# Routing (обязателен)
 net.ipv4.ip_forward = 1
-
-# ── TCP congestion: BBR + Fair Queue — лучший throughput для VPN/proxy ───────
-net.core.default_qdisc = fq
-net.ipv4.tcp_congestion_control = bbr
-
-# ── Socket buffers: 16 MB (было 208 KB) ──────────────────────────────────────
-net.core.rmem_max = 16777216
-net.core.wmem_max = 16777216
-net.ipv4.tcp_rmem = 4096 87380 16777216
-net.ipv4.tcp_wmem = 4096 16384 16777216
-net.core.netdev_max_backlog = 5000
-
-# ── Порты для исходящих соединений (Mihomo создаёт много) ────────────────────
-net.ipv4.ip_local_port_range = 1024 65535
-net.ipv4.tcp_tw_reuse = 1
-
-# ── Conntrack: увеличенный лимит (8192 по умолчанию — переполняется, дропает SSH) ──
-net.netfilter.nf_conntrack_max = 131072
-net.netfilter.nf_conntrack_tcp_timeout_established = 600
-net.netfilter.nf_conntrack_tcp_timeout_time_wait = 30
-net.netfilter.nf_conntrack_tcp_timeout_close_wait = 30
-net.netfilter.nf_conntrack_tcp_timeout_fin_wait = 30
-
-# ── eMMC: снижаем износ флеша ────────────────────────────────────────────────
-vm.swappiness = 10
-vm.dirty_ratio = 10
-vm.dirty_background_ratio = 5
-vm.dirty_expire_centisecs = 1500
-vm.dirty_writeback_centisecs = 500
-
-# ── Стабильность: авто-перезагрузка при панике ядра ──────────────────────────
-kernel.panic = 10
-kernel.panic_on_oops = 1
 EOF
 
-sysctl -p /etc/sysctl.d/99-gsg.conf -q
-success "Параметры ядра настроены"
+# BBR: пробуем загрузить модуль, если есть — включаем
+if modprobe tcp_bbr 2>/dev/null; then
+    echo 'tcp_bbr' > /etc/modules-load.d/gsg-bbr.conf
+    sysctl_set net.core.default_qdisc fq
+    sysctl_set net.ipv4.tcp_congestion_control bbr
+    success "BBR congestion control включён"
+else
+    warn "tcp_bbr модуль недоступен (ядро без BBR) — используется cubic"
+fi
+
+# Буферы сокетов
+sysctl_set net.core.rmem_max 16777216
+sysctl_set net.core.wmem_max 16777216
+sysctl_set net.ipv4.tcp_rmem "4096 87380 16777216"
+sysctl_set net.ipv4.tcp_wmem "4096 16384 16777216"
+sysctl_set net.core.netdev_max_backlog 5000
+
+# Порты и TIME_WAIT
+sysctl_set net.ipv4.ip_local_port_range "1024 65535"
+sysctl_set net.ipv4.tcp_tw_reuse 1
+
+# Conntrack (требует модуль nf_conntrack)
+if modprobe nf_conntrack 2>/dev/null || sysctl -n net.netfilter.nf_conntrack_max &>/dev/null; then
+    sysctl_set net.netfilter.nf_conntrack_max 131072
+    sysctl_set net.netfilter.nf_conntrack_tcp_timeout_established 600
+    sysctl_set net.netfilter.nf_conntrack_tcp_timeout_time_wait 30
+    sysctl_set net.netfilter.nf_conntrack_tcp_timeout_close_wait 30
+    sysctl_set net.netfilter.nf_conntrack_tcp_timeout_fin_wait 30
+    success "Conntrack настроен"
+else
+    warn "nf_conntrack недоступен — пропущено"
+fi
+
+# Flash/eMMC (актуально для всех SBC)
+sysctl_set vm.swappiness 10
+sysctl_set vm.dirty_ratio 10
+sysctl_set vm.dirty_background_ratio 5
+sysctl_set vm.dirty_expire_centisecs 1500
+sysctl_set vm.dirty_writeback_centisecs 500
+
+# Стабильность: авто-перезагрузка при панике ядра
+sysctl_set kernel.panic 10
+sysctl_set kernel.panic_on_oops 1
+
+sysctl -p /etc/sysctl.d/99-gsg.conf -q 2>/dev/null || true
+success "Параметры ядра настроены ($(grep -c '=' /etc/sysctl.d/99-gsg.conf) параметров)"
 
 # Hardware watchdog
 if [ -e /dev/watchdog ]; then
