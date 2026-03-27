@@ -1238,66 +1238,53 @@
                 <div class="glass" style="padding:24px;margin-bottom:16px;">
                     <div style="font-size:15px;font-weight:800;color:#f1f5f9;margin-bottom:20px;display:flex;align-items:center;gap:8px;">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
-                        Набор иконок
+                        Стиль режимов
                     </div>
-                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;" id="iconPackGrid">
+                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;" id="modeStyleGrid">
 
-                        <!-- GSG (custom) -->
-                        <div id="iconPackCustom" onclick="GatewayApp.ui.setIconPack('custom')" style="cursor:pointer;border-radius:14px;border:2px solid rgba(201,168,76,0.5);background:rgba(201,168,76,0.06);padding:16px 12px 14px;display:flex;flex-direction:column;align-items:center;gap:10px;transition:all 0.18s;">
-                            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;width:100%;">
-                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18" stroke-width="3"/></svg></div>
-                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
-                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg></div>
-                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
-                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></div>
-                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M4.93 4.93a10 10 0 0 0 0 14.14"/></svg></div>
-                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg></div>
-                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.25);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div>
+                        <!-- Emoji -->
+                        <div id="modeStyleCardEmoji" onclick="GatewayApp.ui.setModeStyle('emoji')" style="cursor:pointer;border-radius:14px;border:2px solid rgba(201,168,76,0.5);background:rgba(201,168,76,0.06);padding:16px 12px 14px;display:flex;flex-direction:column;align-items:center;gap:10px;transition:all 0.18s;">
+                            <div style="display:flex;flex-direction:column;gap:5px;width:100%;">
+                                <div style="font-size:11px;color:#94a3b8;font-family:monospace;white-space:nowrap;">🌐 Global</div>
+                                <div style="font-size:11px;color:#94a3b8;font-family:monospace;white-space:nowrap;">🧠 Smart</div>
+                                <div style="font-size:11px;color:#94a3b8;font-family:monospace;white-space:nowrap;">⚡ Bypass</div>
+                                <div style="font-size:11px;color:#94a3b8;font-family:monospace;white-space:nowrap;">🚫 Block</div>
                             </div>
                             <div style="text-align:center;">
-                                <div style="font-size:11px;font-weight:700;color:#f1f5f9;">GSG</div>
-                                <div style="font-size:9px;color:var(--muted);margin-top:2px;">Стандартный</div>
+                                <div style="font-size:11px;font-weight:700;color:#f1f5f9;">Emoji</div>
+                                <div style="font-size:9px;color:var(--muted);margin-top:2px;">По умолчанию</div>
                             </div>
                         </div>
 
-                        <!-- Phosphor -->
-                        <div id="iconPackPhosphor" onclick="GatewayApp.ui.setIconPack('phosphor')" style="cursor:pointer;border-radius:14px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);padding:16px 12px 14px;display:flex;flex-direction:column;align-items:center;gap:10px;transition:all 0.18s;" onmouseover="this.style.borderColor='rgba(201,168,76,0.3)'" onmouseout="if(localStorage.getItem('gsg_icon_pack')!='phosphor')this.style.borderColor='rgba(255,255,255,0.08)'">
-                            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;width:100%;">
-                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 256 256" fill="#94a3b8"><path d="M200,24H56A32,32,0,0,0,24,56V200a32,32,0,0,0,32,32H200a32,32,0,0,0,32-32V56A32,32,0,0,0,200,24ZM48,80H208v96H48ZM56,48H200a8,8,0,0,1,8,8v8H48V56A8,8,0,0,1,56,48Zm144,168H56a8,8,0,0,1-8-8v-8H208v8A8,8,0,0,1,200,216Z"/></svg></div>
-                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 256 256" fill="#94a3b8"><path d="M208,40H48A16,16,0,0,0,32,56V200a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V56A16,16,0,0,0,208,40ZM48,56H208V88H48ZM48,200V104H208v96Z"/></svg></div>
-                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 256 256" fill="#94a3b8"><path d="M232,96a24,24,0,1,0-40.7,17.3l-30.2,60.4a24.2,24.2,0,0,0-18.2,0L88,104.3A24,24,0,1,0,64,96a24,24,0,0,0,0,.7L113.1,165a24,24,0,1,0,29.8,0L193,96.7A24,24,0,0,0,232,96Z"/></svg></div>
-                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 256 256" fill="#94a3b8"><path d="M224,200h-8V40a8,8,0,0,0-8-8H152a8,8,0,0,0-8,8v56H96a8,8,0,0,0-8,8v40H48a8,8,0,0,0-8,8v48H32a8,8,0,0,0,0,16H224a8,8,0,0,0,0-16Z"/></svg></div>
-                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 256 256" fill="#94a3b8"><path d="M229.7,218.3l-57.4-57.4A88,88,0,1,0,37.7,218.3a8,8,0,0,0,11.3-11.3A72,72,0,1,1,161,49a72,72,0,0,1-10.8,101.5,8,8,0,1,0,10.4,12.2A87.8,87.8,0,0,0,183,143l57.4,57.4a8,8,0,0,0,11.3-11.3Z"/></svg></div>
-                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 256 256" fill="#94a3b8"><path d="M225.6,40.4a8,8,0,0,0-11.2,1.6,72,72,0,0,1-115,0,8,8,0,0,0-11.2-1.6A8.1,8.1,0,0,0,86.4,51.6,87.8,87.8,0,0,0,112,75.6V80H104a8,8,0,0,0,0,16h8v8a8,8,0,0,0,16,0V96h8a8,8,0,0,0,0-16h-8V75.6a87.8,87.8,0,0,0,25.6-24A8,8,0,0,0,225.6,40.4Z"/></svg></div>
-                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 256 256" fill="#94a3b8"><path d="M205.7,50.3a8,8,0,0,0-11.4,0L160,84.7l-18.3-18.4a8.1,8.1,0,0,0-11.4,0L96,100.7,61.7,66.3a8.1,8.1,0,0,0-11.4,11.4L82.4,110,50.3,142.3a8,8,0,1,0,11.4,11.4L94,121.4l34.3,34.3a8.1,8.1,0,0,0,11.4,0L174,121.4l34.3,34.3a8,8,0,1,0,11.4-11.4L185.4,110l20.3-20.3A8,8,0,0,0,205.7,50.3Z"/></svg></div>
-                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 256 256" fill="#94a3b8"><path d="M144,24H64A16,16,0,0,0,48,40V216a16,16,0,0,0,16,16h96a16,16,0,0,0,16-16V40A16,16,0,0,0,144,24Zm0,16V56H64V40Zm0,176H64V72H144v144Z"/></svg></div>
+                        <!-- Badge -->
+                        <div id="modeStyleCardBadge" onclick="GatewayApp.ui.setModeStyle('badge')" style="cursor:pointer;border-radius:14px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);padding:16px 12px 14px;display:flex;flex-direction:column;align-items:center;gap:10px;transition:all 0.18s;" onmouseover="this.style.borderColor='rgba(201,168,76,0.3)'" onmouseout="if(localStorage.getItem('gsg_mode_style')!='badge')this.style.borderColor='rgba(255,255,255,0.08)'">
+                            <div style="display:flex;flex-direction:column;gap:5px;width:100%;">
+                                <div style="display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:20px;height:16px;border-radius:3px;background:rgba(59,130,246,0.15);border:1px solid #3b82f6;font-family:monospace;font-weight:700;font-size:9px;color:#3b82f6;text-align:center;line-height:16px;">GL</span><span style="font-size:11px;color:#94a3b8;">Global</span></div>
+                                <div style="display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:20px;height:16px;border-radius:3px;background:rgba(16,185,129,0.15);border:1px solid #10b981;font-family:monospace;font-weight:700;font-size:9px;color:#10b981;text-align:center;line-height:16px;">SM</span><span style="font-size:11px;color:#94a3b8;">Smart</span></div>
+                                <div style="display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:20px;height:16px;border-radius:3px;background:rgba(245,158,11,0.15);border:1px solid #f59e0b;font-family:monospace;font-weight:700;font-size:9px;color:#f59e0b;text-align:center;line-height:16px;">BP</span><span style="font-size:11px;color:#94a3b8;">Bypass</span></div>
+                                <div style="display:flex;align-items:center;gap:5px;"><span style="display:inline-block;width:20px;height:16px;border-radius:3px;background:rgba(239,68,68,0.15);border:1px solid #ef4444;font-family:monospace;font-weight:700;font-size:9px;color:#ef4444;text-align:center;line-height:16px;">BL</span><span style="font-size:11px;color:#94a3b8;">Block</span></div>
                             </div>
                             <div style="text-align:center;">
-                                <div style="font-size:11px;font-weight:700;color:#f1f5f9;">Phosphor</div>
-                                <div style="font-size:9px;color:var(--muted);margin-top:2px;">Filled</div>
+                                <div style="font-size:11px;font-weight:700;color:#f1f5f9;">Бейджи</div>
+                                <div style="font-size:9px;color:var(--muted);margin-top:2px;">Цветные метки</div>
                             </div>
                         </div>
 
-                        <!-- Heroicons -->
-                        <div id="iconPackHeroicons" onclick="GatewayApp.ui.setIconPack('heroicons')" style="cursor:pointer;border-radius:14px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);padding:16px 12px 14px;display:flex;flex-direction:column;align-items:center;gap:10px;transition:all 0.18s;" onmouseover="this.style.borderColor='rgba(201,168,76,0.3)'" onmouseout="if(localStorage.getItem('gsg_icon_pack')!='heroicons')this.style.borderColor='rgba(255,255,255,0.08)'">
-                            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;width:100%;">
-                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="17" r="1" fill="currentColor"/></svg></div>
-                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div>
-                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg></div>
-                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/></svg></div>
-                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.34 18m.38-4.171A42.08 42.08 0 0 1 12 13.5c1.88.001 3.71.186 5.433.485m0 0L17.66 18m0-4.515A42.08 42.08 0 0 1 18 13.5m0 0 .27 4.5"/></svg></div>
-                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M8.288 15.038a5.25 5.25 0 0 1 7.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 17.69l-.53.53-.53-.53a.75.75 0 0 1 1.06 0Z"/></svg></div>
-                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M9.53 16.122a3 3 0 0 0-5.78 1.128 2.25 2.25 0 0 1-2.4 2.245 4.5 4.5 0 0 0 8.4-2.245c0-.399-.078-.78-.22-1.128Zm0 0a15.998 15.998 0 0 0 3.388-1.62m-5.043-.025a15.994 15.994 0 0 1 1.622-3.395m3.42 3.42a15.995 15.995 0 0 0 4.764-4.648l3.876-5.814a1.151 1.151 0 0 0-1.597-1.597L14.146 6.32a15.996 15.996 0 0 0-4.649 4.763m3.42 3.42a6.776 6.776 0 0 0-3.42-3.42"/></svg></div>
-                                <div style="aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,0.04);display:flex;align-items:center;justify-content:center;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5"><path d="M2.25 18 9 11.25l4.306 4.306a11.95 11.95 0 0 1 5.814-5.518l2.74-1.22m0 0-5.94-2.281m5.94 2.28-2.28 5.941"/></svg></div>
+                        <!-- Minimal -->
+                        <div id="modeStyleCardMinimal" onclick="GatewayApp.ui.setModeStyle('minimal')" style="cursor:pointer;border-radius:14px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);padding:16px 12px 14px;display:flex;flex-direction:column;align-items:center;gap:10px;transition:all 0.18s;" onmouseover="this.style.borderColor='rgba(201,168,76,0.3)'" onmouseout="if(localStorage.getItem('gsg_mode_style')!='minimal')this.style.borderColor='rgba(255,255,255,0.08)'">
+                            <div style="display:flex;flex-direction:column;gap:5px;width:100%;">
+                                <div style="font-size:11px;color:#94a3b8;white-space:nowrap;"><span style="color:#3b82f6;">&#9679;</span> Global</div>
+                                <div style="font-size:11px;color:#94a3b8;white-space:nowrap;"><span style="color:#10b981;">&#9679;</span> Smart</div>
+                                <div style="font-size:11px;color:#94a3b8;white-space:nowrap;"><span style="color:#f59e0b;">&#9679;</span> Bypass</div>
+                                <div style="font-size:11px;color:#94a3b8;white-space:nowrap;"><span style="color:#ef4444;">&#9679;</span> Block</div>
                             </div>
                             <div style="text-align:center;">
-                                <div style="font-size:11px;font-weight:700;color:#f1f5f9;">Heroicons</div>
-                                <div style="font-size:9px;color:var(--muted);margin-top:2px;">Tailwind UI</div>
+                                <div style="font-size:11px;font-weight:700;color:#f1f5f9;">Минимал</div>
+                                <div style="font-size:9px;color:var(--muted);margin-top:2px;">Цветные точки</div>
                             </div>
                         </div>
 
                     </div>
-                    <div id="iconPackNote" style="margin-top:10px;font-size:10px;color:var(--muted);display:none;">Требуется перезагрузка страницы для применения иконок.</div>
                 </div>
             </div>
 
@@ -1906,10 +1893,7 @@
                         <div>
                             <div style="display:flex;flex-direction:column;gap:6px;">
                                 <select class="gsg-select device-mode-select" data-ip="${dev.ip}" style="width:100%;" title="Global — весь трафик через VPN\nSmart — умная маршрутизация: заблокированные сайты через VPN, остальное напрямую\nBypass — весь трафик напрямую, без VPN\nBlock — заблокировать устройство">
-                                    <option value="global" ${dev.mode==='global'?'selected':''}>🌐 Global</option>
-                                    <option value="smart" ${dev.mode==='smart'?'selected':''}>🧠 Smart</option>
-                                    <option value="bypass" ${dev.mode==='bypass'?'selected':''}>⚡ Bypass</option>
-                                    <option value="block" ${dev.mode==='block'?'selected':''}>🚫 Block</option>
+                                    ${(() => { const ms = state._modeStyle || 'emoji'; const lbl = { emoji: ['\uD83C\uDF10 Global','\uD83E\uDDE0 Smart','\u26A1 Bypass','\uD83D\uDEAB Block'], badge: ['GL \xB7 Global','SM \xB7 Smart','BP \xB7 Bypass','BL \xB7 Block'], minimal: ['\u25CF Global','\u25CF Smart','\u25CF Bypass','\u25CF Block'] }[ms] || ['\uD83C\uDF10 Global','\uD83E\uDDE0 Smart','\u26A1 Bypass','\uD83D\uDEAB Block']; return ['global','smart','bypass','block'].map((v,i)=>`<option value="${v}" ${dev.mode===v?'selected':''}>${lbl[i]}</option>`).join(''); })()}
                                 </select>
                                 <select class="gsg-select device-node-select" data-ip="${dev.ip}" style="width:100%;" ${isBlocked?'disabled':''}>
                                     ${optionsHtml}
@@ -2999,59 +2983,20 @@
                 if (_tl) { _tl.style.border = !dark ? '2px solid rgba(201,168,76,0.5)' : '1px solid rgba(255,255,255,0.08)'; _tl.style.background = !dark ? 'rgba(201,168,76,0.06)' : 'rgba(255,255,255,0.03)'; }
             },
 
-            setIconPack: (pack) => {
-                localStorage.setItem('gsg_icon_pack', pack);
-                const packs = ['custom','phosphor','heroicons'];
-                packs.forEach(p => {
-                    const el = document.getElementById('iconPack' + p.charAt(0).toUpperCase() + p.slice(1));
+            setModeStyle: (style) => {
+                localStorage.setItem('gsg_mode_style', style);
+                state._modeStyle = style;
+                const styles = ['emoji', 'badge', 'minimal'];
+                styles.forEach(s => {
+                    const el = document.getElementById('modeStyleCard' + s.charAt(0).toUpperCase() + s.slice(1));
                     if (!el) return;
-                    el.style.border = p === pack ? '2px solid rgba(201,168,76,0.5)' : '1px solid rgba(255,255,255,0.08)';
-                    el.style.background = p === pack ? 'rgba(201,168,76,0.06)' : 'rgba(255,255,255,0.03)';
+                    el.style.border = s === style ? '2px solid rgba(201,168,76,0.5)' : '1px solid rgba(255,255,255,0.08)';
+                    el.style.background = s === style ? 'rgba(201,168,76,0.06)' : 'rgba(255,255,255,0.03)';
                 });
-                const note = document.getElementById('iconPackNote');
-                if (note) note.style.display = pack !== 'custom' ? 'block' : 'none';
-                // Load icon CSS for Phosphoricons
-                if (pack === 'phosphor' && !document.getElementById('phosphor-css')) {
-                    const l = document.createElement('link');
-                    l.id = 'phosphor-css'; l.rel = 'stylesheet';
-                    l.href = 'https://unpkg.com/@phosphor-icons/web@2.0.3/src/regular/style.css';
-                    document.head.appendChild(l);
-                }
-                if (pack === 'heroicons' && !document.getElementById('heroicons-css')) {
-                    const l = document.createElement('link');
-                    l.id = 'heroicons-css'; l.rel = 'stylesheet';
-                    l.href = 'https://cdn.jsdelivr.net/npm/@tailwindcss/typography@0.5.14/dist/typography.min.css';
-                    document.head.appendChild(l);
-                }
-                ui.applyNavIcons(pack);
+                ui.renderDevices(state.devices);
             },
 
-            applyNavIcons: (pack) => {
-                const icons = {
-                    'nav-devices':       { custom: '<rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18" stroke-width="3"/>', phosphor: 'M200,24H56A32,32,0,0,0,24,56V200a32,32,0,0,0,32,32H200a32,32,0,0,0,32-32V56A32,32,0,0,0,200,24ZM48,80H208v96H48ZM56,48H200a8,8,0,0,1,8,8v8H48V56A8,8,0,0,1,56,48Zm144,168H56a8,8,0,0,1-8-8v-8H208v8A8,8,0,0,1,200,216Z', heroicons: '<rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="17" r="1" fill="currentColor"/>' },
-                    'nav-routing':       { custom: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>', phosphor: 'M208,40H48A16,16,0,0,0,32,56V200a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V56A16,16,0,0,0,208,40ZM48,56H208V88H48ZM48,200V104H208v96Z', heroicons: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>' },
-                    'nav-dhcp':          { custom: '<circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M4.93 4.93a10 10 0 0 0 0 14.14"/>', phosphor: 'M225.6,40.4a8,8,0,0,0-11.2,1.6,72,72,0,0,1-115,0,8,8,0,0,0-11.2-1.6A8.1,8.1,0,0,0,86.4,51.6,87.8,87.8,0,0,0,112,75.6V80H104a8,8,0,0,0,0,16h8v8a8,8,0,0,0,16,0V96h8a8,8,0,0,0,0-16h-8V75.6a87.8,87.8,0,0,0,25.6-24A8,8,0,0,0,225.6,40.4Z', heroicons: '<path d="M8.288 15.038a5.25 5.25 0 0 1 7.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 17.69l-.53.53-.53-.53a.75.75 0 0 1 1.06 0Z"/>' },
-                    'nav-proxy':         { custom: '<polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>', phosphor: 'M229.7,218.3l-57.4-57.4A88,88,0,1,0,37.7,218.3a8,8,0,0,0,11.3-11.3A72,72,0,1,1,161,49a72,72,0,0,1-10.8,101.5,8,8,0,1,0,10.4,12.2A87.8,87.8,0,0,0,183,143l57.4,57.4a8,8,0,0,0,11.3-11.3Z', heroicons: '<path d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.34 18m.38-4.171A42.08 42.08 0 0 1 12 13.5c1.88.001 3.71.186 5.433.485m0 0L17.66 18m0-4.515A42.08 42.08 0 0 1 18 13.5m0 0 .27 4.5"/>' },
-                    'nav-connections':   { custom: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>', phosphor: 'M232,96a24,24,0,1,0-40.7,17.3l-30.2,60.4a24.2,24.2,0,0,0-18.2,0L88,104.3A24,24,0,1,0,64,96a24,24,0,0,0,0,.7L113.1,165a24,24,0,1,0,29.8,0L193,96.7a24,24,0,0,0,0-.7,23.6,23.6,0,0,0-.7-5.4Z', heroicons: '<path d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/>' },
-                    'nav-stats':         { custom: '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>', phosphor: 'M224,200h-8V40a8,8,0,0,0-8-8H152a8,8,0,0,0-8,8v56H96a8,8,0,0,0-8,8v40H48a8,8,0,0,0-8,8v48H32a8,8,0,0,0,0,16H224a8,8,0,0,0,0-16Z', heroicons: '<path d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/>' },
-                    'nav-visualization': { custom: '<circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>', phosphor: 'M205.7,50.3a8,8,0,0,0-11.4,0L160,84.7l-18.3-18.4a8.1,8.1,0,0,0-11.4,0L96,100.7,61.7,66.3a8.1,8.1,0,0,0-11.4,11.4L82.4,110,50.3,142.3a8,8,0,1,0,11.4,11.4L94,121.4l34.3,34.3a8.1,8.1,0,0,0,11.4,0L174,121.4l34.3,34.3a8,8,0,1,0,11.4-11.4L185.4,110l20.3-20.3A8,8,0,0,0,205.7,50.3Z', heroicons: '<path d="M9.53 16.122a3 3 0 0 0-5.78 1.128 2.25 2.25 0 0 1-2.4 2.245 4.5 4.5 0 0 0 8.4-2.245c0-.399-.078-.78-.22-1.128Zm0 0a15.998 15.998 0 0 0 3.388-1.62m-5.043-.025a15.994 15.994 0 0 1 1.622-3.395m3.42 3.42a15.995 15.995 0 0 0 4.764-4.648l3.876-5.814a1.151 1.151 0 0 0-1.597-1.597L14.146 6.32a15.996 15.996 0 0 0-4.649 4.763m3.42 3.42a6.776 6.776 0 0 0-3.42-3.42"/>' },
-                };
-                Object.entries(icons).forEach(([navId, packs]) => {
-                    const navEl = document.getElementById(navId);
-                    if (!navEl) return;
-                    const svgEl = navEl.querySelector('svg');
-                    if (!svgEl) return;
-                    const rawPath = packs[pack] || packs.custom;
-                    const isPhosphor = pack === 'phosphor';
-                    svgEl.setAttribute('viewBox', isPhosphor ? '0 0 256 256' : '0 0 24 24');
-                    svgEl.setAttribute('fill', isPhosphor ? 'currentColor' : 'none');
-                    svgEl.setAttribute('stroke', isPhosphor ? 'none' : 'currentColor');
-                    // Phosphor paths are raw 'd' data, not markup — wrap in <path>
-                    svgEl.innerHTML = rawPath.startsWith('<') ? rawPath : `<path d="${rawPath}"/>`;
-                });
-            },
-
-            setAnimEnabled: (enabled) => {
+                        setAnimEnabled: (enabled) => {
                 localStorage.setItem('gsg_anim', enabled ? 'on' : 'off');
                 const style = document.getElementById('gsg-anim-override') || (() => {
                     const s = document.createElement('style'); s.id = 'gsg-anim-override'; document.head.appendChild(s); return s;
@@ -4433,8 +4378,9 @@
         const savedTheme = localStorage.getItem('gsg_theme') || 'dark';
         GatewayApp.ui.setTheme(savedTheme);
 
-        const savedPack = localStorage.getItem('gsg_icon_pack') || 'custom';
-        GatewayApp.ui.setIconPack(savedPack);
+        const savedModeStyle = localStorage.getItem('gsg_mode_style') || 'emoji';
+        GatewayApp.state._modeStyle = savedModeStyle;
+        GatewayApp.ui.setModeStyle(savedModeStyle);
 
         const savedSidebarW = localStorage.getItem('gsg_sidebar_w');
         if (savedSidebarW) document.documentElement.style.setProperty('--sidebar-w', savedSidebarW);
