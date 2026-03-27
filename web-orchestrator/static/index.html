@@ -1867,7 +1867,7 @@
                         <div class="dev-row-mobile-body" style="display:contents;">
                         <!-- Col 1: CLIENT -->
                         <div style="display:flex;align-items:center;gap:10px;min-width:0;">
-                            <div data-icon-mac="${dev.mac}" title="${cachedVendor || dev.hostname}" style="width:36px;height:36px;border-radius:10px;background:${ist.bg};border:1px solid ${ist.border};display:flex;align-items:center;justify-content:center;color:${ist.color};flex-shrink:0;position:relative;overflow:visible;">
+                            <div data-icon-mac="${dev.mac}" title="${cachedVendor || dev.hostname}" style="width:36px;height:36px;border-radius:10px;background:${ist.bg};border:2px solid ${_modeC}${_ms==='minimal'?'99':'bb'};display:flex;align-items:center;justify-content:center;color:${ist.color};flex-shrink:0;position:relative;overflow:visible;${_ms==='neon'?`box-shadow:0 0 8px ${_modeC}66,0 0 16px ${_modeC}33;`:''}"  >
                                 ${brandLogoHtml || ''}
                                 <span class="dev-type-icon" style="display:${brandLogoHtml ? 'none' : 'flex'};align-items:center;justify-content:center;line-height:0;">${DEVICE_ICONS[deviceType] || DEVICE_ICONS.unknown}</span>
                                 <div style="position:absolute;bottom:-3px;right:-3px;width:10px;height:10px;border-radius:50%;background:${statusColor};border:2px solid var(--bg);z-index:1;"></div>
@@ -3992,9 +3992,15 @@
                     if (!iconEl) return;
                     const type = vendorToType(data.vendor, dev.hostname);
                     const ist = ICON_STYLE[type] || ICON_STYLE.unknown;
+                    const _devIp = iconEl.closest('[data-device-ip]')?.dataset?.deviceIp;
+                    const _devMode = state.devices?.find(d => d.ip === _devIp)?.mode || 'global';
+                    const _modeColors2 = { global:'#3b82f6', smart:'#c9a84c', bypass:'#f59e0b', block:'#ef4444' };
+                    const _mc2 = _modeColors2[_devMode] || '#64748b';
+                    const _ms2 = state._modeStyle || 'emoji';
                     iconEl.style.background = ist.bg;
-                    iconEl.style.borderColor = ist.border;
+                    iconEl.style.border = `2px solid ${_mc2}${_ms2==='minimal'?'99':'bb'}`;
                     iconEl.style.color = ist.color;
+                    iconEl.style.boxShadow = _ms2 === 'neon' ? `0 0 8px ${_mc2}66,0 0 16px ${_mc2}33` : '';
                     iconEl.title = data.vendor || dev.hostname;
                     const statusDot = iconEl.querySelector('[style*="bottom:-3px"]');
                     const bLogo = getBrandLogoHtml(data.vendor, ist.color, dev.hostname);
