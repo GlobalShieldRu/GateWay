@@ -1429,34 +1429,6 @@
             unknown: { bg:'rgba(100,116,139,0.08)',  border:'rgba(100,116,139,0.2)',  color:'#64748b' },
         };
 
-        /* ── getStyledDeviceIcon: returns SVG string styled per modeStyle ── */
-        const getStyledDeviceIcon = (type, ms) => {
-            let svg = DEVICE_ICONS[type] || DEVICE_ICONS.unknown;
-            ms = ms || 'emoji';
-            if (ms === 'emoji') return svg;
-            if (ms === 'minimal') {
-                svg = svg.replace(/width="18"/g, 'width="16"').replace(/height="18"/g, 'height="16"');
-                svg = svg.replace(/stroke-width="2"(?!\.)/g, 'stroke-width="1"');
-                svg = svg.replace(/<svg /, '<svg style="opacity:0.7;" ');
-            } else if (ms === 'badge') {
-                svg = svg.replace(/stroke-width="2"(?!\.)/g, 'stroke-width="2.5"');
-            } else if (ms === 'pill') {
-                // Icons with mostly stroke paths — use filled style
-                const fillable = ['phone','laptop','tv','desktop','printer','server','unknown','iot'];
-                if (fillable.includes(type)) {
-                    svg = svg.replace(/width="18"/g, 'width="17"').replace(/height="18"/g, 'height="17"');
-                    svg = svg.replace(/fill="none"/g, 'fill="currentColor"').replace(/stroke="currentColor" stroke-width="2"/g, 'stroke="none"');
-                } else {
-                    svg = svg.replace(/width="18"/g, 'width="17"').replace(/height="18"/g, 'height="17"');
-                }
-            } else if (ms === 'neon') {
-                svg = svg.replace(/width="18"/g, 'width="20"').replace(/height="18"/g, 'height="20"');
-                svg = svg.replace(/stroke-width="2"(?!\.)/g, 'stroke-width="2.5"');
-                svg = svg.replace(/<svg /, '<svg style="filter:drop-shadow(0 0 4px currentColor);" ');
-            }
-            return svg;
-        };
-
         const vendorToType = (vendor, hostname) => {
             const v = (vendor || '').toLowerCase();
             const h = (hostname || '').toLowerCase();
@@ -1502,7 +1474,7 @@
             return 'unknown';
         };
 
-        const getBrandLogoHtml = (vendor, color, hostname, ms) => {
+        const getBrandLogoHtml = (vendor, color, hostname) => {
             const v = (vendor || '').toLowerCase();
             const h = (hostname || '').toLowerCase();
             if (!v && !h) return null;
@@ -1513,8 +1485,7 @@
             else if (v.includes('xiaomi')) slug = 'mi';
             else if (v.startsWith('lg') || /\blg\b|lgwebos|lgtv/.test(h)) {
                 const hex = color.replace('#','');
-                const _nf = ms === 'neon' ? 'filter:drop-shadow(0 0 3px '+color+');' : '';
-                return `<svg width="20" height="20" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" style="display:block;flex-shrink:0;${_nf}">
+                return `<svg width="20" height="20" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" style="display:block;flex-shrink:0;">
                     <circle cx="100" cy="100" r="88" fill="none" stroke="${color}" stroke-width="14"/>
                     <path d="M28 62 L28 138 L72 138" stroke="${color}" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
                     <path d="M172 78 A72 72 0 1 0 172 122 L128 122 L128 100" stroke="${color}" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
@@ -1548,8 +1519,7 @@
             else if (/yandex/.test(v) || /yandex/.test(h)) slug = 'yandex';
             if (!slug) return null;
             const hex = color.replace('#', '');
-            const _nfImg = ms === 'neon' ? 'filter:drop-shadow(0 0 3px #'+hex+');' : '';
-            return `<img src="https://cdn.simpleicons.org/${slug}/${hex}" width="20" height="20" style="display:block;object-fit:contain;flex-shrink:0;${_nfImg}" onerror="this.style.display='none';this.parentElement.querySelector('span')?.style.setProperty('display','flex');" />`;
+            return `<img src="https://cdn.simpleicons.org/${slug}/${hex}" width="20" height="20" style="display:block;object-fit:contain;flex-shrink:0;" onerror="this.style.display='none';this.parentElement.querySelector('span')?.style.setProperty('display','flex');" />`;
         };
 
         const state = {
@@ -1805,8 +1775,7 @@
                         ? vendorToType(effectiveVendor, dev.hostname)
                         : (dev.hostname.toLowerCase().includes('tv') ? 'tv' : 'unknown');
                     const ist = ICON_STYLE[deviceType] || ICON_STYLE.unknown;
-                    const _msEarly = state._modeStyle || 'emoji';
-                    const brandLogoHtml = getBrandLogoHtml(effectiveVendor, ist.color, dev.hostname, _msEarly);
+                    const brandLogoHtml = getBrandLogoHtml(effectiveVendor, ist.color, dev.hostname);
                     const brandBadge = '';
                     const autoName = (dev.hostname === 'Устройство' || dev.hostname === 'Unknown' || dev.hostname === 'устройство') && cachedVendor
                         ? cachedVendor : dev.hostname;
@@ -1900,7 +1869,7 @@
                         <div style="display:flex;align-items:center;gap:10px;min-width:0;">
                             <div data-icon-mac="${dev.mac}" title="${cachedVendor || dev.hostname}" style="width:36px;height:36px;border-radius:10px;background:${(_ms==='pill'||_ms==='neon')?`${_modeC}1a`:ist.bg};border:${_ms==='emoji'?`1px solid ${ist.border}`:`2px solid ${_modeC}${_ms==='minimal'?'88':'bb'}`};display:flex;align-items:center;justify-content:center;color:${(_ms==='pill'||_ms==='neon')?_modeC:ist.color};flex-shrink:0;position:relative;overflow:visible;${_ms==='neon'?`box-shadow:0 0 8px ${_modeC}66,0 0 16px ${_modeC}33;`:''}">
                                 ${brandLogoHtml || ''}
-                                <span class="dev-type-icon" style="display:${brandLogoHtml ? 'none' : 'flex'};align-items:center;justify-content:center;line-height:0;">${getStyledDeviceIcon(deviceType, _ms)}</span>
+                                <span class="dev-type-icon" style="display:${brandLogoHtml ? 'none' : 'flex'};align-items:center;justify-content:center;line-height:0;">${DEVICE_ICONS[deviceType] || DEVICE_ICONS.unknown}</span>
                                 <div style="position:absolute;bottom:-3px;right:-3px;width:10px;height:10px;border-radius:50%;background:${statusColor};border:2px solid var(--bg);z-index:1;"></div>
                             </div>
                             <div style="min-width:0;flex:1;">
@@ -2390,7 +2359,7 @@
                     const border = active ? `${color}55` : `${color}22`;
                     const opacity = active ? '1' : '0.38';
                     const glow   = active ? `box-shadow:0 0 8px ${color}44;` : '';
-                    return `<div title="${title}" style="width:44px;height:44px;border-radius:11px;background:${bg};border:1px solid ${border};display:flex;align-items:center;justify-content:center;color:${color};flex-shrink:0;opacity:${opacity};${glow}transition:transform 0.15s,opacity 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform=''"><div style="transform:scale(1.3);display:flex;">${icon}</div></div>`;
+                    return `<div title="${title}" style="width:52px;height:52px;border-radius:13px;background:${bg};border:1px solid ${border};display:flex;align-items:center;justify-content:center;color:${color};flex-shrink:0;opacity:${opacity};${glow}transition:transform 0.15s,opacity 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform=''"><div style="transform:scale(1.5);display:flex;">${icon}</div></div>`;
                 };
 
                 const nodePill = (flag, name, ping, pingCls, bg, border) =>
@@ -2411,13 +2380,13 @@
                 const devPreview = onlineDevs.slice(0, DEV_PREVIEW_MAX).map(d => {
                     const dtype = d.device_type || vendorToType(d.vendor, d.hostname);
                     const st = ICON_STYLE[dtype] || ICON_STYLE.unknown;
-                    const ic = getStyledDeviceIcon(dtype, _pvMs);
+                    const ic = DEVICE_ICONS[dtype] || DEVICE_ICONS.unknown;
                     const _mc = _pvModeColors[d.mode] || '#64748b';
                     const _bg    = _pvFull ? `${_mc}1a` : st.bg;
                     const _bdr   = _pvMs === 'emoji' ? `1px solid ${st.border}` : `1px solid ${_mc}${_pvMs === 'minimal' ? '88' : 'bb'}`;
                     const _color = _pvFull ? _mc : st.color;
                     const _glow  = _pvMs === 'neon' ? `box-shadow:0 0 6px ${_mc}55,0 0 12px ${_mc}33;` : '';
-                    return `<div title="${d.custom_name || d.hostname || d.ip}" style="width:22px;height:22px;border-radius:6px;background:${_bg};border:${_bdr};display:flex;align-items:center;justify-content:center;color:${_color};${_glow}">${ic.replace(/width="\d+"/,'width="13"').replace(/height="\d+"/,'height="13"')}</div>`;
+                    return `<div title="${d.custom_name || d.hostname || d.ip}" style="width:22px;height:22px;border-radius:6px;background:${_bg};border:${_bdr};display:flex;align-items:center;justify-content:center;color:${_color};${_glow}">${ic.replace('width="18"','width="13"').replace('height="18"','height="13"')}</div>`;
                 }).join('') + (onlineDevs.length > DEV_PREVIEW_MAX
                     ? `<div title="+${onlineDevs.length - DEV_PREVIEW_MAX} устройств" style="width:22px;height:22px;border-radius:6px;background:rgba(100,116,139,0.15);border:1px solid rgba(100,116,139,0.3);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:rgba(148,163,184,0.8);">+${onlineDevs.length - DEV_PREVIEW_MAX}</div>`
                     : '');
@@ -2504,8 +2473,8 @@
     <div id="rl-in" style="position:absolute;top:46%;left:0;right:0;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
   </div>
   <div style="grid-row:1/4;display:flex;flex-direction:column;align-items:center;gap:3px;position:relative;z-index:5;">
-    <div style="width:38px;height:38px;border-radius:11px;background:rgba(10,9,8,0.98);border:1.5px solid rgba(201,168,76,0.4);display:flex;align-items:center;justify-content:center;box-shadow:0 0 20px rgba(201,168,76,0.2);overflow:hidden;"><img src="/static/logo.png" style="width:34px;height:34px;object-fit:contain;border-radius:8px;" alt="GSG"></div>
-    <div style="font-size:8px;font-weight:800;color:#c9a84c;letter-spacing:0.09em;text-shadow:0 0 10px rgba(201,168,76,0.5);">GSG</div>
+    <div style="width:46px;height:46px;border-radius:13px;background:rgba(10,9,8,0.98);border:1.5px solid rgba(201,168,76,0.4);display:flex;align-items:center;justify-content:center;box-shadow:0 0 20px rgba(201,168,76,0.2);overflow:hidden;"><img src="/static/logo.png" style="width:42px;height:42px;object-fit:contain;border-radius:10px;" alt="GSG"></div>
+    <div style="font-size:9px;font-weight:800;color:#c9a84c;letter-spacing:0.09em;text-shadow:0 0 10px rgba(201,168,76,0.5);">GSG</div>
   </div>
   <div style="grid-row:1/4;"></div>
   <div id="rl-auto-row" style="display:flex;align-items:center;gap:6px;height:58px;transition:opacity 0.5s ease;">
@@ -2554,7 +2523,7 @@
       </div>
     </div>
     <div id="rl-dir-apps" style="display:flex;gap:5px;align-items:center;width:280px;">
-      <div title="Интернет напрямую" style="width:44px;height:44px;border-radius:11px;background:rgba(148,163,184,0.07);border:1px solid rgba(148,163,184,0.2);display:flex;align-items:center;justify-content:center;font-size:22px;">🌐</div>
+      <div title="Интернет напрямую" style="width:52px;height:52px;border-radius:13px;background:rgba(148,163,184,0.07);border:1px solid rgba(148,163,184,0.2);display:flex;align-items:center;justify-content:center;font-size:26px;">🌐</div>
     </div>
   </div>
 </div>`;
@@ -2763,8 +2732,8 @@
                         <div style="font-size:8px;color:var(--muted);text-align:center;">→ GSG</div>
                     </div>
                     <div style="grid-row:1/4;display:flex;flex-direction:column;align-items:center;gap:3px;">
-                        <div style="width:44px;height:44px;border-radius:12px;background:rgba(201,168,76,0.1);border:1.5px solid rgba(201,168,76,0.35);display:flex;align-items:center;justify-content:center;box-shadow:0 0 22px rgba(201,168,76,0.2);overflow:hidden;"><img src="/static/logo.png" style="width:40px;height:40px;object-fit:contain;border-radius:9px;" alt="GSG"></div>
-                        <div style="font-size:8px;font-weight:800;color:#c9a84c;letter-spacing:0.09em;text-shadow:0 0 10px rgba(201,168,76,0.5);">GSG</div>
+                        <div style="width:52px;height:52px;border-radius:14px;background:rgba(201,168,76,0.1);border:1.5px solid rgba(201,168,76,0.35);display:flex;align-items:center;justify-content:center;box-shadow:0 0 22px rgba(201,168,76,0.2);overflow:hidden;"><img src="/static/logo.png" style="width:46px;height:46px;object-fit:contain;border-radius:10px;" alt="GSG"></div>
+                        <div style="font-size:9px;font-weight:800;color:#c9a84c;letter-spacing:0.09em;text-shadow:0 0 10px rgba(201,168,76,0.5);">GSG</div>
                     </div>
                     <div style="grid-row:1/4;"></div>
                     <!-- Auto branch: chart + apps -->
@@ -2813,7 +2782,7 @@
                         </div>
                     </div>
                     <div style="display:flex;gap:4px;align-items:center;padding-left:6px;">
-                        <div title="Интернет напрямую" style="width:44px;height:44px;border-radius:11px;background:rgba(148,163,184,0.07);border:1px solid rgba(148,163,184,0.2);display:flex;align-items:center;justify-content:center;font-size:22px;">🌐</div>
+                        <div title="Интернет напрямую" style="width:52px;height:52px;border-radius:13px;background:rgba(148,163,184,0.07);border:1px solid rgba(148,163,184,0.2);display:flex;align-items:center;justify-content:center;font-size:26px;">🌐</div>
                     </div>
                 </div>`;
                 // Draw mini charts after layout (setTimeout for reliable offsetWidth)
@@ -4064,9 +4033,9 @@
                     iconEl.style.boxShadow = _ms2 === 'neon' ? `0 0 8px ${_mc2}66,0 0 16px ${_mc2}33` : '';
                     iconEl.title = data.vendor || dev.hostname;
                     const statusDot = iconEl.querySelector('[style*="bottom:-3px"]');
-                    const bLogo = getBrandLogoHtml(data.vendor, ist.color, dev.hostname, _ms2);
+                    const bLogo = getBrandLogoHtml(data.vendor, ist.color, dev.hostname);
                     iconEl.innerHTML = (bLogo || '')
-                        + `<span style="display:${bLogo ? 'none' : 'flex'};align-items:center;justify-content:center;">${getStyledDeviceIcon(type, _ms2)}</span>`
+                        + `<span style="display:${bLogo ? 'none' : 'flex'};align-items:center;justify-content:center;">${DEVICE_ICONS[type] || DEVICE_ICONS.unknown}</span>`
                         + (statusDot ? statusDot.outerHTML : '');
                     const row = iconEl.closest('[data-ip]');
                     if (row && data.vendor) {
