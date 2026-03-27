@@ -225,6 +225,16 @@ if [ -e /dev/watchdog ]; then
     success "Watchdog настроен (15 сек)"
 fi
 
+# ── Авто-очистка соединений Mihomo (каждые 2 часа) ────────
+info "Установка авто-очистки соединений Mihomo..."
+cp "${INSTALL_DIR}/mihomo-cleanup.sh" /usr/local/bin/mihomo-cleanup
+chmod +x /usr/local/bin/mihomo-cleanup
+# Добавляем в crontab root если ещё нет
+if ! crontab -l 2>/dev/null | grep -q 'mihomo-cleanup'; then
+    (crontab -l 2>/dev/null; echo "0 */2 * * * /usr/local/bin/mihomo-cleanup") | crontab -
+fi
+success "Авто-очистка Mihomo: каждые 2 часа (порог 1000 соединений)"
+
 # ── Авто-очистка Docker (еженедельно) ─────────
 info "Настройка автоочистки Docker..."
 cat > /etc/cron.weekly/gsg-docker-prune << 'EOF'
