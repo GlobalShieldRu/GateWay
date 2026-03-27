@@ -2361,7 +2361,7 @@
                     const border = active ? `${color}55` : `${color}22`;
                     const opacity = active ? '1' : '0.38';
                     const glow   = active ? `box-shadow:0 0 8px ${color}44;` : '';
-                    return `<div title="${title}" style="width:52px;height:52px;border-radius:13px;background:${bg};border:1px solid ${border};display:flex;align-items:center;justify-content:center;color:${color};flex-shrink:0;opacity:${opacity};${glow}transition:transform 0.15s,opacity 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform=''"><div style="transform:scale(1.5);display:flex;">${icon}</div></div>`;
+                    return `<div title="${title}" style="width:42px;height:42px;border-radius:10px;background:${bg};border:1px solid ${border};display:flex;align-items:center;justify-content:center;color:${color};flex-shrink:0;opacity:${opacity};${glow}transition:transform 0.15s,opacity 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform=''"><div style="transform:scale(1.2);display:flex;">${icon}</div></div>`;
                 };
 
                 const nodePill = (flag, name, ping, pingCls, bg, border) =>
@@ -2475,7 +2475,7 @@
     <div id="rl-in" style="position:absolute;top:46%;left:0;right:0;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
   </div>
   <div style="grid-row:1/4;display:flex;flex-direction:column;align-items:center;gap:3px;position:relative;z-index:5;">
-    <div style="width:46px;height:46px;border-radius:13px;background:rgba(10,9,8,0.98);border:1.5px solid rgba(201,168,76,0.4);display:flex;align-items:center;justify-content:center;box-shadow:0 0 20px rgba(201,168,76,0.2);overflow:hidden;"><img src="/static/logo.png" style="width:42px;height:42px;object-fit:contain;border-radius:10px;" alt="GSG"></div>
+    <div style="width:42px;height:42px;border-radius:10px;background:rgba(10,9,8,0.98);border:1.5px solid rgba(201,168,76,0.4);display:flex;align-items:center;justify-content:center;box-shadow:0 0 20px rgba(201,168,76,0.2);overflow:hidden;"><img src="/static/logo.png" style="width:38px;height:38px;object-fit:contain;border-radius:8px;" alt="GSG"></div>
     <div style="font-size:9px;font-weight:800;color:#c9a84c;letter-spacing:0.09em;text-shadow:0 0 10px rgba(201,168,76,0.5);">GSG</div>
   </div>
   <div style="grid-row:1/4;"></div>
@@ -2525,7 +2525,7 @@
       </div>
     </div>
     <div id="rl-dir-apps" style="display:flex;gap:5px;align-items:center;width:280px;">
-      <div title="Интернет напрямую" style="width:52px;height:52px;border-radius:13px;background:rgba(148,163,184,0.07);border:1px solid rgba(148,163,184,0.2);display:flex;align-items:center;justify-content:center;font-size:26px;">🌐</div>
+      <div title="Интернет напрямую" style="width:42px;height:42px;border-radius:10px;background:rgba(148,163,184,0.07);border:1px solid rgba(148,163,184,0.2);display:flex;align-items:center;justify-content:center;font-size:22px;">🌐</div>
     </div>
   </div>
 </div>`;
@@ -2813,7 +2813,7 @@
                         <div style="font-size:8px;color:var(--muted);text-align:center;">→ GSG</div>
                     </div>
                     <div style="grid-row:1/4;display:flex;flex-direction:column;align-items:center;gap:3px;">
-                        <div style="width:52px;height:52px;border-radius:14px;background:rgba(201,168,76,0.1);border:1.5px solid rgba(201,168,76,0.35);display:flex;align-items:center;justify-content:center;box-shadow:0 0 22px rgba(201,168,76,0.2);overflow:hidden;"><img src="/static/logo.png" style="width:46px;height:46px;object-fit:contain;border-radius:10px;" alt="GSG"></div>
+                        <div style="width:42px;height:42px;border-radius:10px;background:rgba(201,168,76,0.1);border:1.5px solid rgba(201,168,76,0.35);display:flex;align-items:center;justify-content:center;box-shadow:0 0 22px rgba(201,168,76,0.2);overflow:hidden;"><img src="/static/logo.png" style="width:38px;height:38px;object-fit:contain;border-radius:8px;" alt="GSG"></div>
                         <div style="font-size:9px;font-weight:800;color:#c9a84c;letter-spacing:0.09em;text-shadow:0 0 10px rgba(201,168,76,0.5);">GSG</div>
                     </div>
                     <div style="grid-row:1/4;"></div>
@@ -2863,7 +2863,7 @@
                         </div>
                     </div>
                     <div style="display:flex;gap:4px;align-items:center;padding-left:6px;">
-                        <div title="Интернет напрямую" style="width:52px;height:52px;border-radius:13px;background:rgba(148,163,184,0.07);border:1px solid rgba(148,163,184,0.2);display:flex;align-items:center;justify-content:center;font-size:26px;">🌐</div>
+                        <div title="Интернет напрямую" style="width:42px;height:42px;border-radius:10px;background:rgba(148,163,184,0.07);border:1px solid rgba(148,163,184,0.2);display:flex;align-items:center;justify-content:center;font-size:22px;">🌐</div>
                     </div>
                 </div>`;
                 // Draw mini charts after layout (setTimeout for reliable offsetWidth)
