@@ -228,6 +228,13 @@ def main():
                 device_sub.append(f"IP-CIDR,5.28.192.0/18,{target}")
                 device_sub.append(f"RULE-SET,rkn-domains,{target}")
 
+            # Глобальные правила из rules.json применяются внутри sub-rule,
+            # иначе трафик захватывается в SUB-RULE и никогда до них не доходит
+            for d in user_rules.get('proxy', []):
+                device_sub.append(f"DOMAIN-SUFFIX,{d},{target}")
+            for d in user_rules.get('direct', []):
+                device_sub.append(f"DOMAIN-SUFFIX,{d},DIRECT")
+
             device_sub.append("MATCH,DIRECT")
 
             if device_sub:
