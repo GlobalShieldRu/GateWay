@@ -225,6 +225,30 @@ if [ -e /dev/watchdog ]; then
     success "Watchdog настроен (15 сек)"
 fi
 
+# ── Авто-очистка Docker (еженедельно) ─────────
+info "Настройка автоочистки Docker..."
+cat > /etc/cron.weekly/gsg-docker-prune << 'EOF'
+#!/bin/bash
+# Удаляем только старые образы GSG (накапливаются при обновлениях)
+# Чужие образы не трогаем
+LOG=/var/log/gsg-prune.log
+echo "$(date): GSG prune started" >> "$LOG"
+docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' \
+    | grep '^gsg-' \
+    | grep -v ':latest' \
+    | awk '{print $2}' \
+    | xargs -r docker rmi >> "$LOG" 2>&1
+# Мёртвые контейнеры GSG старше 24ч
+docker ps -a --filter status=exited --filter status=created \
+    --format '{{.Names}} {{.ID}}' \
+    | grep '^gsg-' \
+    | awk '{print $2}' \
+    | xargs -r docker rm >> "$LOG" 2>&1
+echo "$(date): GSG prune done" >> "$LOG"
+EOF
+chmod +x /etc/cron.weekly/gsg-docker-prune
+success "Автоочистка Docker: еженедельно"
+
 # ── Docker конфиг ─────────────────────────────
 info "Запись конфигурации..."
 cat > "$INSTALL_DIR/.env" << EOF
