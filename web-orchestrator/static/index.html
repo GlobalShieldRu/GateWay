@@ -2984,41 +2984,23 @@
                 const hist = state.trafficHistory;
                 if (hist.length < 2) return;
 
-                // Butterfly/mirror chart: download up, upload down from axis
-                // Axis 100px from the bottom (CSS px, scaled by dpr)
-                const centerY = H - 100 * dpr;
-                const upperH = centerY * 0.88;       // usable space above axis (download)
-                const lowerH = (H - centerY) * 0.88; // usable space below axis (upload)
-
-                // Unified Y scale: max across all download AND upload series
+                // All series share the same Y scale (max across all)
                 const maxVal = Math.max(1024, ...hist.map(p =>
-                    Math.max(p.down||0, p.autoDown||0, p.nyDown||0, p.directDown||0,
-                             p.up||0, p.autoUp||0, p.nyUp||0, p.directUp||0)));
-
-                // Draw center axis
-                ctx.beginPath();
-                ctx.moveTo(0, centerY);
-                ctx.lineTo(W, centerY);
-                ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-                ctx.lineWidth = 1 * dpr;
-                ctx.stroke();
-
-                // drawLine: direction = -1 for download (above axis), +1 for upload (below axis)
-                const drawLine = (key, stroke, fill, lw, direction) => {
-                    const segH = direction < 0 ? upperH : lowerH;
+                    Math.max(p.down||0, p.autoDown||0, p.nyDown||0, p.directDown||0)));
+                const drawLine = (key, stroke, fill, lw) => {
                     const pts = hist.map((p, i) => ({
                         x: (i / (hist.length - 1)) * W,
-                        y: centerY + direction * ((p[key]||0) / maxVal) * segH
+                        y: H - ((p[key]||0) / maxVal) * H * 0.88 - H * 0.06
                     }));
                     if (fill) {
                         ctx.beginPath();
-                        ctx.moveTo(pts[0].x, centerY);
+                        ctx.moveTo(pts[0].x, H);
                         ctx.lineTo(pts[0].x, pts[0].y);
                         for (let i = 1; i < pts.length; i++) {
                             const cpx = (pts[i-1].x + pts[i].x) / 2;
                             ctx.bezierCurveTo(cpx, pts[i-1].y, cpx, pts[i].y, pts[i].x, pts[i].y);
                         }
-                        ctx.lineTo(pts[pts.length-1].x, centerY);
+                        ctx.lineTo(pts[pts.length-1].x, H);
                         ctx.closePath();
                         ctx.fillStyle = fill;
                         ctx.fill();
@@ -3034,16 +3016,9 @@
                     ctx.lineJoin = 'round';
                     ctx.stroke();
                 };
-
-                // === Download (upper half, direction = -1) ===
-                drawLine('directDown', '#94a3b8', 'rgba(148,163,184,0.05)', 1.0, -1);
-                drawLine('nyDown',     '#3b82f6', 'rgba(59,130,246,0.10)',  1.5, -1);
-                drawLine('autoDown',   '#c9a84c', 'rgba(201,168,76,0.13)', 1.5, -1);
-
-                // === Upload (lower half, direction = +1) ===
-                drawLine('directUp', '#94a3b8', 'rgba(148,163,184,0.04)', 1.0, +1);
-                drawLine('nyUp',     '#3b82f6', 'rgba(59,130,246,0.07)',  1.5, +1);
-                drawLine('autoUp',   '#c9a84c', 'rgba(201,168,76,0.09)', 1.5, +1);
+                drawLine('directDown', '#94a3b8', 'rgba(148,163,184,0.05)', 1.0);
+                drawLine('nyDown', '#3b82f6', 'rgba(59,130,246,0.10)', 1.5);
+                drawLine('autoDown', '#c9a84c', 'rgba(201,168,76,0.13)', 1.5);
 
                 const last = hist[hist.length - 1] || {};
                 const autoSpd   = (last.autoDown||0)   + (last.autoUp||0);
