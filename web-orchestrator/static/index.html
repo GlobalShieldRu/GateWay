@@ -890,6 +890,7 @@
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;">
                         <div style="font-size:16px;font-weight:800;color:#f1f5f9;">Состояние сети</div>
                         <div style="display:flex;align-items:center;gap:8px;">
+                            <button id="dotsModeBtn" onclick="GatewayApp.ui.toggleDotsMode();" title="Направление точек" style="background:none;border:none;cursor:pointer;color:#64748b;padding:2px 6px;font-size:13px;line-height:1;font-family:'JetBrains Mono',monospace;font-weight:700;">→</button>
                             <button id="routeVizToggleBtn" onclick="GatewayApp.ui.toggleRouteVizMode();" title="Переключить вид" style="background:none;border:none;cursor:pointer;color:#64748b;padding:2px 4px;font-size:14px;line-height:1;">📊</button>
                         <span id="globalProtectionBadge" class="status-badge loading">
                             <span style="animation:skelPulse 1s infinite;display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;"></span>
@@ -1536,6 +1537,7 @@
             _devicesHash: null,
             trafficHistory: [],
             routeVizMode: 0,
+            dotsMode: 'outbound',
             _modeStyle: 'emoji',
             sessionStats: { totalDown: 0, totalUp: 0, peakDown: 0, peakUp: 0 },
             events: [],
@@ -2574,16 +2576,23 @@
 
                         const B_ID    = { auto: 'rl-auto', ny: 'rl-ny', direct: 'rl-dir' };
                         const B_COLOR = { auto: '#c9a84c',  ny: '#60a5fa',  direct: '#94a3b8' };
+                        const B_COLOR_RX = { auto: '#a8892e', ny: '#3b82f6', direct: '#64748b' };
                         const B_GLOW  = {
                             auto:   '0 0 8px rgba(201,168,76,0.5)',
                             ny:     '0 0 8px rgba(96,165,250,0.4)',
                             direct: '0 0 6px rgba(148,163,184,0.3)'
                         };
+                        const B_GLOW_RX = {
+                            auto:   '0 0 6px rgba(168,137,46,0.35)',
+                            ny:     '0 0 6px rgba(59,130,246,0.3)',
+                            direct: '0 0 4px rgba(100,116,139,0.2)'
+                        };
 
-                        const mkDot = (color, glow, sz) => {
+                        const mkDot = (color, glow, sz, opacity) => {
                             const d = document.createElement('div');
                             d.style.cssText = `position:absolute;top:50%;transform:translateY(-50%);border-radius:50%;` +
-                                `width:${sz}px;height:${sz}px;background:${color};box-shadow:${glow};pointer-events:none;`;
+                                `width:${sz}px;height:${sz}px;background:${color};box-shadow:${glow};pointer-events:none;` +
+                                (opacity != null ? `opacity:${opacity};` : '');
                             return d;
                         };
 
@@ -2620,75 +2629,132 @@
                                     ...Array(vp.rn_ny).fill('ny'),
                                     ...Array(vp.rn_direct).fill('direct')
                                 ];
+                                const bidir = state.dotsMode === 'bidirectional';
                                 branches.forEach((branch, i) => {
+                                    // In bidirectional mode, 40% of dots are inbound (direction -1)
+                                    const dir = (bidir && Math.random() < 0.4) ? -1 : 1;
                                     const x = (i / branches.length) * totalLen;
-                                    if (x < vp.inW) {
-                                        const el = document.getElementById('rl-in');
-                                        if (!el) return;
-                                        const dot = mkDot('#34d399', '0 0 8px rgba(52,211,153,0.6)', vp.globalSz);
-                                        dot.style.left = x + 'px';
-                                        el.appendChild(dot);
-                                        pkts.push({ el: dot, phase: 'in', x, branch });
+                                    if (dir === 1) {
+                                        // Outbound dot — same as before
+                                        if (x < vp.inW) {
+                                            const el = document.getElementById('rl-in');
+                                            if (!el) return;
+                                            const dot = mkDot('#34d399', '0 0 8px rgba(52,211,153,0.6)', vp.globalSz);
+                                            dot.style.left = x + 'px';
+                                            el.appendChild(dot);
+                                            pkts.push({ el: dot, phase: 'in', x, branch, dir: 1 });
+                                        } else {
+                                            const el = document.getElementById(B_ID[branch]);
+                                            if (!el) return;
+                                            const bx = x - vp.inW;
+                                            const dot = mkDot(B_COLOR[branch], B_GLOW[branch], vp.globalSz);
+                                            dot.style.left = bx + 'px';
+                                            el.appendChild(dot);
+                                            pkts.push({ el: dot, phase: 'out', x: bx, branch, dir: 1 });
+                                        }
                                     } else {
-                                        const el = document.getElementById(B_ID[branch]);
-                                        if (!el) return;
-                                        const bx = x - vp.inW;
-                                        const dot = mkDot(B_COLOR[branch], B_GLOW[branch], vp.globalSz);
-                                        dot.style.left = bx + 'px';
-                                        el.appendChild(dot);
-                                        pkts.push({ el: dot, phase: 'out', x: bx, branch });
+                                        // Inbound dot — starts on branch line, moves toward devices
+                                        if (x < vp.outW) {
+                                            const el = document.getElementById(B_ID[branch]);
+                                            if (!el) return;
+                                            const bx = vp.outW - x;
+                                            const dot = mkDot(B_COLOR_RX[branch], B_GLOW_RX[branch], vp.globalSz * 0.85, 0.7);
+                                            dot.style.left = bx + 'px';
+                                            el.appendChild(dot);
+                                            pkts.push({ el: dot, phase: 'out', x: bx, branch, dir: -1 });
+                                        } else {
+                                            const el = document.getElementById('rl-in');
+                                            if (!el) return;
+                                            const ix = vp.inW - (x - vp.outW);
+                                            const dot = mkDot('#2dd4a0', '0 0 6px rgba(45,212,160,0.4)', vp.globalSz * 0.85, 0.7);
+                                            dot.style.left = Math.max(0, ix) + 'px';
+                                            el.appendChild(dot);
+                                            pkts.push({ el: dot, phase: 'in', x: Math.max(0, ix), branch, dir: -1 });
+                                        }
                                     }
                                 });
                             }
 
                             // Update each packet
+                            const rxSpeedMul = 1.25; // inbound dots move 25% faster (download > upload)
                             for (let i = pkts.length - 1; i >= 0; i--) {
                                 const pk = pkts[i];
-                                pk.x += pixPerSec * dt;
+                                if (!pk.dir) pk.dir = 1; // default outbound for legacy packets
+                                const speed = pk.dir === -1 ? pixPerSec * rxSpeedMul : pixPerSec;
 
-                                if (pk.phase === 'in') {
-                                    if (pk.x >= vp.inW) {
-                                        // Arrived at GSG — switch to branch with new color
-                                        try { pk.el.parentNode?.removeChild(pk.el); } catch(e){}
-                                        const bEl = document.getElementById(B_ID[pk.branch]);
-                                        if (!bEl) { pkts.splice(i, 1); continue; }
-                                        const sz = pk._sz ?? vp.globalSz;
-                                        const dot = mkDot(B_COLOR[pk.branch], B_GLOW[pk.branch], sz);
-                                        dot.style.left = '0px';
-                                        dot._sz = sz;
-                                        bEl.appendChild(dot);
-                                        pk.el = dot; pk.phase = 'out'; pk.x = 0;
+                                if (pk.dir === 1) {
+                                    // ── OUTBOUND (client → apps) ──
+                                    pk.x += speed * dt;
+                                    if (pk.phase === 'in') {
+                                        if (pk.x >= vp.inW) {
+                                            try { pk.el.parentNode?.removeChild(pk.el); } catch(e){}
+                                            const bEl = document.getElementById(B_ID[pk.branch]);
+                                            if (!bEl) { pkts.splice(i, 1); continue; }
+                                            const sz = pk._sz ?? vp.globalSz;
+                                            const dot = mkDot(B_COLOR[pk.branch], B_GLOW[pk.branch], sz);
+                                            dot.style.left = '0px';
+                                            dot._sz = sz;
+                                            bEl.appendChild(dot);
+                                            pk.el = dot; pk.phase = 'out'; pk.x = 0;
+                                        } else {
+                                            pk.el.style.left = pk.x + 'px';
+                                        }
                                     } else {
+                                        if (pk.x >= vp.outW) {
+                                            try { pk.el.parentNode?.removeChild(pk.el); } catch(e){}
+                                            if (box._activeDots) box._activeDots[pk.branch] = Math.max(0, (box._activeDots[pk.branch] || 1) - 1);
+                                            const _appsId = pk.branch === 'direct' ? 'rl-dir-apps' : pk.branch === 'ny' ? 'rl-ny-apps' : 'rl-auto-apps';
+                                            const _appsEl = document.getElementById(_appsId);
+                                            if (_appsEl?.children.length) {
+                                                const _ri = Math.floor(Math.random() * _appsEl.children.length);
+                                                const _icon = _appsEl.children[_ri];
+                                                if (_icon) {
+                                                    _icon.classList.remove('app-flash');
+                                                    void _icon.offsetWidth;
+                                                    _icon.classList.add('app-flash');
+                                                    setTimeout(() => _icon.classList.remove('app-flash'), 600);
+                                                }
+                                            }
+                                            pkts.splice(i, 1);
+                                            continue;
+                                        }
                                         pk.el.style.left = pk.x + 'px';
                                     }
                                 } else {
-                                    if (pk.x >= vp.outW) {
-                                        // Reached apps — flash icon, remove dot
-                                        try { pk.el.parentNode?.removeChild(pk.el); } catch(e){}
-                                        if (box._activeDots) box._activeDots[pk.branch] = Math.max(0, (box._activeDots[pk.branch] || 1) - 1);
-                                        // Flash next app icon (round-robin)
-                                        const _appsId = pk.branch === 'direct' ? 'rl-dir-apps' : pk.branch === 'ny' ? 'rl-ny-apps' : 'rl-auto-apps';
-                                        const _appsEl = document.getElementById(_appsId);
-                                        if (_appsEl?.children.length) {
-                                            const _ri = Math.floor(Math.random() * _appsEl.children.length);
-                                            const _icon = _appsEl.children[_ri];
-                                            if (_icon) {
-                                                _icon.classList.remove('app-flash');
-                                                void _icon.offsetWidth;
-                                                _icon.classList.add('app-flash');
-                                                setTimeout(() => _icon.classList.remove('app-flash'), 600);
-                                            }
+                                    // ── INBOUND (apps → client) ──
+                                    pk.x -= speed * dt;
+                                    if (pk.phase === 'out') {
+                                        if (pk.x <= 0) {
+                                            // Arrived at GSG — switch to inbound green line
+                                            try { pk.el.parentNode?.removeChild(pk.el); } catch(e){}
+                                            const inEl = document.getElementById('rl-in');
+                                            if (!inEl) { pkts.splice(i, 1); continue; }
+                                            const sz = pk._sz ?? vp.globalSz * 0.85;
+                                            const dot = mkDot('#2dd4a0', '0 0 6px rgba(45,212,160,0.4)', sz, 0.7);
+                                            dot.style.left = vp.inW + 'px';
+                                            dot._sz = sz;
+                                            inEl.appendChild(dot);
+                                            pk.el = dot; pk.phase = 'in'; pk.x = vp.inW;
+                                        } else {
+                                            pk.el.style.left = pk.x + 'px';
                                         }
-                                        pkts.splice(i, 1);
-                                        continue;
+                                    } else {
+                                        if (pk.x <= 0) {
+                                            // Reached devices — remove dot
+                                            try { pk.el.parentNode?.removeChild(pk.el); } catch(e){}
+                                            if (box._activeDots) box._activeDots[pk.branch] = Math.max(0, (box._activeDots[pk.branch] || 1) - 1);
+                                            pkts.splice(i, 1);
+                                            continue;
+                                        }
+                                        pk.el.style.left = pk.x + 'px';
                                     }
-                                    pk.el.style.left = pk.x + 'px';
                                 }
                             }
 
                             // Spawn new packets — one dot per traffic spike (each spike = one bump on the chart)
                             const spwn = box._vizSpawn;
                             const sq = state._spikeQueue || {};
+                            const bidir = state.dotsMode === 'bidirectional';
                             for (const br of ['auto', 'ny', 'direct']) {
                                 if (!(sq[br] > 0)) continue;
                                 // Drain at max 4 dots/sec so they don't all appear at once
@@ -2696,15 +2762,30 @@
                                 while (spwn[br] >= 1 && sq[br] > 0) {
                                     spwn[br] -= 1;
                                     sq[br]--;
-                                    const el = document.getElementById('rl-in');
-                                    if (!el) break;
-                                    const sz = vp.globalSz;
-                                    const dot = mkDot('#34d399', '0 0 8px rgba(52,211,153,0.6)', sz);
-                                    dot.style.left = '0px';
-                                    dot._sz = sz;
-                                    el.appendChild(dot);
-                                    if (box._activeDots) box._activeDots[br] = (box._activeDots[br] || 0) + 1;
-                                    pkts.push({ el: dot, phase: 'in', x: 0, branch: br });
+                                    const dir = (bidir && Math.random() < 0.4) ? -1 : 1;
+                                    if (dir === 1) {
+                                        // Outbound: start at devices, move right
+                                        const el = document.getElementById('rl-in');
+                                        if (!el) break;
+                                        const sz = vp.globalSz;
+                                        const dot = mkDot('#34d399', '0 0 8px rgba(52,211,153,0.6)', sz);
+                                        dot.style.left = '0px';
+                                        dot._sz = sz;
+                                        el.appendChild(dot);
+                                        if (box._activeDots) box._activeDots[br] = (box._activeDots[br] || 0) + 1;
+                                        pkts.push({ el: dot, phase: 'in', x: 0, branch: br, dir: 1 });
+                                    } else {
+                                        // Inbound: start at apps end, move left
+                                        const el = document.getElementById(B_ID[br]);
+                                        if (!el) break;
+                                        const sz = vp.globalSz * 0.85;
+                                        const dot = mkDot(B_COLOR_RX[br], B_GLOW_RX[br], sz, 0.7);
+                                        dot.style.left = vp.outW + 'px';
+                                        dot._sz = sz;
+                                        el.appendChild(dot);
+                                        if (box._activeDots) box._activeDots[br] = (box._activeDots[br] || 0) + 1;
+                                        pkts.push({ el: dot, phase: 'out', x: vp.outW, branch: br, dir: -1 });
+                                    }
                                 }
                             }
                         };
@@ -3157,6 +3238,22 @@
                     if (box._vizPackets) { box._vizPackets.forEach(p => { try { p.el?.parentNode?.removeChild(p.el); } catch(e){} }); box._vizPackets = []; }
                 }
                 ui.renderRouteViz();
+            },
+
+            toggleDotsMode: () => {
+                state.dotsMode = state.dotsMode === 'outbound' ? 'bidirectional' : 'outbound';
+                localStorage.setItem('gsg_dots_mode', state.dotsMode);
+                const btn = document.getElementById('dotsModeBtn');
+                if (btn) {
+                    btn.textContent = state.dotsMode === 'outbound' ? '\u2192' : '\u21C4';
+                    btn.title = state.dotsMode === 'outbound' ? 'Направление: исходящий' : 'Направление: двусторонний';
+                }
+                // Force re-seed so new dots pick up direction
+                const box = document.getElementById('routeViz');
+                if (box) {
+                    box._vizSeeded = false;
+                    if (box._vizPackets) { box._vizPackets.forEach(p => { try { p.el?.parentNode?.removeChild(p.el); } catch(e){} }); box._vizPackets = []; }
+                }
             },
 
             openFeedback: () => {
@@ -4496,6 +4593,14 @@
         if (savedVizMode !== null) GatewayApp.state.routeVizMode = parseInt(savedVizMode) || 0;
         const vizBtn = document.getElementById('vizModeBtn');
         if (vizBtn) vizBtn.textContent = GatewayApp.state.routeVizMode === 0 ? 'Точки' : 'Графики';
+
+        const savedDotsMode = localStorage.getItem('gsg_dots_mode');
+        if (savedDotsMode === 'bidirectional') GatewayApp.state.dotsMode = 'bidirectional';
+        const dotsBtn = document.getElementById('dotsModeBtn');
+        if (dotsBtn) {
+            dotsBtn.textContent = GatewayApp.state.dotsMode === 'outbound' ? '\u2192' : '\u21C4';
+            dotsBtn.title = GatewayApp.state.dotsMode === 'outbound' ? 'Направление: исходящий' : 'Направление: двусторонний';
+        }
 
         GatewayApp.init();
 
