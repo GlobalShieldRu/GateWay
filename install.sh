@@ -144,23 +144,52 @@ DHCP_END="${DHCP_END:-$DEFAULT_END}"
 echo ""
 
 # ── Системные настройки ───────────────────────
-info "Включение IP forwarding и настройка conntrack..."
+info "Настройка параметров ядра..."
+
+# BBR — лучший алгоритм TCP для VPN/proxy (загружаем модуль)
+echo 'tcp_bbr' > /etc/modules-load.d/gsg-bbr.conf
+modprobe tcp_bbr 2>/dev/null || true
+
 cat > /etc/sysctl.d/99-gsg.conf << 'EOF'
-# IP forwarding (обязателен для маршрутизации)
+# ── Routing ──────────────────────────────────────────────────────────────────
 net.ipv4.ip_forward = 1
 
-# Conntrack: увеличенный лимит для VPN-шлюза
-# По умолчанию 8192 — переполняется при нагрузке и дропает все новые пакеты (в т.ч. SSH)
-net.netfilter.nf_conntrack_max = 131072
+# ── TCP congestion: BBR + Fair Queue — лучший throughput для VPN/proxy ───────
+net.core.default_qdisc = fq
+net.ipv4.tcp_congestion_control = bbr
 
-# Сокращённые таймауты — мёртвые соединения не накапливаются
+# ── Socket buffers: 16 MB (было 208 KB) ──────────────────────────────────────
+net.core.rmem_max = 16777216
+net.core.wmem_max = 16777216
+net.ipv4.tcp_rmem = 4096 87380 16777216
+net.ipv4.tcp_wmem = 4096 16384 16777216
+net.core.netdev_max_backlog = 5000
+
+# ── Порты для исходящих соединений (Mihomo создаёт много) ────────────────────
+net.ipv4.ip_local_port_range = 1024 65535
+net.ipv4.tcp_tw_reuse = 1
+
+# ── Conntrack: увеличенный лимит (8192 по умолчанию — переполняется, дропает SSH) ──
+net.netfilter.nf_conntrack_max = 131072
 net.netfilter.nf_conntrack_tcp_timeout_established = 600
 net.netfilter.nf_conntrack_tcp_timeout_time_wait = 30
 net.netfilter.nf_conntrack_tcp_timeout_close_wait = 30
 net.netfilter.nf_conntrack_tcp_timeout_fin_wait = 30
+
+# ── eMMC: снижаем износ флеша ────────────────────────────────────────────────
+vm.swappiness = 10
+vm.dirty_ratio = 10
+vm.dirty_background_ratio = 5
+vm.dirty_expire_centisecs = 1500
+vm.dirty_writeback_centisecs = 500
+
+# ── Стабильность: авто-перезагрузка при панике ядра ──────────────────────────
+kernel.panic = 10
+kernel.panic_on_oops = 1
 EOF
+
 sysctl -p /etc/sysctl.d/99-gsg.conf -q
-success "IP forwarding и conntrack настроены"
+success "Параметры ядра настроены"
 
 # Hardware watchdog
 if [ -e /dev/watchdog ]; then
