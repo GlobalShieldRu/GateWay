@@ -2167,9 +2167,11 @@
                 if (data.tunnel.status === 'ok') {
                     state._tunnelOfflineCount = 0;
                     if (state._tunnelWasOffline && state._tunnelConfirmedOnline) {
-                        // Tunnel came back after confirmed downtime — start warming timer
+                        const offlineDuration = state._tunnelOfflineAt ? Date.now() - state._tunnelOfflineAt : 0;
                         state._tunnelWasOffline = false;
-                        state._tunnelOnlineAt = Date.now();
+                        state._tunnelOfflineAt = 0;
+                        // Only show warming timer if was truly offline ≥10 seconds
+                        if (offlineDuration >= 10000) state._tunnelOnlineAt = Date.now();
                     }
                     state._tunnelConfirmedOnline = true;
                     const warmingSec = 60;
@@ -2186,7 +2188,9 @@
                     state._tunnelOfflineCount = (state._tunnelOfflineCount || 0) + 1;
                     // Show offline only after 2 consecutive failures to avoid flicker
                     if (state._tunnelOfflineCount >= 2) {
-                        if (state._tunnelConfirmedOnline) state._tunnelWasOffline = true;
+                        if (state._tunnelConfirmedOnline && !state._tunnelOfflineAt) {
+                            state._tunnelOfflineAt = Date.now(); // record when offline started
+                        }
                         badge.className = 'status-badge offline';
                         badge.innerHTML = '<div class="pulse-dot red"></div> Туннель недоступен';
                     }
@@ -3844,6 +3848,20 @@
                             if (delta > SPIKE_THRESH) {
                                 state._spikeQueue[br] = Math.min(MAX_Q, (state._spikeQueue[br]||0) + Math.max(1, Math.round(delta / SPIKE_UNIT)));
                                 state._bpsBase[br] = cur;           // anchor baseline to new peak
+                                // Flash one random active app chip in device list for this branch
+                                const _nyApps   = ['gemini','claude','chatgpt'];
+                                const _autoApps = ['telegram','tiktok','youtube','instagram','twitter'];
+                                const _brApps   = br === 'ny' ? _nyApps : br === 'auto' ? _autoApps : null;
+                                if (_brApps) {
+                                    const _chips = [...document.querySelectorAll('.app-chip.active')].filter(el => _brApps.includes(el.dataset.app));
+                                    if (_chips.length) {
+                                        const _chip = _chips[Math.floor(Math.random() * _chips.length)];
+                                        _chip.classList.remove('app-flash');
+                                        void _chip.offsetWidth;
+                                        _chip.classList.add('app-flash');
+                                        setTimeout(() => _chip.classList.remove('app-flash'), 600);
+                                    }
+                                }
                             } else {
                                 // Baseline decays toward 0 when traffic is idle or dropping
                                 state._bpsBase[br] = Math.min(cur, base * DECAY);
