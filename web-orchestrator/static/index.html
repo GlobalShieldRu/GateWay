@@ -1242,6 +1242,7 @@
                     </div>
                     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;" id="modeStyleGrid">
 
+
                         <!-- Emoji -->
                         <div id="modeStyleCardEmoji" onclick="GatewayApp.ui.setModeStyle('emoji')" style="cursor:pointer;border-radius:14px;border:2px solid rgba(201,168,76,0.5);background:rgba(201,168,76,0.06);padding:16px 12px 14px;display:flex;flex-direction:column;align-items:center;gap:10px;transition:all 0.18s;">
                             <div style="display:flex;flex-direction:column;gap:5px;width:100%;">
@@ -1281,6 +1282,34 @@
                             <div style="text-align:center;">
                                 <div style="font-size:11px;font-weight:700;color:#f1f5f9;">Минимал</div>
                                 <div style="font-size:9px;color:var(--muted);margin-top:2px;">Цветные точки</div>
+                            </div>
+                        </div>
+
+                        <!-- Pill -->
+                        <div id="modeStyleCardPill" onclick="GatewayApp.ui.setModeStyle('pill')" style="cursor:pointer;border-radius:14px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);padding:16px 12px 14px;display:flex;flex-direction:column;align-items:center;gap:10px;transition:all 0.18s;" onmouseover="this.style.borderColor='rgba(201,168,76,0.3)'" onmouseout="if(localStorage.getItem('gsg_mode_style')!='pill')this.style.borderColor='rgba(255,255,255,0.08)'">
+                            <div style="display:flex;flex-direction:column;gap:5px;width:100%;">
+                                <div><span style="display:inline-block;padding:1px 7px;border-radius:20px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.4);font-size:9px;font-weight:700;color:#3b82f6;text-transform:uppercase;letter-spacing:0.04em;">Global</span></div>
+                                <div><span style="display:inline-block;padding:1px 7px;border-radius:20px;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.4);font-size:9px;font-weight:700;color:#c9a84c;text-transform:uppercase;letter-spacing:0.04em;">Smart</span></div>
+                                <div><span style="display:inline-block;padding:1px 7px;border-radius:20px;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);font-size:9px;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:0.04em;">Bypass</span></div>
+                                <div><span style="display:inline-block;padding:1px 7px;border-radius:20px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);font-size:9px;font-weight:700;color:#ef4444;text-transform:uppercase;letter-spacing:0.04em;">Block</span></div>
+                            </div>
+                            <div style="text-align:center;">
+                                <div style="font-size:11px;font-weight:700;color:#f1f5f9;">Таблетки</div>
+                                <div style="font-size:9px;color:var(--muted);margin-top:2px;">Пилюли с текстом</div>
+                            </div>
+                        </div>
+
+                        <!-- Neon -->
+                        <div id="modeStyleCardNeon" onclick="GatewayApp.ui.setModeStyle('neon')" style="cursor:pointer;border-radius:14px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);padding:16px 12px 14px;display:flex;flex-direction:column;align-items:center;gap:10px;transition:all 0.18s;" onmouseover="this.style.borderColor='rgba(201,168,76,0.3)'" onmouseout="if(localStorage.getItem('gsg_mode_style')!='neon')this.style.borderColor='rgba(255,255,255,0.08)'">
+                            <div style="display:flex;flex-direction:column;gap:5px;width:100%;">
+                                <div style="font-size:11px;color:#94a3b8;white-space:nowrap;display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:50%;background:#3b82f6;display:inline-block;box-shadow:0 0 6px #3b82f6,0 0 14px #3b82f688;flex-shrink:0;"></span>Global</div>
+                                <div style="font-size:11px;color:#94a3b8;white-space:nowrap;display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:50%;background:#c9a84c;display:inline-block;box-shadow:0 0 6px #c9a84c,0 0 14px #c9a84c88;flex-shrink:0;"></span>Smart</div>
+                                <div style="font-size:11px;color:#94a3b8;white-space:nowrap;display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:50%;background:#f59e0b;display:inline-block;box-shadow:0 0 6px #f59e0b,0 0 14px #f59e0b88;flex-shrink:0;"></span>Bypass</div>
+                                <div style="font-size:11px;color:#94a3b8;white-space:nowrap;display:flex;align-items:center;gap:6px;"><span style="width:10px;height:10px;border-radius:50%;background:#ef4444;display:inline-block;box-shadow:0 0 6px #ef4444,0 0 14px #ef444488;flex-shrink:0;"></span>Block</div>
+                            </div>
+                            <div style="text-align:center;">
+                                <div style="font-size:11px;font-weight:700;color:#f1f5f9;">Неон</div>
+                                <div style="font-size:9px;color:var(--muted);margin-top:2px;">Светящиеся точки</div>
                             </div>
                         </div>
 
@@ -1703,7 +1732,7 @@
             },
 
             renderDevices: (devices) => {
-                const newHash = JSON.stringify(devices) + JSON.stringify(state.nodes) + JSON.stringify(state.deviceApps);
+                const newHash = JSON.stringify(devices) + JSON.stringify(state.nodes) + JSON.stringify(state.deviceApps) + (state._modeStyle||'emoji');
                 if (state._devicesHash === newHash) return;
                 state._devicesHash = newHash;
 
@@ -1804,11 +1833,20 @@
                     const _modeColors = { global:'#3b82f6', smart:'#c9a84c', bypass:'#f59e0b', block:'#ef4444' };
                     const _modeC = _modeColors[dev.mode] || '#64748b';
                     const _ms = state._modeStyle || 'emoji';
+                    const _modeAbbrMap = {global:'GL',smart:'SM',bypass:'BP',block:'BL'};
+                    const _modeTextMap = {global:'Global',smart:'Smart',bypass:'Bypass',block:'Block'};
+                    const _modeEmojiMap = {global:'🌐',smart:'🧠',bypass:'⚡',block:'🚫'};
                     const modeIndicator = _ms === 'emoji'
-                        ? `<span style="font-size:14px;flex-shrink:0;" title="${dev.mode}">${{global:'🌐',smart:'🧠',bypass:'⚡',block:'🚫'}[dev.mode]||'🌐'}</span>`
+                        ? `<span style="font-size:14px;flex-shrink:0;" title="${dev.mode}">${_modeEmojiMap[dev.mode]||'🌐'}</span>`
                         : _ms === 'badge'
-                        ? `<span style="display:inline-flex;align-items:center;justify-content:center;padding:0 5px;height:16px;border-radius:3px;background:${_modeC}22;border:1px solid ${_modeC};font-family:'JetBrains Mono',monospace;font-weight:700;font-size:8px;color:${_modeC};flex-shrink:0;" title="${dev.mode}">${{global:'GL',smart:'SM',bypass:'BP',block:'BL'}[dev.mode]||'GL'}</span>`
-                        : `<span style="width:8px;height:8px;border-radius:50%;background:${_modeC};display:inline-block;flex-shrink:0;box-shadow:0 0 6px ${_modeC}99;" title="${dev.mode}"></span>`;
+                        ? `<span style="display:inline-flex;align-items:center;justify-content:center;padding:0 5px;height:16px;border-radius:3px;background:${_modeC}22;border:1px solid ${_modeC};font-family:'JetBrains Mono',monospace;font-weight:700;font-size:8px;color:${_modeC};flex-shrink:0;" title="${dev.mode}">${_modeAbbrMap[dev.mode]||'GL'}</span>`
+                        : _ms === 'minimal'
+                        ? `<span style="width:8px;height:8px;border-radius:50%;background:${_modeC};display:inline-block;flex-shrink:0;box-shadow:0 0 6px ${_modeC}99;" title="${dev.mode}"></span>`
+                        : _ms === 'pill'
+                        ? `<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;background:${_modeC}1a;border:1px solid ${_modeC}55;font-size:9px;font-weight:700;color:${_modeC};flex-shrink:0;letter-spacing:0.04em;text-transform:uppercase;" title="${dev.mode}">${_modeTextMap[dev.mode]||dev.mode}</span>`
+                        : _ms === 'neon'
+                        ? `<span style="width:10px;height:10px;border-radius:50%;background:${_modeC};display:inline-block;flex-shrink:0;box-shadow:0 0 6px ${_modeC},0 0 14px ${_modeC}88,0 0 22px ${_modeC}44;" title="${dev.mode}"></span>`
+                        : `<span style="font-size:14px;flex-shrink:0;" title="${dev.mode}">${_modeEmojiMap[dev.mode]||'🌐'}</span>`;
 
                     let routeHtml;
                     if (dev.mode === 'bypass') {
@@ -1904,7 +1942,7 @@
                         <div>
                             <div style="display:flex;flex-direction:column;gap:6px;">
                                 <select class="gsg-select device-mode-select" data-ip="${dev.ip}" style="width:100%;" title="Global — весь трафик через VPN\nSmart — умная маршрутизация: заблокированные сайты через VPN, остальное напрямую\nBypass — весь трафик напрямую, без VPN\nBlock — заблокировать устройство">
-                                    ${(() => { const ms = state._modeStyle || 'emoji'; const lbl = { emoji: ['\uD83C\uDF10 Global','\uD83E\uDDE0 Smart','\u26A1 Bypass','\uD83D\uDEAB Block'], badge: ['GL \xB7 Global','SM \xB7 Smart','BP \xB7 Bypass','BL \xB7 Block'], minimal: ['\u25CF Global','\u25CF Smart','\u25CF Bypass','\u25CF Block'] }[ms] || ['\uD83C\uDF10 Global','\uD83E\uDDE0 Smart','\u26A1 Bypass','\uD83D\uDEAB Block']; return ['global','smart','bypass','block'].map((v,i)=>`<option value="${v}" ${dev.mode===v?'selected':''}>${lbl[i]}</option>`).join(''); })()}
+                                    ${(() => { const ms = state._modeStyle || 'emoji'; const lbl = { emoji: ['🌐 Global','🧠 Smart','⚡ Bypass','🚫 Block'], badge: ['GL · Global','SM · Smart','BP · Bypass','BL · Block'], minimal: ['● Global','● Smart','● Bypass','● Block'], pill: ['Global','Smart','Bypass','Block'], neon: ['⬤ Global','⬤ Smart','⬤ Bypass','⬤ Block'] }[ms] || ['🌐 Global','🧠 Smart','⚡ Bypass','🚫 Block']; return ['global','smart','bypass','block'].map((v,i)=>`<option value="${v}" ${dev.mode===v?'selected':''}>${lbl[i]}</option>`).join(''); })()}
                                 </select>
                                 <select class="gsg-select device-node-select" data-ip="${dev.ip}" style="width:100%;" ${isBlocked?'disabled':''}>
                                     ${optionsHtml}
@@ -2999,7 +3037,7 @@
             setModeStyle: (style) => {
                 localStorage.setItem('gsg_mode_style', style);
                 state._modeStyle = style;
-                const styles = ['emoji', 'badge', 'minimal'];
+                const styles = ['emoji', 'badge', 'minimal', 'pill', 'neon'];
                 styles.forEach(s => {
                     const el = document.getElementById('modeStyleCard' + s.charAt(0).toUpperCase() + s.slice(1));
                     if (!el) return;
