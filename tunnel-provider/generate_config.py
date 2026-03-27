@@ -80,13 +80,7 @@ def main():
 
     node_names = [n["name"] for n in nodes]
 
-    matched_global = "auto"
-    if global_node != "auto":
-        for n in node_names:
-            if global_node.lower() in n.lower():
-                matched_global = n
-                break
-    global_node = matched_global
+    global_node_kw = global_node  # keyword to resolve after groups are built
 
     server_config["tproxy-port"] = int(os.getenv("GSG_TPROXY_PORT", "12345"))
     server_config["mixed-port"] = 2080
@@ -116,22 +110,64 @@ def main():
     if "proxy-groups" not in server_config:
         server_config["proxy-groups"] = []
 
-    # Гарантируем наличие группы "auto" — на неё ссылаются все правила
+    # Гарантируем наличие группы "auto" — все узлы, лучший по пингу
     existing_group_names = [g["name"] for g in server_config["proxy-groups"]]
     if "auto" not in existing_group_names:
         auto_proxies = node_names if node_names else ["GSG-FALLBACK"]
         server_config["proxy-groups"].insert(0, {
             "name": "auto", "type": "url-test",
             "proxies": auto_proxies,
-            "url": "http://www.gstatic.com/generate_204", "interval": 300
+            "url": "http://www.gstatic.com/generate_204", "interval": 300,
+            "lazy": False
         })
+
+    # ── Geo-based proxy groups ───────────────────────────────────────────────
+    # Правила ссылаются на группы, а не на конкретные узлы.
+    # Если узел недоступен — Mihomo выбирает следующий живой по пингу.
+    # Если узел переименован — он останется в группе, пока имя содержит ключевое слово.
+    # Если все узлы группы пропали — группа не создаётся, используется fallback 'auto'.
+
+    _built_groups = {}  # keyword -> group_name
+
+    def _make_url_test(name, proxies):
+        return {"name": name, "type": "url-test", "proxies": proxies,
+                "url": "http://www.gstatic.com/generate_204", "interval": 300, "lazy": False}
+
+    def resolve_assign(keyword):
+        """Разрешает ключевое слово (assigned_node) в имя geo-группы.
+        Создаёт группу при первом обращении. Возвращает 'auto' если узлов нет."""
+        if not keyword or keyword == "auto":
+            return "auto"
+        kw = keyword.lower()
+        if kw in _built_groups:
+            return _built_groups[kw]
+        matched = [n for n in node_names if re.search(re.escape(kw), n, re.I)]
+        if matched:
+            gname = f"gsg-{kw}"
+            server_config["proxy-groups"].append(_make_url_test(gname, matched))
+            _built_groups[kw] = gname
+        else:
+            _built_groups[kw] = "auto"
+        return _built_groups[kw]
+
+    # US-группа — для сервисов с гео-ограничением (Gemini, Claude, ChatGPT)
+    US_KEYWORDS = ['ny', 'new york', 'new-york', 'us', 'usa', 'america', 'american']
+    us_nodes = [n for n in node_names if re.search(r'ny\b|new[\s\-]?york|\bus\b|\busa\b', n, re.I)]
+    if us_nodes:
+        server_config["proxy-groups"].append(_make_url_test("gsg-us", us_nodes))
+        us_target = "gsg-us"
+        # Регистрируем US-ключевые слова — resolve_assign переиспользует gsg-us
+        for kw in US_KEYWORDS:
+            _built_groups[kw] = "gsg-us"
+    else:
+        us_target = "auto"
+
+    # Резолвим global_node в группу
+    global_node = resolve_assign(global_node_kw)
 
     rules = []
     rule_providers = {}
     sub_rules = {}
-
-    # Находим NY-узел для geo-restricted сервисов (Gemini, Claude)
-    ny_node = next((n for n in node_names if re.search(r'ny|new[\s\-]?york', n, re.I)), None)
 
     # Блокируем инфраструктуру iCloud Private Relay.
     # iOS обнаружит недоступность relay и автоматически отключит Private Relay для этой сети,
@@ -150,12 +186,8 @@ def main():
         mode = info.get('mode', 'smart')
         assign = info.get('assigned_node', 'auto')
 
-        target = global_node
-        if assign != 'auto':
-            for name in node_names:
-                if assign.lower() in name.lower():
-                    target = name
-                    break
+        # Резолвим assigned_node в geo-группу (или 'auto')
+        target = resolve_assign(assign) if assign != 'auto' else global_node
 
         if mode == 'block':
             rules.append(f"SRC-IP-CIDR,{ip}/32,REJECT")
@@ -167,8 +199,7 @@ def main():
             sub_name = f"smart_{ip.replace('.', '_')}"
             device_sub = []
 
-            # US-only сервисы всегда через NY-узел
-            us_target = ny_node or target
+            # US-only сервисы через gsg-us группу (лучший US-узел по пингу)
             device_sub.append(f"DOMAIN-SUFFIX,gemini.google.com,{us_target}")
             device_sub.append(f"DOMAIN-SUFFIX,generativelanguage.googleapis.com,{us_target}")
             device_sub.append(f"DOMAIN-SUFFIX,claude.ai,{us_target}")
@@ -176,7 +207,7 @@ def main():
             device_sub.append(f"DOMAIN-SUFFIX,openai.com,{us_target}")
             device_sub.append(f"DOMAIN-SUFFIX,chatgpt.com,{us_target}")
 
-            # Сервисы скорости/диагностики — не в RKN-листе, но часто блокируются провайдером
+            # Сервисы скорости/диагностики
             device_sub.append(f"DOMAIN-SUFFIX,speedtest.net,{target}")
             device_sub.append(f"DOMAIN-SUFFIX,ookla.com,{target}")
             device_sub.append(f"DOMAIN-SUFFIX,fast.com,{target}")
@@ -184,14 +215,10 @@ def main():
 
             if rulesets.get('rkn_bypass', True):
                 device_sub.append(f"GEOSITE,youtube,{target}")
-                # TikTok: use per-device tiktok_node if set, else device target
-                tiktok_raw = info.get('tiktok_node', 'auto')
-                tiktok_target = target  # default
-                if tiktok_raw and tiktok_raw != 'auto':
-                    for name in node_names:
-                        if tiktok_raw.lower() in name.lower():
-                            tiktok_target = name
-                            break
+                # TikTok: per-device tiktok_node резолвится в группу
+                tiktok_target = resolve_assign(info.get('tiktok_node', 'auto'))
+                if tiktok_target == 'auto':
+                    tiktok_target = target
                 device_sub.append(f"GEOSITE,tiktok,{tiktok_target}")
                 device_sub.append(f"GEOSITE,meta,{target}")
                 device_sub.append(f"GEOSITE,instagram,{target}")
@@ -213,14 +240,13 @@ def main():
     # Smart fallback for devices NOT in devices.json (new/guest devices).
     # Without this they would hit MATCH,VPN and all traffic goes through the tunnel —
     # which breaks speedtest, some Russian services, and wastes VPN bandwidth.
-    _ny = ny_node or global_node
     global_smart = []
-    global_smart.append(f"DOMAIN-SUFFIX,gemini.google.com,{_ny}")
-    global_smart.append(f"DOMAIN-SUFFIX,generativelanguage.googleapis.com,{_ny}")
-    global_smart.append(f"DOMAIN-SUFFIX,claude.ai,{_ny}")
-    global_smart.append(f"DOMAIN-SUFFIX,anthropic.com,{_ny}")
-    global_smart.append(f"DOMAIN-SUFFIX,openai.com,{_ny}")
-    global_smart.append(f"DOMAIN-SUFFIX,chatgpt.com,{_ny}")
+    global_smart.append(f"DOMAIN-SUFFIX,gemini.google.com,{us_target}")
+    global_smart.append(f"DOMAIN-SUFFIX,generativelanguage.googleapis.com,{us_target}")
+    global_smart.append(f"DOMAIN-SUFFIX,claude.ai,{us_target}")
+    global_smart.append(f"DOMAIN-SUFFIX,anthropic.com,{us_target}")
+    global_smart.append(f"DOMAIN-SUFFIX,openai.com,{us_target}")
+    global_smart.append(f"DOMAIN-SUFFIX,chatgpt.com,{us_target}")
     global_smart.append(f"DOMAIN-SUFFIX,speedtest.net,{global_node}")
     global_smart.append(f"DOMAIN-SUFFIX,ookla.com,{global_node}")
     global_smart.append(f"DOMAIN-SUFFIX,fast.com,{global_node}")

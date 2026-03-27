@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>GlobalShield Gateway</title>
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="alternate icon" type="image/png" href="/static/logo.png">
+    <link rel="apple-touch-icon" href="/static/logo.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -177,6 +179,11 @@
             background: rgba(255,255,255,0.06);
             border: 1px solid rgba(255,255,255,0.1);
             color: var(--muted);
+        }
+        .status-badge.warming {
+            background: rgba(251,191,36,0.12);
+            border: 1px solid rgba(251,191,36,0.3);
+            color: #fbbf24;
         }
 
         /* Pulse dot */
@@ -818,6 +825,10 @@
                     <input id="feedbackName" type="text" placeholder="Имя или оставьте пустым" class="gsg-input" style="width:100%;padding:9px 12px;">
                 </div>
                 <div>
+                    <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:5px;">Telegram (необязательно)</label>
+                    <input id="feedbackTelegram" type="text" placeholder="@username" class="gsg-input" style="width:100%;padding:9px 12px;">
+                </div>
+                <div>
                     <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:5px;">Сообщение</label>
                     <textarea id="feedbackText" placeholder="Напишите ваше предложение или вопрос..." class="gsg-input" style="width:100%;padding:9px 12px;height:110px;resize:vertical;font-family:'Syne',sans-serif;"></textarea>
                 </div>
@@ -883,6 +894,11 @@
 
                     <!-- Route visualization (rendered by JS) -->
                     <div id="routeViz"></div>
+
+                    <!-- QUIC note -->
+                    <div style="margin-top:6px;font-size:9px;color:rgba(100,116,139,0.5);line-height:1.4;" title="Браузеры используют QUIC (UDP) для Gemini, ChatGPT, TikTok — трафик идёт через NY-узел, но UDP не отображается в мониторе соединений Mihomo. Точки через NY видны только при TCP-трафике.">
+                        ⓘ Точки NY — только TCP. Gemini / ChatGPT используют QUIC (UDP) — маршрут верный, но не виден в статистике.
+                    </div>
 
                     <!-- Traffic sparkline -->
                     <div id="trafficChartSection" style="margin-top:14px;border-top:1px solid rgba(255,255,255,0.04);padding-top:12px;">
@@ -1109,7 +1125,7 @@
             <div id="tab-connections" class="tab-content expert-item reveal reveal-2">
                 <div class="glass" style="padding:24px;">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                        <div style="font-size:15px;font-weight:800;color:#f1f5f9;display:flex;align-items:center;gap:8px;">
+                        <div style="font-size:15px;font-weight:800;color:#f1f5f9;display:flex;align-items:center;gap:8px;" title="Показаны только TCP-соединения. QUIC (HTTP/3, UDP 443) — Gemini, ChatGPT, TikTok — маршрутизируется корректно, но не отображается здесь: Mihomo не передаёт UDP в /connections API.">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
                             Активные соединения
                         </div>
@@ -1517,7 +1533,9 @@
             _trafficHistory: [],
             _trafficHistoryDevices: [],
             _chartPeriod: 'live',
-            _chartBars: []
+            _chartBars: [],
+            _tunnelOnlineAt: 0,
+            _tunnelWasOffline: false
         };
 
         const utils = {
@@ -1880,7 +1898,7 @@
                         <!-- Col 6: MODE/NODE -->
                         <div>
                             <div style="display:flex;flex-direction:column;gap:6px;">
-                                <select class="gsg-select device-mode-select" data-ip="${dev.ip}" style="width:100%;">
+                                <select class="gsg-select device-mode-select" data-ip="${dev.ip}" style="width:100%;" title="Global — весь трафик через VPN\nSmart — умная маршрутизация: заблокированные сайты через VPN, остальное напрямую\nBypass — весь трафик напрямую, без VPN\nBlock — заблокировать устройство">
                                     <option value="global" ${dev.mode==='global'?'selected':''}>🌐 Global</option>
                                     <option value="smart" ${dev.mode==='smart'?'selected':''}>🧠 Smart</option>
                                     <option value="bypass" ${dev.mode==='bypass'?'selected':''}>⚡ Bypass</option>
@@ -1986,9 +2004,9 @@
                         if (!routeEl) return;
                         const dev = state.devices?.find(d => d.ip === ip);
                         const sortedChains = Object.entries(chains)
-                            .filter(([, d]) => d.total_down > 0 || d.total_up > 0)
-                            .sort(([, a], [, b]) => (b.total_down + b.total_up) - (a.total_down + a.total_up));
-                        if (sortedChains.length === 0) return;
+                            .filter(([, d]) => d.speed_down > 0 || d.speed_up > 0)
+                            .sort(([, a], [, b]) => (b.speed_down + b.speed_up) - (a.speed_down + a.speed_up));
+                        if (sortedChains.length === 0) { if (routeEl.innerHTML) routeEl.innerHTML = ''; return; }
                         // Build a hash of what matters: chain names + whether each has active speed
                         const chainHash = sortedChains.map(([ch, d]) => `${ch}:${d.speed_down > 0 ? 1 : 0}:${d.speed_up > 0 ? 1 : 0}:${Math.round((d.total_down + d.total_up) / 1024)}`).join('|');
                         if (routeEl.dataset.chainHash === chainHash) return;
@@ -2089,7 +2107,12 @@
                     return (c.src||'').includes(text) || (devNames[c.src]||'').includes(text)
                         || (c.host||'').toLowerCase().includes(text) || cn.toLowerCase().includes(text);
                 });
-                if (chain) conns = conns.filter(c => (c.chain || 'DIRECT') === chain);
+                if (chain) conns = conns.filter(c => {
+                    const ch = c.chain || 'DIRECT';
+                    if (chain === 'DIRECT') return ch === 'DIRECT';
+                    if (chain === 'VPN')    return ch !== 'DIRECT';
+                    return ch === chain;
+                });
                 if (proto) conns = conns.filter(c => c.network === proto);
                 ui.renderConnectionRows(conns);
             },
@@ -2102,7 +2125,7 @@
                 if (countEl) countEl.textContent = onlineCount ? `${onlineCount}/${state.nodes.length} онлайн` : '';
 
                 let html = `
-                    <div class="node-card ${state.globalNode === 'auto' ? 'selected' : ''}" onclick="GatewayApp.actions.setGlobalNode('auto')">
+                    <div class="node-card ${state.globalNode === 'auto' ? 'selected' : ''}" onclick="GatewayApp.actions.setGlobalNode('auto')" title="Автоматически выбирает узел с наименьшей задержкой. Проверка каждые 5 минут или по запросу.">
                         <div style="display:flex;align-items:center;gap:8px;">
                             <span style="font-size:18px;">⚡</span>
                             <div>
@@ -2152,12 +2175,27 @@
                 const badge = document.getElementById('globalProtectionBadge');
                 if (data.tunnel.status === 'ok') {
                     state._tunnelOfflineCount = 0;
-                    badge.className = 'status-badge online';
-                    badge.innerHTML = '<div class="pulse-dot green"></div> Шлюз онлайн';
+                    if (state._tunnelWasOffline && state._tunnelConfirmedOnline) {
+                        // Tunnel came back after confirmed downtime — start warming timer
+                        state._tunnelWasOffline = false;
+                        state._tunnelOnlineAt = Date.now();
+                    }
+                    state._tunnelConfirmedOnline = true;
+                    const warmingSec = 60;
+                    const elapsed = (Date.now() - state._tunnelOnlineAt) / 1000;
+                    if (state._tunnelOnlineAt && elapsed < warmingSec) {
+                        const remaining = Math.ceil(warmingSec - elapsed);
+                        badge.className = 'status-badge warming';
+                        badge.innerHTML = `<div class="pulse-dot" style="background:#fbbf24"></div> Шлюз поднимается… ${remaining}с`;
+                    } else {
+                        badge.className = 'status-badge online';
+                        badge.innerHTML = '<div class="pulse-dot green"></div> Шлюз онлайн';
+                    }
                 } else {
                     state._tunnelOfflineCount = (state._tunnelOfflineCount || 0) + 1;
                     // Show offline only after 2 consecutive failures to avoid flicker
                     if (state._tunnelOfflineCount >= 2) {
+                        if (state._tunnelConfirmedOnline) state._tunnelWasOffline = true;
                         badge.className = 'status-badge offline';
                         badge.innerHTML = '<div class="pulse-dot red"></div> Туннель недоступен';
                     }
@@ -2181,6 +2219,9 @@
                 const shortIspViz = ispName.replace(/\b(pjsc|ojsc|llc|ltd|inc|co\.|as|jsc|ao|oao|zao|msk|spb)\b\.?/gi,'').replace(/["'«»]/g,'').replace(/\s{2,}/g,' ').trim();
                 const directIsp  = ispName ? `<div style="font-family:'JetBrains Mono',monospace;font-size:8px;color:rgba(148,163,184,0.7);max-width:90px;word-break:break-word;text-align:center;line-height:1.3;" title="${ispName}">${shortIspViz}</div>` : '';
                 const directIp   = data ? (data.direct.ip || '—') : '...';
+                const directFlagPill = state.providerLogo
+                    ? `<img src="${state.providerLogo}" height="22" style="border-radius:5px;object-fit:contain;background:rgba(255,255,255,0.06);padding:2px 3px;max-width:36px;flex-shrink:0;" onerror="this.outerHTML='${directCc ? `<img src=\\'https://flagcdn.com/20x15/${directCc}.png\\' style=\\'border-radius:3px;flex-shrink:0;\\'>` : ''}';">`
+                    : (directCc ? `<img src="https://flagcdn.com/20x15/${directCc}.png" style="border-radius:3px;flex-shrink:0;">` : '');
                 const tunnelOk   = data && data.tunnel.status === 'ok';
 
                 const autoNode = state.globalNode !== 'auto'
@@ -2202,11 +2243,12 @@
                 const nyLineOk  = nyNode && nyNode.status === 'online';
 
                 // Use real per-node traffic from Mihomo (state.nodeTraffic)
-                const nyTag = nyNode?.tag;
+                // Tags are actual node names (e.g. "🇺🇸 NY | Kinopoisk") — classify by regex, not exact match
+                const _isNyTag = (t) => /ny|new[\s\-]?york/i.test(t);
                 let spAuto = 0, spNy = 0;
                 Object.entries(state.nodeTraffic || {}).forEach(([tag, nt]) => {
                     const spd = (nt.speed_down||0) + (nt.speed_up||0);
-                    if (tag === nyTag) spNy += spd; else spAuto += spd;
+                    if (_isNyTag(tag)) spNy += spd; else spAuto += spd;
                 });
                 const spAll = spAuto + spNy;
 
@@ -2233,14 +2275,14 @@
                 // Normalize dot count proportionally between nodes
                 const nodeSpeedMax = Math.max(smAuto, smNy, smDirect, 1024);
                 const toStep  = (bps) => Math.floor(Math.min(bps / nodeSpeedMax, 1) * 10);
-                const toCount = (bps) => { if (bps < 512) return 0; const s = toStep(bps); return s >= 7 ? 3 : s >= 3 ? 2 : 1; };
+                const toCount = (bps) => { if (bps < 512) return 0; const s = toStep(bps); return s >= 8 ? 6 : s >= 6 ? 5 : s >= 4 ? 4 : s >= 2 ? 3 : 2; };
                 const toSize  = (bps) => +(4 + toStep(bps) * 0.3).toFixed(1);
 
                 const n_auto = toCount(smAuto), n_ny = toCount(smNy), n_direct = toCount(smDirect);
 
                 // ONE speed for all dots — GSG is not an accelerator
                 const busiest = Math.max(smAuto, smNy, smDirect);
-                const durAll  = +(3.0 - toStep(busiest) * 0.18).toFixed(2);
+                const durAll  = +(5.0 - toStep(busiest) * 0.25).toFixed(2);
 
                 // All segments use same dot size — no size difference before/after pill
                 // Right segments lag 0.2s so dots appear to exit the node sequentially after entering
@@ -2302,12 +2344,12 @@
                 // Uses RAF so a single JS object can move across two different DOM containers.
                 if (state.routeVizMode === 0) {
                     const _T = [
-                        { dur: 3.0, sz: 4.0, n: 0 },
-                        { dur: 2.8, sz: 4.0, n: 1 },
-                        { dur: 2.3, sz: 4.5, n: 1 },
-                        { dur: 1.7, sz: 5.0, n: 2 },
-                        { dur: 1.2, sz: 5.5, n: 2 },
-                        { dur: 0.8, sz: 6.0, n: 3 },
+                        { dur: 5.0, sz: 4.0, n: 0 },
+                        { dur: 4.5, sz: 4.0, n: 2 },
+                        { dur: 4.0, sz: 4.5, n: 3 },
+                        { dur: 3.2, sz: 5.0, n: 4 },
+                        { dur: 2.5, sz: 5.5, n: 5 },
+                        { dur: 2.0, sz: 6.0, n: 6 },
                     ];
                     const getTier = (bps) => {
                         if (bps < 200)           return _T[0];
@@ -2322,9 +2364,29 @@
                     const globalDur = gTier.dur;
                     const globalSz  = gTier.sz;
 
-                    const rn_auto   = spAuto   < 200 ? 0 : getTier(spAuto).n;
-                    const rn_ny     = spNy     < 200 ? 0 : getTier(spNy).n;
-                    const rn_direct = spDirect < 200 ? 0 : getTier(spDirect).n;
+                    // Traffic-proportional spawn rate: more traffic = more dots
+                    const peakBps  = Math.max(smAuto, smNy, smDirect, 1);
+                    const MAX_RATE = 2.0;
+                    const MIN_RATE = 0.4;
+                    const toRate   = (bps) => {
+                        if (bps < 200) return 0;
+                        return MIN_RATE + Math.min(bps / peakBps, 1) * (MAX_RATE - MIN_RATE);
+                    };
+                    const rate_auto   = toRate(smAuto);
+                    const rate_ny     = toRate(smNy);
+                    const rate_direct = toRate(smDirect);
+
+                    // rn_* needed for pre-seeding
+                    const rn_auto   = Math.max(0, Math.round(rate_auto   * globalDur));
+                    const rn_ny     = Math.max(0, Math.round(rate_ny     * globalDur));
+                    const rn_direct = Math.max(0, Math.round(rate_direct * globalDur));
+
+                    // Per-branch dot size: busier branch = bigger dot
+                    const branchSz = {
+                        auto:   +(4 + Math.min(smAuto   / peakBps, 1) * 3).toFixed(1),
+                        ny:     +(4 + Math.min(smNy     / peakBps, 1) * 3).toFixed(1),
+                        direct: +(4 + Math.min(smDirect / peakBps, 1) * 3).toFixed(1),
+                    };
 
                     // Rebuild DOM only on topology change
                     const appIdsStr = [...activeAppIds].sort().join(',');
@@ -2354,7 +2416,7 @@
     <div style="font-family:\'JetBrains Mono\',monospace;font-size:10px;font-weight:700;color:#60a5fa;">${devOnline}<span style="font-size:8px;color:var(--muted);font-weight:400;"> / ${devTotal}</span></div>
   </div>
   <div style="grid-row:1/4;align-self:stretch;position:relative;">
-    <div style="position:absolute;top:46%;left:0;right:0;height:2px;background:rgba(52,211,153,0.15);transform:translateY(-50%);border-radius:1px;"></div>
+    <div id="rl-in-track" style="position:absolute;top:46%;left:0;right:0;height:2px;background:rgba(52,211,153,0.15);transform:translateY(-50%);border-radius:1px;transition:height 0.4s ease;"></div>
     <div id="rl-in" style="position:absolute;top:46%;left:0;right:0;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
   </div>
   <div style="grid-row:1/4;display:flex;flex-direction:column;align-items:center;gap:3px;position:relative;z-index:5;">
@@ -2362,14 +2424,15 @@
     <div style="font-size:9px;font-weight:800;color:#c9a84c;letter-spacing:0.09em;text-shadow:0 0 10px rgba(201,168,76,0.5);">GSG</div>
   </div>
   <div style="grid-row:1/4;"></div>
-  <div style="display:flex;align-items:center;gap:6px;height:58px;">
+  <div id="rl-auto-row" style="display:flex;align-items:center;gap:6px;height:58px;transition:opacity 0.5s ease;">
     <div style="position:relative;flex:1;height:100%;overflow:visible;">
-      <div style="position:absolute;left:0;right:0;top:35%;height:2px;background:${alBg};transform:translateY(-50%);border-radius:1px;"></div>
+      <div id="rl-auto-track" style="position:absolute;left:0;right:0;top:35%;height:2px;background:${alBg};transform:translateY(-50%);border-radius:1px;transition:height 0.4s ease;"></div>
       <div id="rl-auto" style="position:absolute;left:0;right:0;top:35%;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
       <div style="${pillBase}background:rgba(10,9,8,0.96);border:1px solid rgba(52,211,153,0.35);">
         <div style="min-width:0;flex:1;">
           <div style="${nameStyle}">${autoName}</div>
           <div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;font-weight:600;white-space:nowrap;" class="${autoPingCls}">${autoPingStr}</div>
+          <span id="rl-auto-spd" style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:rgba(201,168,76,0.7);white-space:nowrap;"></span>
         </div>
       </div>
     </div>
@@ -2377,14 +2440,15 @@
       ${appBadge('#229ED9',APP_ICONS.telegram,'Telegram',activeAppIds.has('telegram'))}${appBadge('#ee1d52',APP_ICONS.tiktok,'TikTok',activeAppIds.has('tiktok'))}${appBadge('#ff0000',APP_ICONS.youtube,'YouTube',activeAppIds.has('youtube'))}${appBadge('#e1306c',APP_ICONS.instagram,'Instagram',activeAppIds.has('instagram'))}${appBadge('#e7e9ea',APP_ICONS.twitter,'X',activeAppIds.has('twitter'))}
     </div>
   </div>
-  <div style="display:flex;align-items:center;gap:6px;height:58px;">
+  <div id="rl-ny-row" style="display:flex;align-items:center;gap:6px;height:58px;transition:opacity 0.5s ease;">
     <div style="position:relative;flex:1;height:100%;overflow:visible;">
-      <div style="position:absolute;left:0;right:0;top:35%;height:2px;background:${nlBg};transform:translateY(-50%);border-radius:1px;"></div>
+      <div id="rl-ny-track" style="position:absolute;left:0;right:0;top:35%;height:2px;background:${nlBg};transform:translateY(-50%);border-radius:1px;transition:height 0.4s ease;"></div>
       <div id="rl-ny" style="position:absolute;left:0;right:0;top:35%;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
       <div style="${pillBase}background:rgba(10,9,8,0.96);border:1px solid rgba(52,211,153,0.35);">
         <div style="min-width:0;flex:1;">
           <div style="${nameStyle}">${nyName}</div>
           <div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;font-weight:600;white-space:nowrap;" class="${nyPingCls}">${nyPingStr}</div>
+          <span id="rl-ny-spd" style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:rgba(96,165,250,0.7);white-space:nowrap;"></span>
         </div>
       </div>
     </div>
@@ -2392,14 +2456,16 @@
       ${appBadge('#8ab4f8',APP_ICONS.gemini,'Gemini',true)}${appBadge('#d97706',APP_ICONS.claude,'Claude',true)}${appBadge('#10a37f',APP_ICONS.chatgpt,'ChatGPT',true)}${appBadge('#E50914',APP_ICONS.netflix,'Netflix',activeAppIds.has('netflix'))}${appBadge('#1ce783',APP_ICONS.hulu,'Hulu',activeAppIds.has('hulu'))}
     </div>
   </div>
-  <div style="display:flex;align-items:center;gap:6px;height:58px;">
+  <div id="rl-dir-row" style="display:flex;align-items:center;gap:6px;height:58px;transition:opacity 0.5s ease;">
     <div style="position:relative;flex:1;height:100%;overflow:visible;">
-      <div style="position:absolute;left:0;right:0;top:35%;height:2px;background:rgba(52,211,153,0.15);transform:translateY(-50%);border-radius:1px;"></div>
+      <div id="rl-dir-track" style="position:absolute;left:0;right:0;top:35%;height:2px;background:rgba(52,211,153,0.15);transform:translateY(-50%);border-radius:1px;transition:height 0.4s ease;"></div>
       <div id="rl-dir" style="position:absolute;left:0;right:0;top:35%;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
       <div style="${pillBase}background:rgba(10,9,8,0.96);border:1px solid rgba(52,211,153,0.35);">
+        ${directFlagPill ? `<div style="flex-shrink:0;margin-right:6px;display:flex;align-items:center;">${directFlagPill}</div>` : ''}
         <div style="min-width:0;flex:1;">
           <div style="${nameStyle}">Напрямую</div>
-          <div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:rgba(148,163,184,0.5);white-space:nowrap;">прямой</div>
+          <div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:rgba(148,163,184,0.5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${ispName}">${shortIspViz || directIp}</div>
+          <span id="rl-dir-spd" style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:rgba(148,163,184,0.6);white-space:nowrap;"></span>
         </div>
       </div>
     </div>
@@ -2410,6 +2476,34 @@
 </div>`;
                     }
 
+                    // ── Dynamic line thickness, opacity, speed badges ─────────────────
+                    {
+                        const peakBps = Math.max(smAuto, smNy, smDirect, 1);
+                        const lineH = (bps) => (2 + Math.min(bps / peakBps, 1) * 6).toFixed(1);
+                        const rowOp = (bps, id) => (bps >= 200 || (box._activeDots?.[id] || 0) > 0) ? '1' : '0.28';
+                        const fmtSpd = (bps) => {
+                            if (bps < 512)           return '\u00a0';
+                            if (bps < 1024)          return Math.round(bps) + ' B/s';
+                            if (bps < 1024*1024)     return (bps/1024).toFixed(0) + ' KB/s';
+                            return (bps/1024/1024).toFixed(1) + ' MB/s';
+                        };
+                        const branches = [
+                            { id: 'auto', bps: smAuto },
+                            { id: 'ny',   bps: smNy   },
+                            { id: 'dir',  bps: smDirect },
+                        ];
+                        for (const { id, bps } of branches) {
+                            const trackEl = document.getElementById(`rl-${id}-track`);
+                            const rowEl   = document.getElementById(`rl-${id}-row`);
+                            const spdEl   = document.getElementById(`rl-${id}-spd`);
+                            if (trackEl) trackEl.style.height  = lineH(bps) + 'px';
+                            if (rowEl)   rowEl.style.opacity   = rowOp(bps, id);
+                            if (spdEl)   spdEl.textContent     = fmtSpd(bps);
+                        }
+                        const inTrack = document.getElementById('rl-in-track');
+                        if (inTrack) inTrack.style.height = lineH(totalDeviceSpeed) + 'px';
+                    }
+
                     // Measure widths (route-line containers, not the track divs)
                     const rlInEl  = document.getElementById('rl-in');
                     const rlOutEl = document.getElementById('rl-auto');
@@ -2417,7 +2511,8 @@
                     const outW = rlOutEl ? (rlOutEl.offsetWidth || 212) : 212;
 
                     // Push current traffic params — RAF loop reads this every frame
-                    box._vizParams = { rn_auto, rn_ny, rn_direct, globalDur, globalSz, inW, outW };
+                    box._activeDots = box._activeDots || { auto: 0, ny: 0, direct: 0 };
+                    box._vizParams = { rn_auto, rn_ny, rn_direct, rate_auto, rate_ny, rate_direct, branchSz, globalDur, globalSz, inW, outW };
 
                     // Start RAF loop once; it self-stops when mode changes or box leaves DOM
                     if (!box._vizRaf) {
@@ -2497,9 +2592,6 @@
                             for (let i = pkts.length - 1; i >= 0; i--) {
                                 const pk = pkts[i];
                                 pk.x += pixPerSec * dt;
-                                // Update dot size if tier changed
-                                pk.el.style.width  = vp.globalSz + 'px';
-                                pk.el.style.height = vp.globalSz + 'px';
 
                                 if (pk.phase === 'in') {
                                     if (pk.x >= vp.inW) {
@@ -2507,8 +2599,10 @@
                                         try { pk.el.parentNode?.removeChild(pk.el); } catch(e){}
                                         const bEl = document.getElementById(B_ID[pk.branch]);
                                         if (!bEl) { pkts.splice(i, 1); continue; }
-                                        const dot = mkDot(B_COLOR[pk.branch], B_GLOW[pk.branch], vp.globalSz);
+                                        const sz = pk._sz ?? vp.globalSz;
+                                        const dot = mkDot(B_COLOR[pk.branch], B_GLOW[pk.branch], sz);
                                         dot.style.left = '0px';
+                                        dot._sz = sz;
                                         bEl.appendChild(dot);
                                         pk.el = dot; pk.phase = 'out'; pk.x = 0;
                                     } else {
@@ -2518,6 +2612,7 @@
                                     if (pk.x >= vp.outW) {
                                         // Reached apps — remove
                                         try { pk.el.parentNode?.removeChild(pk.el); } catch(e){}
+                                        if (box._activeDots) box._activeDots[pk.branch] = Math.max(0, (box._activeDots[pk.branch] || 1) - 1);
                                         pkts.splice(i, 1);
                                         continue;
                                     }
@@ -2525,18 +2620,24 @@
                                 }
                             }
 
-                            // Spawn new packets at rate = n_branch / globalDur per second
+                            // Spawn new packets — one dot per traffic spike (each spike = one bump on the chart)
                             const spwn = box._vizSpawn;
+                            const sq = state._spikeQueue || {};
                             for (const br of ['auto', 'ny', 'direct']) {
-                                const rate = (br === 'auto' ? vp.rn_auto : br === 'ny' ? vp.rn_ny : vp.rn_direct) / vp.globalDur;
-                                spwn[br] = (spwn[br] || 0) + rate * dt;
-                                while (spwn[br] >= 1) {
+                                if (!(sq[br] > 0)) continue;
+                                // Drain at max 4 dots/sec so they don't all appear at once
+                                spwn[br] = (spwn[br] || 0) + 4 * dt;
+                                while (spwn[br] >= 1 && sq[br] > 0) {
                                     spwn[br] -= 1;
+                                    sq[br]--;
                                     const el = document.getElementById('rl-in');
                                     if (!el) break;
-                                    const dot = mkDot('#34d399', '0 0 8px rgba(52,211,153,0.6)', vp.globalSz);
+                                    const sz = vp.globalSz;
+                                    const dot = mkDot('#34d399', '0 0 8px rgba(52,211,153,0.6)', sz);
                                     dot.style.left = '0px';
+                                    dot._sz = sz;
                                     el.appendChild(dot);
+                                    if (box._activeDots) box._activeDots[br] = (box._activeDots[br] || 0) + 1;
                                     pkts.push({ el: dot, phase: 'in', x: 0, branch: br });
                                 }
                             }
@@ -3022,6 +3123,7 @@
                 document.getElementById('feedbackText').focus();
                 document.getElementById('feedbackStatus').textContent = '';
                 document.getElementById('feedbackName').value = '';
+                document.getElementById('feedbackTelegram').value = '';
                 document.getElementById('feedbackText').value = '';
             },
             closeFeedback: () => {
@@ -3289,6 +3391,14 @@
                     const dev = state.devices.find(d => d.ip === ip);
                     if (dev) await utils.apiCall(`/devices/${ip}`, { method: 'PUT', body: JSON.stringify({ mode: dev.mode, assigned_node: dev.assigned_node || 'auto', tiktok_node: dev.tiktok_node || 'auto', custom_name: '', static_ip: dev.static_ip || '', mac: dev.mac || '' }) });
                 }
+            },
+
+            closeOnboarding: () => {
+                localStorage.setItem('gsg_onboarding_v1', '1');
+                const modal = document.getElementById('onboardingModal');
+                if (!modal) return;
+                modal.style.opacity = '0';
+                setTimeout(() => { modal.style.display = 'none'; }, 250);
             },
 
             closeHistoryModal: () => {
@@ -3648,21 +3758,27 @@
             }
         };
 
+        const _deviceDebounceMap = new Map();
         const actions = {
-            updateDeviceSettings: utils.debounce(async (ip, mode, assignedNode, tiktokNode, staticIp) => {
-                const dev = state.devices.find(d => d.ip === ip);
-                const curTiktok  = tiktokNode !== undefined ? tiktokNode  : (dev?.tiktok_node  || 'auto');
-                const curStatic  = staticIp   !== undefined ? staticIp   : (dev?.static_ip    || '');
-                const curCustom  = dev?.custom_name || '';
-                const curMac     = dev?.mac || '';
-                const result = await utils.apiCall(`/devices/${ip}`, { method: 'PUT', body: JSON.stringify({ mode, assigned_node: assignedNode, tiktok_node: curTiktok, custom_name: curCustom, static_ip: curStatic, mac: curMac }) });
-                if (result) {
-                    const name = dev?.custom_name || dev?.hostname || ip;
-                    const modeLabel = {smart:'Smart',global:'Прокси',bypass:'Напрямую',block:'Блок'}[mode] || mode;
-                    ui.addEvent('⚙️', `${name}: режим → ${modeLabel}`, '#93c5fd');
-                    actions.fetchData();
+            updateDeviceSettings: (ip, mode, assignedNode, tiktokNode, staticIp) => {
+                if (!_deviceDebounceMap.has(ip)) {
+                    _deviceDebounceMap.set(ip, utils.debounce(async (_ip, _mode, _assigned, _tiktok, _static) => {
+                        const dev = state.devices.find(d => d.ip === _ip);
+                        const curTiktok = _tiktok   !== undefined ? _tiktok  : (dev?.tiktok_node || 'auto');
+                        const curStatic = _static   !== undefined ? _static  : (dev?.static_ip   || '');
+                        const curCustom = dev?.custom_name || '';
+                        const curMac    = dev?.mac || '';
+                        const result = await utils.apiCall(`/devices/${_ip}`, { method: 'PUT', body: JSON.stringify({ mode: _mode, assigned_node: _assigned, tiktok_node: curTiktok, custom_name: curCustom, static_ip: curStatic, mac: curMac }) });
+                        if (result) {
+                            const name = dev?.custom_name || dev?.hostname || _ip;
+                            const modeLabel = {smart:'Smart',global:'Прокси',bypass:'Напрямую',block:'Блок'}[_mode] || _mode;
+                            ui.addEvent('⚙️', `${name}: режим → ${modeLabel}`, '#93c5fd');
+                            actions.fetchData();
+                        }
+                    }, 400));
                 }
-            }, 400),
+                _deviceDebounceMap.get(ip)(ip, mode, assignedNode, tiktokNode, staticIp);
+            },
 
             setGlobalNode: async (tag) => {
                 const prev = state.globalNode;
@@ -3725,10 +3841,11 @@
                     const totalDown = vals.reduce((s, v) => s + (v.speed_down || 0), 0);
                     const totalUp   = vals.reduce((s, v) => s + (v.speed_up   || 0), 0);
                     // Per-node breakdown using real Mihomo stats (state.nodeTraffic)
-                    const nyTag_ = (state.nodes.find(n=>/ny|new[\s-]?york/i.test(n.tag)))?.tag;
+                    // Tags are actual node names — classify NY by regex, not exact match
+                    const _isNy_ = (t) => /ny|new[\s\-]?york/i.test(t);
                     let autoDown_ = 0, autoUp_ = 0, nyDown_ = 0, nyUp_ = 0;
                     Object.entries(state.nodeTraffic || {}).forEach(([tag, nt]) => {
-                        if (tag === nyTag_) { nyDown_ += (nt.speed_down||0); nyUp_ += (nt.speed_up||0); }
+                        if (_isNy_(tag)) { nyDown_ += (nt.speed_down||0); nyUp_ += (nt.speed_up||0); }
                         else { autoDown_ += (nt.speed_down||0); autoUp_ += (nt.speed_up||0); }
                     });
                     state.trafficHistory.push({
@@ -3739,6 +3856,33 @@
                         directUp:   Math.max(0, totalUp   - autoUp_   - nyUp_)
                     });
                     if (state.trafficHistory.length > 60) state.trafficHistory.shift();
+
+                    // Spike detection for dot visualization (1 dot per traffic burst)
+                    // Uses decaying baseline: drops to 0 quickly after traffic stops,
+                    // so any new burst is always detected as a spike regardless of timing.
+                    {
+                        const spA = autoDown_ + autoUp_;
+                        const spN = nyDown_   + nyUp_;
+                        const spD = Math.max(0, totalDown + totalUp - spA - spN);
+                        if (!state._bpsBase)   state._bpsBase   = { auto: 0, ny: 0, direct: 0 };
+                        if (!state._spikeQueue) state._spikeQueue = { auto: 0, ny: 0, direct: 0 };
+                        const SPIKE_THRESH = 2048;   // 2 KB/s above baseline = spike
+                        const SPIKE_UNIT   = 32768;  // 32 KB per dot
+                        const MAX_Q        = 6;
+                        const DECAY        = 0.5;    // baseline halves each second when traffic drops
+                        for (const [br, cur] of [['auto', spA], ['ny', spN], ['direct', spD]]) {
+                            const base  = state._bpsBase[br];
+                            const delta = cur - base;
+                            if (delta > SPIKE_THRESH) {
+                                state._spikeQueue[br] = Math.min(MAX_Q, (state._spikeQueue[br]||0) + Math.max(1, Math.round(delta / SPIKE_UNIT)));
+                                state._bpsBase[br] = cur;           // anchor baseline to new peak
+                            } else {
+                                // Baseline decays toward 0 when traffic is idle or dropping
+                                state._bpsBase[br] = Math.min(cur, base * DECAY);
+                            }
+                        }
+                    }
+
                     // Store history for stats live chart
                     state._trafficHistory.push({ down: totalDown, up: totalUp });
                     if (state._trafficHistory.length > 60) state._trafficHistory.shift();
@@ -3823,48 +3967,44 @@
             fetchVendors: async (devices) => {
                 const isLocalMAC = (mac) => (parseInt((mac||'').split(':')[0], 16) & 0x02) !== 0;
                 const toFetch = devices.filter(d => d.mac && d.mac !== '00:00:00:00:00:00' && !isLocalMAC(d.mac) && !(d.mac in state.vendorCache));
-                for (const dev of toFetch) {
-                    const data = await utils.apiCall(`/vendor/${encodeURIComponent(dev.mac)}`);
-                    if (data !== null) {
-                        state.vendorCache[dev.mac] = data.vendor || '';
-                        // Update icon in DOM without full re-render
-                        const iconEl = document.querySelector(`[data-icon-mac="${dev.mac}"]`);
-                        if (iconEl) {
-                            const type = vendorToType(data.vendor, dev.hostname);
-                            const ist = ICON_STYLE[type] || ICON_STYLE.unknown;
-                            iconEl.style.background = ist.bg;
-                            iconEl.style.borderColor = ist.border;
-                            iconEl.style.color = ist.color;
-                            iconEl.title = data.vendor || dev.hostname;
-                            const statusDot = iconEl.querySelector('[style*="bottom:-3px"]');
-                            const bLogo = getBrandLogoHtml(data.vendor, ist.color, dev.hostname);
-                            iconEl.innerHTML = (bLogo || '')
-                                + `<span style="display:${bLogo ? 'none' : 'flex'};align-items:center;justify-content:center;">${DEVICE_ICONS[type] || DEVICE_ICONS.unknown}</span>`
-                                + (statusDot ? statusDot.outerHTML : '');
-                            // Update vendor label and display name
-                            const row = iconEl.closest('[data-ip]');
-                            if (row && data.vendor) {
-                                const nameEl = row.querySelector('[data-ip] > div > div > div:first-child');
-                                const labelEl = row.querySelector('.vendor-label');
-                                if (!labelEl) {
-                                    const nameContainer = iconEl.nextElementSibling;
-                                    if (nameContainer) {
-                                        const hn = nameContainer.querySelector('div:first-child');
-                                        if (hn && (hn.textContent === 'Устройство' || hn.textContent === 'Unknown')) hn.textContent = data.vendor;
-                                        const existing = nameContainer.querySelector('.vendor-lbl');
-                                        if (!existing) {
-                                            const lbl = document.createElement('div');
-                                            lbl.className = 'vendor-lbl';
-                                            lbl.style.cssText = "font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(100,116,139,0.6);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
-                                            lbl.textContent = data.vendor;
-                                            nameContainer.appendChild(lbl);
-                                        }
-                                    }
-                                }
+                const applyVendor = (dev, data) => {
+                    state.vendorCache[dev.mac] = data.vendor || '';
+                    const iconEl = document.querySelector(`[data-icon-mac="${dev.mac}"]`);
+                    if (!iconEl) return;
+                    const type = vendorToType(data.vendor, dev.hostname);
+                    const ist = ICON_STYLE[type] || ICON_STYLE.unknown;
+                    iconEl.style.background = ist.bg;
+                    iconEl.style.borderColor = ist.border;
+                    iconEl.style.color = ist.color;
+                    iconEl.title = data.vendor || dev.hostname;
+                    const statusDot = iconEl.querySelector('[style*="bottom:-3px"]');
+                    const bLogo = getBrandLogoHtml(data.vendor, ist.color, dev.hostname);
+                    iconEl.innerHTML = (bLogo || '')
+                        + `<span style="display:${bLogo ? 'none' : 'flex'};align-items:center;justify-content:center;">${DEVICE_ICONS[type] || DEVICE_ICONS.unknown}</span>`
+                        + (statusDot ? statusDot.outerHTML : '');
+                    const row = iconEl.closest('[data-ip]');
+                    if (row && data.vendor) {
+                        const nameContainer = iconEl.nextElementSibling;
+                        if (nameContainer) {
+                            const hn = nameContainer.querySelector('div:first-child');
+                            if (hn && (hn.textContent === 'Устройство' || hn.textContent === 'Unknown')) hn.textContent = data.vendor;
+                            if (!nameContainer.querySelector('.vendor-lbl')) {
+                                const lbl = document.createElement('div');
+                                lbl.className = 'vendor-lbl';
+                                lbl.style.cssText = "font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(100,116,139,0.6);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
+                                lbl.textContent = data.vendor;
+                                nameContainer.appendChild(lbl);
                             }
                         }
                     }
-                    await new Promise(r => setTimeout(r, 600));
+                };
+                const CONCURRENCY = 2;
+                for (let i = 0; i < toFetch.length; i += CONCURRENCY) {
+                    await Promise.all(toFetch.slice(i, i + CONCURRENCY).map(async (dev) => {
+                        const data = await utils.apiCall(`/vendor/${encodeURIComponent(dev.mac)}`);
+                        if (data !== null) applyVendor(dev, data);
+                    }));
+                    if (i + CONCURRENCY < toFetch.length) await new Promise(r => setTimeout(r, 600));
                 }
                 try { sessionStorage.setItem('gsg_vendor_cache', JSON.stringify(state.vendorCache)); } catch(e) {}
             },
@@ -3898,6 +4038,8 @@
             },
 
             fetchLogs: async () => {
+                const logsBox = document.getElementById('systemLogsBox');
+                if (!logsBox || !logsBox.closest('.tab-content')?.classList.contains('active')) return;
                 const logs = await utils.apiCall('/logs', { _silent: true });
                 const logBox = document.getElementById('systemLogsBox');
                 if (logBox && logs) {
@@ -3989,13 +4131,14 @@
             },
             submitFeedback: async () => {
                 const name = document.getElementById('feedbackName').value.trim();
+                const telegram = document.getElementById('feedbackTelegram').value.trim();
                 const message = document.getElementById('feedbackText').value.trim();
                 const statusEl = document.getElementById('feedbackStatus');
                 const btn = document.getElementById('feedbackSubmitBtn');
                 if (!message) { statusEl.style.color='#f87171'; statusEl.textContent='Введите сообщение'; return; }
                 btn.disabled = true; btn.style.opacity = '0.6';
                 statusEl.style.color = 'var(--muted)'; statusEl.textContent = 'Отправка...';
-                const res = await utils.apiCall('/feedback', { method: 'POST', body: JSON.stringify({ name, message }) });
+                const res = await utils.apiCall('/feedback', { method: 'POST', body: JSON.stringify({ name, telegram, message }) });
                 btn.disabled = false; btn.style.opacity = '1';
                 if (res?.ok) {
                     statusEl.style.color = '#34d399'; statusEl.textContent = 'Отправлено, спасибо!';
@@ -4300,6 +4443,15 @@
 
         GatewayApp.init();
 
+        // Show onboarding modal for first-time users
+        if (!localStorage.getItem('gsg_onboarding_v1')) {
+            const om = document.getElementById('onboardingModal');
+            if (om) {
+                om.style.display = 'flex';
+                requestAnimationFrame(() => { om.style.opacity = '1'; });
+            }
+        }
+
         // Show feedback FAB after 3 min if last submission was > 24h ago
         (() => {
             const fab = document.getElementById('feedbackFab');
@@ -4314,6 +4466,48 @@
         })();
     });
 </script>
+
+<!-- Onboarding Modal -->
+<div id="onboardingModal" style="display:none;opacity:0;position:fixed;inset:0;z-index:1100;align-items:center;justify-content:center;transition:opacity 0.25s;">
+    <div style="position:absolute;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(8px);"></div>
+    <div class="glass" style="position:relative;z-index:1;width:min(520px,94vw);padding:28px;border-radius:20px;border:1px solid rgba(255,255,255,0.12);max-height:90vh;overflow-y:auto;">
+        <div style="text-align:center;margin-bottom:22px;">
+            <div style="font-size:28px;margin-bottom:8px;">🛡️</div>
+            <div style="font-size:17px;font-weight:800;color:#f1f5f9;">Добро пожаловать в GSG</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:4px;">Smart Gateway — ваш умный интернет-шлюз</div>
+        </div>
+        <!-- Routing blocks -->
+        <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:22px;">
+            <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:12px;padding:14px 16px;display:flex;gap:12px;align-items:flex-start;">
+                <span style="font-size:20px;flex-shrink:0;">🔓</span>
+                <div>
+                    <div style="font-size:13px;font-weight:700;color:#34d399;margin-bottom:3px;">Напрямую</div>
+                    <div style="font-size:11px;color:var(--muted);line-height:1.5;">Российские сайты, стриминг и сервисы без ограничений идут напрямую — без VPN, максимальная скорость.</div>
+                </div>
+            </div>
+            <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:12px;padding:14px 16px;display:flex;gap:12px;align-items:flex-start;">
+                <span style="font-size:20px;flex-shrink:0;">🌐</span>
+                <div>
+                    <div style="font-size:13px;font-weight:700;color:#818cf8;margin-bottom:3px;">Stockholm — обход блокировок</div>
+                    <div style="font-size:11px;color:var(--muted);line-height:1.5;">Заблокированные сайты (YouTube, Instagram, Telegram и другие из реестра РКН) автоматически идут через европейский узел.</div>
+                </div>
+            </div>
+            <div style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);border-radius:12px;padding:14px 16px;display:flex;gap:12px;align-items:flex-start;">
+                <span style="font-size:20px;flex-shrink:0;">🇺🇸</span>
+                <div>
+                    <div style="font-size:13px;font-weight:700;color:#fbbf24;margin-bottom:3px;">New York — US-сервисы</div>
+                    <div style="font-size:11px;color:var(--muted);line-height:1.5;">Gemini, ChatGPT, Claude и другие сервисы с гео-ограничением для РФ идут через американский узел.</div>
+                </div>
+            </div>
+        </div>
+        <div style="font-size:10px;color:rgba(100,116,139,0.6);text-align:center;margin-bottom:18px;line-height:1.5;">
+            Режим Smart выбирается автоматически для каждого устройства. Изменить можно в разделе «Устройства».
+        </div>
+        <button onclick="GatewayApp.ui.closeOnboarding()" style="width:100%;padding:11px;border-radius:10px;background:linear-gradient(135deg,rgba(99,102,241,0.3),rgba(16,185,129,0.2));border:1px solid rgba(99,102,241,0.4);color:#f1f5f9;font-size:13px;font-weight:700;cursor:pointer;font-family:'Syne',sans-serif;">
+            Понятно, начать работу →
+        </button>
+    </div>
+</div>
 
 <!-- Traffic History Modal -->
 <div id="historyModal" style="display:none;opacity:0;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;transition:opacity 0.2s;" onclick="if(event.target===this)GatewayApp.ui.closeHistoryModal()">

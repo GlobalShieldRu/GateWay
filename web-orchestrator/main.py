@@ -142,7 +142,8 @@ class TrafficMonitor:
                             self.stats[ip]['speed_up'] += delta_up
                             self.stats[ip]['speed_down'] += delta_down
 
-                            node = next((c for c in reversed(chains) if c not in ('DIRECT', 'REJECT', 'GLOBAL', '')), None)
+                            # Use chains[0] (most specific proxy), not reversed (which gives group name "auto")
+                            node = next((c for c in chains if c not in ('DIRECT', 'REJECT', 'GLOBAL', '')), None)
                             if node:
                                 self.node_stats[node]['total_up'] += delta_up
                                 self.node_stats[node]['total_down'] += delta_down
@@ -593,7 +594,7 @@ async def get_status():
     }
 
 _net_cache: dict = {"data": None, "ts": 0}
-_NET_CACHE_TTL = 120  # обновлять раз в 2 минуты
+_NET_CACHE_TTL = 30  # обновлять раз в 30 секунд
 
 @app.get("/api/network-status")
 async def get_network_status():
@@ -736,21 +737,29 @@ async def update_device(ip: str, data: DeviceUpdate):
     async with _devices_lock:
         configs = await read_json(GSG_DEVICES_FILE, {})
         existing = configs.get(ip, {})
+        new_mac = data.mac or existing.get("mac", "")
         configs[ip] = {
             "mode": data.mode,
             "assigned_node": data.assigned_node,
             "tiktok_node": data.tiktok_node,
             "custom_name": data.custom_name,
             "static_ip": data.static_ip,
-            "mac": data.mac or existing.get("mac", ""),
+            "mac": new_mac,
         }
         async with aiofiles.open(GSG_DEVICES_FILE, 'w') as f:
             await f.write(json.dumps(configs, indent=2))
-    async with aiofiles.open(GSG_CONFIG_DIR / ".reload_nftables", 'w') as f:
-        await f.write("1")
-    async with aiofiles.open(GSG_CONFIG_DIR / ".reload_singbox", 'w') as f:
-        await f.write("1")
-    # Trigger dnsmasq reload if static IP changed
+    # Reload nftables only if routing mode changed
+    routing_changed = (
+        data.mode != existing.get("mode") or
+        data.assigned_node != existing.get("assigned_node", "auto") or
+        data.tiktok_node != existing.get("tiktok_node", "auto")
+    )
+    if routing_changed:
+        async with aiofiles.open(GSG_CONFIG_DIR / ".reload_nftables", 'w') as f:
+            await f.write("1")
+        async with aiofiles.open(GSG_CONFIG_DIR / ".reload_singbox", 'w') as f:
+            await f.write("1")
+    # Trigger dnsmasq reload if static IP or MAC changed
     if data.static_ip != "" or data.mac:
         async with aiofiles.open(GSG_CONFIG_DIR / ".reload_dhcp", 'w') as f:
             await f.write("1")
@@ -919,12 +928,14 @@ async def set_log_level(req: LogLevelUpdate):
 class FeedbackRequest(BaseModel):
     name: str = ""
     message: str
+    telegram: str = ""
 
 @app.post("/api/feedback")
 async def post_feedback(req: FeedbackRequest):
     if not req.message.strip():
         raise HTTPException(status_code=400, detail="Сообщение пустое")
-    entry = {"ts": datetime.utcnow().isoformat(), "name": req.name.strip(), "message": req.message.strip()}
+    tg_username = req.telegram.strip().lstrip("@")
+    entry = {"ts": datetime.utcnow().isoformat(), "name": req.name.strip(), "message": req.message.strip(), "telegram": tg_username}
     try:
         async with _feedback_lock:
             existing = []
@@ -1017,10 +1028,14 @@ async def post_feedback(req: FeedbackRequest):
             pass
 
         name_part = entry['name'] if entry['name'] else "Аноним"
+        tg_username_line = ""
+        if entry.get('telegram'):
+            tg_username_line = f"✉️ <a href='https://t.me/{entry['telegram']}'>@{entry['telegram']}</a>\n"
         text = (
             f"📬 <b>Обратная связь GSG</b>\n"
             f"➖➖➖➖➖➖➖➖➖\n"
             f"👤 {name_part}\n"
+            f"{tg_username_line}"
             f"{tg_user_line}"
             f"💬 {entry['message']}\n"
             f"➖➖➖➖➖➖➖➖➖\n"
