@@ -144,10 +144,23 @@ DHCP_END="${DHCP_END:-$DEFAULT_END}"
 echo ""
 
 # ── Системные настройки ───────────────────────
-info "Включение IP forwarding..."
-echo "net.ipv4.ip_forward = 1" > /etc/sysctl.d/99-gsg.conf
+info "Включение IP forwarding и настройка conntrack..."
+cat > /etc/sysctl.d/99-gsg.conf << 'EOF'
+# IP forwarding (обязателен для маршрутизации)
+net.ipv4.ip_forward = 1
+
+# Conntrack: увеличенный лимит для VPN-шлюза
+# По умолчанию 8192 — переполняется при нагрузке и дропает все новые пакеты (в т.ч. SSH)
+net.netfilter.nf_conntrack_max = 131072
+
+# Сокращённые таймауты — мёртвые соединения не накапливаются
+net.netfilter.nf_conntrack_tcp_timeout_established = 600
+net.netfilter.nf_conntrack_tcp_timeout_time_wait = 30
+net.netfilter.nf_conntrack_tcp_timeout_close_wait = 30
+net.netfilter.nf_conntrack_tcp_timeout_fin_wait = 30
+EOF
 sysctl -p /etc/sysctl.d/99-gsg.conf -q
-success "IP forwarding включён"
+success "IP forwarding и conntrack настроены"
 
 # Hardware watchdog
 if [ -e /dev/watchdog ]; then
