@@ -1520,6 +1520,7 @@
             _devicesHash: null,
             trafficHistory: [],
             routeVizMode: 0,
+            _modeStyle: 'emoji',
             sessionStats: { totalDown: 0, totalUp: 0, peakDown: 0, peakUp: 0 },
             events: [],
             _prevNodeStatuses: {},
@@ -2433,8 +2434,8 @@
   <div style="grid-row:1/4;"></div>
   <div id="rl-auto-row" style="display:flex;align-items:center;gap:6px;height:58px;transition:opacity 0.5s ease;">
     <div style="position:relative;flex:1;height:100%;overflow:visible;">
-      <div id="rl-auto-track" style="position:absolute;left:0;right:0;top:35%;height:2px;background:${alBg};transform:translateY(-50%);border-radius:1px;transition:height 0.4s ease;"></div>
-      <div id="rl-auto" style="position:absolute;left:0;right:0;top:35%;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
+      <div id="rl-auto-track" style="position:absolute;left:0;right:0;top:50%;height:2px;background:${alBg};transform:translateY(-50%);border-radius:1px;transition:height 0.4s ease;"></div>
+      <div id="rl-auto" style="position:absolute;left:0;right:0;top:50%;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
       <div style="${pillBase}background:rgba(10,9,8,0.96);border:1px solid rgba(52,211,153,0.35);">
         <div style="min-width:0;flex:1;">
           <div style="${nameStyle}">${autoName}</div>
@@ -2449,8 +2450,8 @@
   </div>
   <div id="rl-ny-row" style="display:flex;align-items:center;gap:6px;height:58px;transition:opacity 0.5s ease;">
     <div style="position:relative;flex:1;height:100%;overflow:visible;">
-      <div id="rl-ny-track" style="position:absolute;left:0;right:0;top:35%;height:2px;background:${nlBg};transform:translateY(-50%);border-radius:1px;transition:height 0.4s ease;"></div>
-      <div id="rl-ny" style="position:absolute;left:0;right:0;top:35%;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
+      <div id="rl-ny-track" style="position:absolute;left:0;right:0;top:50%;height:2px;background:${nlBg};transform:translateY(-50%);border-radius:1px;transition:height 0.4s ease;"></div>
+      <div id="rl-ny" style="position:absolute;left:0;right:0;top:50%;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
       <div style="${pillBase}background:rgba(10,9,8,0.96);border:1px solid rgba(52,211,153,0.35);">
         <div style="min-width:0;flex:1;">
           <div style="${nameStyle}">${nyName}</div>
@@ -2465,8 +2466,8 @@
   </div>
   <div id="rl-dir-row" style="display:flex;align-items:center;gap:6px;height:58px;transition:opacity 0.5s ease;">
     <div style="position:relative;flex:1;height:100%;overflow:visible;">
-      <div id="rl-dir-track" style="position:absolute;left:0;right:0;top:35%;height:2px;background:rgba(52,211,153,0.15);transform:translateY(-50%);border-radius:1px;transition:height 0.4s ease;"></div>
-      <div id="rl-dir" style="position:absolute;left:0;right:0;top:35%;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
+      <div id="rl-dir-track" style="position:absolute;left:0;right:0;top:50%;height:2px;background:rgba(52,211,153,0.15);transform:translateY(-50%);border-radius:1px;transition:height 0.4s ease;"></div>
+      <div id="rl-dir" style="position:absolute;left:0;right:0;top:50%;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
       <div style="${pillBase}background:rgba(10,9,8,0.96);border:1px solid rgba(52,211,153,0.35);">
         ${directFlagPill ? `<div style="flex-shrink:0;margin-right:6px;display:flex;align-items:center;">${directFlagPill}</div>` : ''}
         <div style="min-width:0;flex:1;">
