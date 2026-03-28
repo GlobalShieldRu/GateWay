@@ -182,9 +182,43 @@ def main():
 
     rules.extend(custom_routing_rules)
 
-    for d in user_rules.get('direct', []): rules.append(f"DOMAIN-SUFFIX,{d},DIRECT")
-    for d in user_rules.get('proxy', []): rules.append(f"DOMAIN-SUFFIX,{d},{global_node}")
+    # --- НАСТРОЙКИ AI КОНТУРА ---
+    ai_settings = user_rules.get('ai_settings', {"nodes": [], "domains": []})
+    ai_nodes = ai_settings.get("nodes", [])
+
+    if ai_nodes:
+        # 1. Создаем группу AI (выбирает самый быстрый узел из списка)
+        ai_group = {
+            "name": "AI",
+            "type": "url-test",
+            "proxies": ai_nodes,
+            "url": "http://www.gstatic.com/generate_204",
+            "interval": 300
+        }
+        # Вставляем группу в начало списка прокси-групп
+        server_config['proxy-groups'].insert(0, ai_group)
+
+        # 2. Определяем список доменов (из настроек или дефолтные)
+        ai_domains = ai_settings.get("domains")
+        if not ai_domains:
+            ai_domains = [
+                "openai.com", "chatgpt.com", "anthropic.com",
+                "claude.ai", "gemini.google.com", "aistudio.google.com"
+            ]
+
+        # 3. Добавляем правила в самое начало списка
+        for domain in ai_domains:
+            if domain and domain.strip():
+                rules.insert(0, f"DOMAIN-SUFFIX,{domain.strip()},AI")
+
+    # --- СТАНДАРТНЫЕ ПРАВИЛА (идут после AI) ---
+    for d in user_rules.get('direct', []):
+        rules.append(f"DOMAIN-SUFFIX,{d},DIRECT")
+    for d in user_rules.get('proxy', []):
+        rules.append(f"DOMAIN-SUFFIX,{d},{global_node}")
+
     rules.append(f"MATCH,{global_node}")
+
 
     server_config["rule-providers"] = rule_providers
     if sub_rules: server_config["sub-rules"] = sub_rules

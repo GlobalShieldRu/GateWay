@@ -891,6 +891,30 @@ async def update_rules(data: RulesUpdate):
         await f.write("1")
     return {"success": True}
 
+class AiSettingsRequest(BaseModel):
+    nodes: List[str]
+    domains: List[str]
+
+@app.post("/api/rules/ai")
+async def save_ai_rules(req: AiSettingsRequest):
+    try:
+        async with aiofiles.open(GSG_RULES_FILE, 'r') as f:
+            rules = json.loads(await f.read())
+    except:
+        rules = {"direct": [], "proxy": []}
+
+    rules["ai_settings"] = {
+        "nodes": req.nodes,
+        "domains": [d.strip() for d in req.domains if d.strip()]
+    }
+
+    async with aiofiles.open(GSG_RULES_FILE, 'w') as f:
+        await f.write(json.dumps(rules, indent=4))
+
+    # Сигнализируем генератору обновить конфиг
+    (GSG_CONFIG_DIR / ".reload_singbox").touch()
+    return {"ok": True}
+
 @app.get("/api/dhcp")
 async def get_dhcp():
     default = {
