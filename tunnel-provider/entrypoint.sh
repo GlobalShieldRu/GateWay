@@ -68,8 +68,6 @@ inotifywait -m -e close_write,moved_to,create "$GSG_CONFIG_DIR" 2>/dev/null | wh
             -d '{"path": "/etc/mihomo/config.yaml"}' \
             http://127.0.0.1:9090/configs > /dev/null || true
 
-        curl -s -X DELETE http://127.0.0.1:9090/connections > /dev/null || true
-
         rm -f "$GSG_CONFIG_DIR/.reload_singbox"
     fi
 done &
