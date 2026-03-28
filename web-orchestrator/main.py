@@ -881,14 +881,24 @@ async def get_rules():
 
 @app.put("/api/rules")
 async def update_rules(data: RulesUpdate):
-    rules = {
-        "direct": [r.strip() for r in data.direct if r.strip()],
-        "proxy": [r.strip() for r in data.proxy if r.strip()]
-    }
+    # Сначала ЧИТАЕМ текущий файл, чтобы не потерять настройки AI и кастомных групп
+    try:
+        async with aiofiles.open(GSG_RULES_FILE, 'r') as f:
+            rules = json.loads(await f.read())
+    except:
+        rules = {"direct": [], "proxy": [], "custom_groups": []}
+
+    # ОБНОВЛЯЕМ только нужные ключи
+    rules["direct"] = [r.strip() for r in data.direct if r.strip()]
+    rules["proxy"] = [r.strip() for r in data.proxy if r.strip()]
+
+    # Записываем обратно всё вместе
     async with aiofiles.open(GSG_RULES_FILE, 'w') as f:
         await f.write(json.dumps(rules, indent=2))
+
     async with aiofiles.open(GSG_CONFIG_DIR / ".reload_singbox", 'w') as f:
         await f.write("1")
+
     return {"success": True}
 
 class AiSettingsRequest(BaseModel):
