@@ -1073,16 +1073,26 @@
                         <div style="font-size:15px; font-weight:800; color:#f1f5f9; display:flex; align-items:center; gap:8px;">
                             <span style="font-size:18px;">🤖</span> AI Контур (ChatGPT, Gemini, Claude)
                         </div>
-                        <button class="btn-primary" onclick="GatewayApp.actions.saveAiRules()">Сохранить настройки AI</button>
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <span id="aiSaveStatus" style="font-size:12px; color:#10b981; display:none;">✅ Сохранено</span>
+                            <button class="btn-primary" onclick="GatewayApp.actions.saveAiRules(this)">Сохранить настройки AI</button>
+                        </div>
                     </div>
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
                         <div>
-                            <div class="section-label" style="margin-bottom:8px;">Узлы для AI (балансировка)</div>
-                            <div id="aiNodesCheckboxes" style="display:flex; flex-direction:column; gap:8px; padding:12px; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.05); border-radius:10px; max-height:200px; overflow-y:auto;" class="logs-scroll"></div>
+                            <div class="section-label" style="margin-bottom:8px;">Фильтр узлов (через запятую)</div>
+                            <input type="text" id="aiNodesFilter" class="gsg-input" placeholder="Например: US, Premium" style="width:100%;" oninput="GatewayApp.ui.updateAiPreview()">
+
+                            <div class="section-label" style="margin-top:16px; margin-bottom:8px; font-size:9px; opacity:0.6;">Попали в группу:</div>
+                            <div id="aiMatchedNodes" style="font-size:11px; color:#93c5fd; display:flex; flex-wrap:wrap; gap:6px; min-height:20px;">
+                                </div>
                         </div>
                         <div>
-                            <div class="section-label" style="margin-bottom:8px;">Домены (каждый с новой строки)</div>
-                            <textarea id="aiDomainsInput" class="gsg-textarea" rows="6" placeholder="openai.com&#10;chatgpt.com&#10;anthropic.com&#10;claude.ai&#10;gemini.google.com"></textarea>
+                            <div class="section-label" style="margin-bottom:8px;">Домены и Ключевые слова</div>
+                            <textarea id="aiDomainsInput" class="gsg-textarea" rows="8" placeholder="gemini&#10;openai&#10;chatgpt&#10;anthropic&#10;claude&#10;aistudio.google.com"></textarea>
+                            <div style="font-size:10px; color:var(--muted); margin-top:10px; line-height:1.4;">
+                                💡 <b>Умный парсер:</b> Слово без точки (например, <code>gemini</code>) перехватит ВСЕ поддомены и скрытые API (DOMAIN-KEYWORD). Домен с точкой (<code>2ip.ru</code>) — только этот конкретный сайт (DOMAIN-SUFFIX).
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -2177,6 +2187,24 @@
                 ui.renderConnectionRows(conns);
             },
 
+            updateAiPreview: () => {
+                const filterInput = document.getElementById('aiNodesFilter');
+                const previewBox = document.getElementById('aiMatchedNodes');
+                if (!filterInput || !previewBox || !state.nodes) return;
+
+                const filters = filterInput.value.split(',').map(f => f.trim().toLowerCase()).filter(f => f);
+                if (filters.length === 0) {
+                    previewBox.innerHTML = '<span style="color:#64748b;">Введите фильтр для выбора узлов</span>';
+                    return;
+                }
+
+                const matched = state.nodes
+                    .filter(n => filters.some(f => n.tag.toLowerCase().includes(f)))
+                    .map(n => `<span style="padding:2px 6px; background:rgba(59,130,246,0.1); border:1px solid rgba(59,130,246,0.2); border-radius:4px;">${n.tag}</span>`);
+
+                previewBox.innerHTML = matched.length > 0 ? matched.join('') : '<span style="color:#ef4444;">Нет совпадений</span>';
+            },
+
             renderNodes: () => {
                 const dash = document.getElementById('nodesDashboard');
                 if (!dash || !state.nodes) return;
@@ -2227,16 +2255,13 @@
                 }).join('');
 
                 dash.innerHTML = html;
-                // Наполнение списка чекбоксов для AI
-                const aiBox = document.getElementById('aiNodesCheckboxes');
-                if (aiBox && state.nodes) {
-                    aiBox.innerHTML = state.nodes.map(n => `
-                        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:12px; padding:2px 0;">
-                            <input type="checkbox" value="${n.tag}" class="gsg-check">
-                            <span style="color:${n.status==='online'?'#f1f5f9':'#64748b'}">${n.tag} <small style="opacity:0.5; margin-left:4px;">${n.ping}ms</small></span>
-                        </label>
-                    `).join('');
+
+                // Обновляем список узлов в блоке AI
+                if (typeof GatewayApp.ui.updateAiPreview === 'function') {
+                    GatewayApp.ui.updateAiPreview();
                 }
+
+                GatewayApp.ui.updateAiPreview();
             },
 
             renderNetworkStatus: (data) => {
@@ -4261,21 +4286,32 @@
                 await utils.apiCall('/logout', { method: 'POST' });
                 window.location.href = '/';
             },
-            saveAiRules: async () => {
-                const selectedNodes = Array.from(document.querySelectorAll('#aiNodesCheckboxes input:checked')).map(i => i.value);
-                const domains = document.getElementById('aiDomainsInput').value.split('\n').map(d => d.trim()).filter(d => d);
 
-                if (selectedNodes.length === 0) {
-                    alert('Выберите хотя бы один узел для AI группы!');
-                    return;
+            saveAiRules: async (btnElement) => {
+                try {
+                    const origText = btnElement.textContent;
+                    btnElement.textContent = 'Сохранение...';
+
+                    const filterValue = document.getElementById('aiNodesFilter').value || '';
+                    const domainsText = document.getElementById('aiDomainsInput').value || '';
+                    const domains = domainsText.split('\n').map(d => d.trim()).filter(d => d);
+
+                    const res = await fetch('/api/rules/ai', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ node_filter: filterValue, domains: domains })
+                    });
+
+                    if (res.ok) {
+                        btnElement.textContent = 'Успешно!';
+                        setTimeout(() => btnElement.textContent = origText, 2000);
+                    } else {
+                        btnElement.textContent = 'Ошибка';
+                        setTimeout(() => btnElement.textContent = origText, 2000);
+                    }
+                } catch (e) {
+                    alert('Ошибка скрипта: ' + e.message);
                 }
-
-                const res = await utils.apiCall('/rules/ai', {
-                    method: 'POST',
-                    body: JSON.stringify({ nodes: selectedNodes, domains: domains })
-                });
-
-                if (res?.ok) alert('Настройки AI Контура успешно сохранены!');
             },
 
             changePassword: async () => {
@@ -4648,6 +4684,38 @@
                 requestAnimationFrame(() => requestAnimationFrame(() => { fab.style.opacity = '1'; }));
             }, 3 * 60 * 1000); // 3 minutes
         })();
+    // Эта функция подтянет настройки из файла при открытии страницы
+    const initAiSettings = async () => {
+        const rules = await GatewayApp.utils.apiCall('/rules');
+        if (rules && rules.ai_settings) {
+            const ai = rules.ai_settings;
+            if (document.getElementById('aiNodesFilter')) document.getElementById('aiNodesFilter').value = ai.node_filter || '';
+            if (document.getElementById('aiDomainsInput')) document.getElementById('aiDomainsInput').value = (ai.domains || []).join('\n');
+            setTimeout(() => GatewayApp.ui.updateAiPreview(), 800);
+        }
+    };
+    initAiSettings();
+    });
+    document.addEventListener("DOMContentLoaded", async () => {
+        try {
+            const res = await fetch('/api/rules');
+            if (res.ok) {
+                const rules = await res.json();
+                if (rules && rules.ai_settings) {
+                    const f = document.getElementById('aiNodesFilter');
+                    const d = document.getElementById('aiDomainsInput');
+                    if(f) f.value = rules.ai_settings.node_filter || '';
+                    if(d) d.value = (rules.ai_settings.domains || []).join('\n');
+
+                    // Запускаем предпросмотр узлов через секунду
+                    setTimeout(() => {
+                        if (typeof GatewayApp !== 'undefined' && GatewayApp.ui && GatewayApp.ui.updateAiPreview) {
+                            GatewayApp.ui.updateAiPreview();
+                        }
+                    }, 1000);
+                }
+            }
+        } catch(e) { console.error("Не удалось загрузить настройки AI", e); }
     });
 </script>
 

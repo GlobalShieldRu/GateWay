@@ -892,7 +892,7 @@ async def update_rules(data: RulesUpdate):
     return {"success": True}
 
 class AiSettingsRequest(BaseModel):
-    nodes: List[str]
+    node_filter: str
     domains: List[str]
 
 @app.post("/api/rules/ai")
@@ -904,15 +904,17 @@ async def save_ai_rules(req: AiSettingsRequest):
         rules = {"direct": [], "proxy": []}
 
     rules["ai_settings"] = {
-        "nodes": req.nodes,
+        "node_filter": req.node_filter,
         "domains": [d.strip() for d in req.domains if d.strip()]
     }
 
     async with aiofiles.open(GSG_RULES_FILE, 'w') as f:
         await f.write(json.dumps(rules, indent=4))
 
-    # Сигнализируем генератору обновить конфиг
-    (GSG_CONFIG_DIR / ".reload_singbox").touch()
+    # ПРАВИЛЬНЫЙ триггер перезагрузки ядра (записываем 1)
+    async with aiofiles.open(GSG_CONFIG_DIR / ".reload_singbox", 'w') as f:
+        await f.write("1")
+        
     return {"ok": True}
 
 @app.get("/api/dhcp")

@@ -34,12 +34,15 @@ def main():
 
     if url:
         headers = {"User-Agent": "Mihomo/1.18.10 (GSG-Smart-Gateway)"}
-        r = httpx.get(url, headers=headers, timeout=15.0, follow_redirects=True)
-        r.raise_for_status()
-        parsed_yaml = yaml.safe_load(r.text)
-        if isinstance(parsed_yaml, dict):
-            server_config = parsed_yaml
-            nodes = server_config.get("proxies") or []
+        try:
+            r = httpx.get(url, headers=headers, timeout=15.0, follow_redirects=True)
+            r.raise_for_status()
+            parsed_yaml = yaml.safe_load(r.text)
+            if isinstance(parsed_yaml, dict):
+                server_config = parsed_yaml
+                nodes = server_config.get("proxies") or []
+        except Exception as e:
+            print(f"[WARN] Failed to fetch subscription: {e}", flush=True)
 
     if not isinstance(server_config, dict):
         server_config = {}
@@ -74,8 +77,14 @@ def main():
         "default-nameserver": ["8.8.8.8", "1.1.1.1"]
     }
 
-    if "sniffer" not in server_config:
-        server_config["sniffer"] = {"enable": True, "sniff": {"HTTP": {"ports": [80, 8080], "override-destination": True}, "TLS": {"ports": [443, 8443]}}}
+    server_config["sniffer"] = {
+        "enable": True,
+        "sniff": {
+            "HTTP": {"ports": [80, 8080], "override-destination": True},
+            "TLS": {"ports": [443, 8443], "override-destination": True},
+            "QUIC": {"ports": [443], "override-destination": True}
+        }
+    }
 
     if "proxies" not in server_config or not server_config["proxies"]:
         server_config["proxies"] = [{"name": "GSG-FALLBACK", "type": "direct"}]
@@ -95,29 +104,21 @@ def main():
         })
 
     custom_groups = user_rules.get("custom_groups", [])
-
     for group in custom_groups:
-        if not group.get("enabled", True):
-            continue
-
-        group_id = group.get("id", "unknown")
-        g_name = f"CUSTOM-{group_id}"
-
+        if not group.get("enabled", True): continue
+        g_name = f"CUSTOM-{group.get('id', 'unknown')}"
         filter_str = group.get("node_filter", "").lower()
         matched_nodes = [n for n in node_names if filter_str in n.lower()]
-
         if matched_nodes and g_name not in existing_group_names:
             server_config["proxy-groups"].append({
-                "name": g_name,
-                "type": "url-test",
-                "proxies": matched_nodes,
-                "url": "http://www.gstatic.com/generate_204",
-                "interval": 300,
+                "name": g_name, "type": "url-test", "proxies": matched_nodes,
+                "url": "http://www.gstatic.com/generate_204", "interval": 300,
                 "lazy": False, "tolerance": 50
             })
             existing_group_names.append(g_name)
 
-    rules = []
+    domain_rules = []
+    ip_rules = []
     rule_providers = {}
     sub_rules = {}
 
@@ -130,102 +131,104 @@ def main():
 
     custom_routing_rules = []
     for group in custom_groups:
-        if not group.get("enabled", True):
-            continue
-
+        if not group.get("enabled", True): continue
         g_name = f"CUSTOM-{group.get('id', 'unknown')}"
         filter_str = group.get("node_filter", "").lower()
         matched_nodes = [n for n in node_names if filter_str in n.lower()]
-
         target = g_name if matched_nodes else "auto"
-
         for domain in group.get("domains", []):
-            domain = domain.strip()
-            if domain:
-                custom_routing_rules.append(f"DOMAIN-SUFFIX,{domain},{target}")
+            if domain.strip():
+                clean_d = domain.strip().split('://')[-1].split('/')[0]
+                custom_routing_rules.append(f"DOMAIN-SUFFIX,{clean_d},{target}")
 
+    # --- 1. AI КОНТУР ---
+    ai_settings = user_rules.get('ai_settings', {})
+    node_filter = ai_settings.get("node_filter", "").lower()
+
+    ai_nodes = []
+    if node_filter:
+        filters = [f.strip() for f in node_filter.split(',') if f.strip()]
+        ai_nodes = [n for n in node_names if any(f in n.lower() for f in filters)]
+
+    ai_target = "GSG-AI" if ai_nodes else global_node
+
+    if ai_nodes:
+        server_config['proxy-groups'].insert(0, {
+            "name": "GSG-AI", "type": "fallback", "proxies": ai_nodes,
+            "url": "http://www.gstatic.com/generate_204", "interval": 300, "lazy": False
+        })
+
+    # Парсим домены из интерфейса.
+    # Умная логика: есть точка -> SUFFIX, нет точки -> KEYWORD
+    ai_domains = ai_settings.get("domains")
+
+    # Если список пуст (например, при первом запуске), используем эти слова по умолчанию
+    if not ai_domains:
+        ai_domains = [
+            "gemini", "openai", "chatgpt", "anthropic", "claude", "aistudio.google.com"
+        ]
+
+    for d in ai_domains:
+        d = d.strip()
+        if d:
+            clean_d = d.split('://')[-1].split('/')[0]
+            if '.' in clean_d:
+                domain_rules.append(f"DOMAIN-SUFFIX,{clean_d},{ai_target}")
+            else:
+                domain_rules.append(f"DOMAIN-KEYWORD,{clean_d},{ai_target}")
+
+    # --- 2. ПОЛЬЗОВАТЕЛЬСКИЕ ДОМЕНЫ ---
+    for d in user_rules.get('proxy', []):
+        clean_d = d.strip().split('://')[-1].split('/')[0]
+        domain_rules.append(f"DOMAIN-SUFFIX,{clean_d},{global_node}")
+
+    for d in user_rules.get('direct', []):
+        clean_d = d.strip().split('://')[-1].split('/')[0]
+        domain_rules.append(f"DOMAIN-SUFFIX,{clean_d},DIRECT")
+
+    # --- 3. ПРАВИЛА УСТРОЙСТВ ---
     for ip, info in devices.items():
         mode = info.get('mode', 'smart')
         assign = info.get('assigned_node', 'auto')
-
         target = global_node
         if assign != 'auto':
             for name in node_names:
                 if assign.lower() in name.lower():
-                    target = name
-                    break
+                    target = name; break
 
         if mode == 'block':
-            rules.append(f"SRC-IP-CIDR,{ip}/32,REJECT")
+            ip_rules.append(f"SRC-IP-CIDR,{ip}/32,REJECT")
         elif mode == 'bypass':
-            rules.append(f"SRC-IP-CIDR,{ip}/32,DIRECT")
+            ip_rules.append(f"SRC-IP-CIDR,{ip}/32,DIRECT")
         elif mode == 'global':
-            rules.append(f"SRC-IP-CIDR,{ip}/32,{target}")
+            ip_rules.append(f"SRC-IP-CIDR,{ip}/32,{target}")
         else:
             sub_name = f"smart_{ip.replace('.', '_')}"
             device_sub = []
-
             if rulesets.get('rkn_bypass', True):
-                device_sub.append(f"GEOSITE,youtube,{target}")
-                device_sub.append(f"GEOSITE,meta,{target}")
-                device_sub.append(f"GEOSITE,instagram,{target}")
-                device_sub.append(f"GEOSITE,twitter,{target}")
-                device_sub.append(f"GEOSITE,telegram,{target}")
-
+                for site in ["youtube", "meta", "instagram", "twitter", "telegram"]:
+                    device_sub.append(f"GEOSITE,{site},{target}")
+                device_sub.append(f"GEOIP,telegram,{target}")
                 device_sub.append(f"RULE-SET,rkn-domains,{target}")
-
             device_sub.append("MATCH,DIRECT")
-
-            if device_sub:
-                sub_rules[sub_name] = device_sub
-                rules.append(f"SUB-RULE,(SRC-IP-CIDR,{ip}/32),{sub_name}")
-
-    rules.extend(custom_routing_rules)
-
-    # --- НАСТРОЙКИ AI КОНТУРА ---
-    ai_settings = user_rules.get('ai_settings', {"nodes": [], "domains": []})
-    ai_nodes = ai_settings.get("nodes", [])
-
-    if ai_nodes:
-        # 1. Создаем группу AI (выбирает самый быстрый узел из списка)
-        ai_group = {
-            "name": "AI",
-            "type": "url-test",
-            "proxies": ai_nodes,
-            "url": "http://www.gstatic.com/generate_204",
-            "interval": 300
-        }
-        # Вставляем группу в начало списка прокси-групп
-        server_config['proxy-groups'].insert(0, ai_group)
-
-        # 2. Определяем список доменов (из настроек или дефолтные)
-        ai_domains = ai_settings.get("domains")
-        if not ai_domains:
-            ai_domains = [
-                "openai.com", "chatgpt.com", "anthropic.com",
-                "claude.ai", "gemini.google.com", "aistudio.google.com"
-            ]
-
-        # 3. Добавляем правила в самое начало списка
-        for domain in ai_domains:
-            if domain and domain.strip():
-                rules.insert(0, f"DOMAIN-SUFFIX,{domain.strip()},AI")
-
-    # --- СТАНДАРТНЫЕ ПРАВИЛА (идут после AI) ---
-    for d in user_rules.get('direct', []):
-        rules.append(f"DOMAIN-SUFFIX,{d},DIRECT")
-    for d in user_rules.get('proxy', []):
-        rules.append(f"DOMAIN-SUFFIX,{d},{global_node}")
-
-    rules.append(f"MATCH,{global_node}")
-
+            sub_rules[sub_name] = device_sub
+            ip_rules.append(f"SUB-RULE,(SRC-IP-CIDR,{ip}/32),{sub_name}")
 
     server_config["rule-providers"] = rule_providers
-    if sub_rules: server_config["sub-rules"] = sub_rules
-    server_config["rules"] = rules + server_config.get("rules", [])
+    if sub_rules:
+        server_config["sub-rules"] = sub_rules
+
+    server_config["rules"] = domain_rules + ip_rules + custom_routing_rules + [f"MATCH,{global_node}"]
+
+    print("\n[GSG] === ГРУППА GSG-AI ===", flush=True)
+    if ai_nodes:
+        print(f"  --> Найдено узлов: {len(ai_nodes)}", flush=True)
+    else:
+        print(f"  --> Узлы НЕ НАЙДЕНЫ! Трафик идет через: {global_node}", flush=True)
 
     MIHOMO_CONFIG.parent.mkdir(parents=True, exist_ok=True)
-    with open(MIHOMO_CONFIG, 'w') as f: yaml.dump(server_config, f, allow_unicode=True)
+    with open(MIHOMO_CONFIG, 'w') as f:
+        yaml.dump(server_config, f, allow_unicode=True)
 
 if __name__ == "__main__":
     main()
