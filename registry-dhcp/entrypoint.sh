@@ -15,14 +15,16 @@ echo "[INFO] Range: $DHCP_START - $DHCP_END on $LAN_IFACE"
 # Генерация конфига
 python3 /app/config_generator.py
 
-# Цикл слежения за изменениями
+# Цикл слежения за изменениями (debounce 2с чтобы не триггерить каскадно)
+PIDFILE="/var/run/dnsmasq.pid"
 inotifywait -m -e modify,create "/etc/gsg" 2>/dev/null | while read path action file; do
     if [ "$file" = "dhcp.json" ] || [ "$file" = ".reload_dhcp" ] || [ "$file" = "devices.json" ]; then
+        sleep 2
         echo "[INFO] Config change detected, regenerating..."
         python3 /app/config_generator.py
-        pkill -HUP dnsmasq || true
+        [ -f "$PIDFILE" ] && kill -HUP "$(cat "$PIDFILE")" 2>/dev/null || true
     fi
 done &
 
-# Запуск dnsmasq (убраны конфликтующие флаги)
-exec dnsmasq --no-daemon --conf-file="/etc/dnsmasq.conf" --keep-in-foreground
+# Запуск dnsmasq с pid-файлом
+exec dnsmasq --no-daemon --conf-file="/etc/dnsmasq.conf" --keep-in-foreground --pid-file="$PIDFILE"
