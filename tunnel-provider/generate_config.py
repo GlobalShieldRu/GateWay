@@ -128,11 +128,15 @@ def main():
             "url": "https://community.antifilter.download/list/domains.lst",
             "path": "./rules/rkn-domains.txt", "interval": 86400
         }
-        rule_providers['telegram-cidr'] = {
-            "type": "http", "behavior": "ipcidr", "format": "text",
-            "url": "https://core.telegram.org/resources/cidr.txt",
-            "path": "./rules/telegram-cidr.txt", "interval": 86400
-        }
+
+    # Telegram CIDR — всегда, независимо от rkn_bypass.
+    # Telegram-клиенты коннектятся по IP напрямую, минуя DNS,
+    # поэтому GEOSITE,telegram недостаточно.
+    rule_providers['telegram-cidr'] = {
+        "type": "http", "behavior": "ipcidr", "format": "text",
+        "url": "https://core.telegram.org/resources/cidr.txt",
+        "path": "./rules/telegram-cidr.txt", "interval": 86400
+    }
 
     custom_routing_rules = []
     for group in custom_groups:
@@ -210,12 +214,14 @@ def main():
         else:
             sub_name = f"smart_{ip.replace('.', '_')}"
             device_sub = []
+            # Telegram IP-правила — всегда (клиенты коннектятся по IP)
+            device_sub.append(f"GEOSITE,telegram,{target}")
+            device_sub.append(f"GEOIP,telegram,{target}")
+            device_sub.append(f"RULE-SET,telegram-cidr,{target}")
+            device_sub.append(f"IP-CIDR,5.28.192.0/22,{target}")
             if rulesets.get('rkn_bypass', True):
-                for site in ["youtube", "meta", "instagram", "twitter", "telegram"]:
+                for site in ["youtube", "meta", "instagram", "twitter"]:
                     device_sub.append(f"GEOSITE,{site},{target}")
-                device_sub.append(f"GEOIP,telegram,{target}")
-                device_sub.append(f"RULE-SET,telegram-cidr,{target}")
-                device_sub.append(f"IP-CIDR,5.28.192.0/22,{target}")
                 device_sub.append(f"RULE-SET,rkn-domains,{target}")
             device_sub.append("MATCH,DIRECT")
             sub_rules[sub_name] = device_sub

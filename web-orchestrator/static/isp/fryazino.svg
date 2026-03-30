@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36">
+  <rect width="36" height="36" rx="8" fill="#1a2744"/>
+  <!-- Signal tower -->
+  <line x1="18" y1="28" x2="18" y2="16" stroke="#4a9eff" stroke-width="2" stroke-linecap="round"/>
+  <!-- Waves -->
+  <path d="M13 20 Q18 16 23 20" stroke="#4a9eff" stroke-width="1.8" fill="none" stroke-linecap="round" opacity="0.9"/>
+  <path d="M10 23 Q18 17 26 23" stroke="#4a9eff" stroke-width="1.5" fill="none" stroke-linecap="round" opacity="0.55"/>
+  <path d="M7.5 26 Q18 18 28.5 26" stroke="#4a9eff" stroke-width="1.2" fill="none" stroke-linecap="round" opacity="0.3"/>
+  <!-- Base dot -->
+  <circle cx="18" cy="29" r="1.5" fill="#4a9eff"/>
+  <!-- F label -->
+  <text x="5" y="14" font-family="Arial,sans-serif" font-weight="700" font-size="9" fill="#4a9eff" opacity="0.7">FN</text>
+</svg>
