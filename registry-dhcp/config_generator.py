@@ -35,7 +35,7 @@ def generate():
         f"dhcp-range={conf['pool_start']},{conf['pool_end']},24h",
         f"dhcp-option=option:router,{conf['gateway']}",
         f"dhcp-option=option:dns-server,{conf['dns']}",
-        "log-dhcp"
+        "quiet-dhcp"
     ]
 
     # Static IP reservations from devices.json (dhcp-host=MAC,IP)

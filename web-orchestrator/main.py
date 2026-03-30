@@ -731,6 +731,18 @@ async def get_devices():
     active_ips = set(monitor.stats.keys())
     active_devices = await parse_arp_and_leases(active_ips)
     configs = await read_json(GSG_DEVICES_FILE, {})
+    # MAC fallback migration: если устройство сменило IP, находим конфиг по MAC
+    migrated = False
+    for d in active_devices:
+        if d["ip"] not in configs and d.get("mac"):
+            old_ip = next((k for k, v in configs.items() if v.get("mac") == d["mac"]), None)
+            if old_ip:
+                configs[d["ip"]] = configs.pop(old_ip)
+                migrated = True
+    if migrated:
+        async with _devices_lock:
+            async with aiofiles.open(GSG_DEVICES_FILE, 'w') as f:
+                await f.write(json.dumps(configs, indent=2))
     new_devices = [d for d in active_devices if d["ip"] not in configs]
     if new_devices:
         for d in new_devices:
@@ -770,6 +782,11 @@ async def update_device(ip: str, data: DeviceUpdate):
             "static_ip": data.static_ip,
             "mac": new_mac,
         }
+        # Удаляем дубли конфигов с тем же MAC под другими IP
+        if new_mac:
+            stale = [k for k, v in configs.items() if k != ip and v.get("mac") == new_mac]
+            for k in stale:
+                del configs[k]
         async with aiofiles.open(GSG_DEVICES_FILE, 'w') as f:
             await f.write(json.dumps(configs, indent=2))
     # Reload nftables only if routing mode changed

@@ -81,8 +81,8 @@ def main():
         "enable": True,
         "sniff": {
             "HTTP": {"ports": [80, 8080], "override-destination": True},
-            "TLS": {"ports": [443, 8443], "override-destination": True},
-            "QUIC": {"ports": [443], "override-destination": True}
+            "TLS": {"ports": [443, 8443], "override-destination": False},
+            "QUIC": {"ports": [443], "override-destination": False}
         }
     }
 
@@ -127,6 +127,11 @@ def main():
             "type": "http", "behavior": "domain", "format": "text",
             "url": "https://community.antifilter.download/list/domains.lst",
             "path": "./rules/rkn-domains.txt", "interval": 86400
+        }
+        rule_providers['telegram-cidr'] = {
+            "type": "http", "behavior": "ipcidr", "format": "text",
+            "url": "https://core.telegram.org/resources/cidr.txt",
+            "path": "./rules/telegram-cidr.txt", "interval": 86400
         }
 
     custom_routing_rules = []
@@ -209,6 +214,8 @@ def main():
                 for site in ["youtube", "meta", "instagram", "twitter", "telegram"]:
                     device_sub.append(f"GEOSITE,{site},{target}")
                 device_sub.append(f"GEOIP,telegram,{target}")
+                device_sub.append(f"RULE-SET,telegram-cidr,{target}")
+                device_sub.append(f"IP-CIDR,5.28.192.0/22,{target}")
                 device_sub.append(f"RULE-SET,rkn-domains,{target}")
             device_sub.append("MATCH,DIRECT")
             sub_rules[sub_name] = device_sub
