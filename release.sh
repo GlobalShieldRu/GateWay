@@ -17,17 +17,10 @@ TG_TOKEN="${TELEGRAM_BOT_TOKEN:-}"
 TG_CHAT="${TELEGRAM_NOTIFY_CHAT_ID:-}"
 # ─────────────────────────────────────────────────────────────────────────────
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-BOLD='\033[1m'
-NC='\033[0m'
-
-log()  { echo -e "${BLUE}[release]${NC} $*"; }
-ok()   { echo -e "${GREEN}[ok]${NC} $*"; }
-warn() { echo -e "${YELLOW}[warn]${NC} $*"; }
-die()  { echo -e "${RED}[error]${NC} $*" >&2; exit 1; }
+log()  { echo "[release] $*"; }
+ok()   { echo "[ok] $*"; }
+warn() { echo "[warn] $*"; }
+die()  { echo "[error] $*" >&2; exit 1; }
 
 # ─── Аргументы ───────────────────────────────────────────────────────────────
 VERSION="${1:-}"
@@ -67,12 +60,12 @@ fi
 
 # Читаем текущую версию
 CURRENT_VERSION=$(grep 'GSG_VERSION = ' "$MAIN_PY" | sed 's/.*"\(.*\)".*/\1/')
-log "Текущая версия: ${BOLD}$CURRENT_VERSION${NC} → Новая версия: ${BOLD}$VERSION${NC}"
+log "Текущая версия: $CURRENT_VERSION → Новая версия: $VERSION"
 
 # ─── Dry run ─────────────────────────────────────────────────────────────────
 if $DRY_RUN; then
   echo ""
-  echo -e "${BOLD}Dry run — что будет сделано:${NC}"
+  echo "Dry run — что будет сделано:"
   echo "  1. Обновить GSG_VERSION в $MAIN_PY: $CURRENT_VERSION → $VERSION"
   echo "  2. git commit + git tag v$VERSION"
   echo "  3. git push origin main --tags"
@@ -85,7 +78,7 @@ fi
 
 # ─── Подтверждение ───────────────────────────────────────────────────────────
 echo ""
-echo -e "${BOLD}Релиз v$VERSION${NC}"
+echo "Релиз v$VERSION"
 $DEPLOY && echo "  Деплой: $SERVER" || echo "  Деплой: пропущен"
 echo ""
 read -rp "Продолжить? [y/N] " confirm
@@ -218,5 +211,5 @@ fi
 
 # ─── Готово ───────────────────────────────────────────────────────────────────
 echo ""
-echo -e "${GREEN}${BOLD}Релиз v$VERSION готов${NC}"
+echo "Релиз v$VERSION готов"
 echo -e "  GitHub: https://github.com/GlobalShieldRu/GateWay/releases/tag/v$VERSION"
