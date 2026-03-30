@@ -533,6 +533,8 @@
         /* Skeleton */
         .skel { background: rgba(255,255,255,0.06); border-radius: 6px; animation: skelPulse 1.5s ease-in-out infinite; }
         @keyframes skelPulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
+        @keyframes gsgSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .gsg-spin { animation: gsgSpin 1.2s linear infinite; display: inline-block; }
 
         /* Inline rename */
         .rename-btn { background: none; border: none; color: var(--muted); cursor: pointer; padding: 2px 4px; border-radius: 4px; font-size: 11px; opacity: 0; transition: opacity 0.15s; line-height: 1; flex-shrink: 0; }
@@ -4466,11 +4468,35 @@
 
             checkUpdate: async () => {
                 const btn = document.getElementById('gsgUpdateBtn');
-                if (btn) { btn.textContent = '...'; btn.disabled = true; }
-                const v = await utils.apiCall('/version');
-                if (btn) { btn.textContent = '↻ обновить'; btn.disabled = false; }
-                ui.showToast(`Версия GSG: ${v?.version || '?'} — для обновления подключитесь по SSH и выполните: cd /root/GSG && git pull && docker compose build && docker compose up -d`, 'info');
-                ui.addEvent('ℹ️', `Проверка обновлений: v${v?.version || '?'}`, '#93c5fd');
+                const origHTML = btn?.innerHTML;
+                if (btn) { btn.innerHTML = '⏳'; btn.disabled = true; btn.style.opacity = '0.6'; }
+                const data = await utils.apiCall('/check-update');
+                if (!data) { if (btn) { btn.innerHTML = origHTML; btn.disabled = false; btn.style.opacity = ''; } return; }
+                if (data.has_update) {
+                    if (btn) { btn.innerHTML = origHTML; btn.disabled = false; btn.style.opacity = ''; btn.style.background = 'rgba(34,197,94,0.15)'; btn.style.borderColor = 'rgba(34,197,94,0.5)'; }
+                    const vEl = document.getElementById('gsgVersion');
+                    if (vEl) vEl.innerHTML = `${data.current} <span style="color:#22c55e;font-size:8px;">→ ${data.latest}</span>`;
+                    ui.showToast(`Доступна новая версия v${data.latest}`, 'info');
+                    ui.addEvent('🆕', `Доступно обновление: v${data.current} → v${data.latest}`, '#22c55e');
+                    if (confirm(`Доступна версия v${data.latest}.\n\nОбновить сейчас? Система перезапустится через 1-2 минуты.`)) {
+                        const res = await utils.apiCall('/update', { method: 'POST' });
+                        if (res?.ok) {
+                            if (btn) { btn.innerHTML = '⏳'; btn.disabled = true; btn.style.opacity = '0.6'; btn.classList.add('gsg-spin'); }
+                            ui.showToast('Обновление запущено. Страница перезагрузится автоматически.', 'success');
+                            ui.addEvent('🔄', 'Обновление запущено', '#22c55e');
+                            const poll = setInterval(async () => {
+                                try { const s = await utils.apiCall('/update/status'); if (s && !s.pending) { clearInterval(poll); location.reload(); } } catch(e) { /* сервер перезапускается */ }
+                            }, 5000);
+                            setTimeout(() => { clearInterval(poll); location.reload(); }, 180000);
+                        } else {
+                            ui.showToast(res?.error || 'Ошибка запуска обновления', 'error');
+                        }
+                    }
+                } else {
+                    if (btn) { btn.innerHTML = origHTML; btn.disabled = false; btn.style.opacity = ''; }
+                    ui.showToast(`v${data.current} — актуальная версия`, 'success');
+                    ui.addEvent('✅', `Версия v${data.current} актуальна`, '#22c55e');
+                }
             },
 
             updateSchedule: async () => {

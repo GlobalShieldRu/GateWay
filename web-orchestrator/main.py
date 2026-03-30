@@ -1139,6 +1139,44 @@ async def post_feedback(req: FeedbackRequest):
 async def get_version():
     return {"version": GSG_VERSION}
 
+GITHUB_REPO = "GlobalShieldRu/GateWay"
+UPDATE_TRIGGER = GSG_CONFIG_DIR / ".update_trigger"
+UPDATE_LOG = GSG_CONFIG_DIR / ".update_log"
+
+@app.get("/api/check-update")
+async def check_update():
+    """Проверяет наличие новой версии на GitHub."""
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest")
+            r.raise_for_status()
+            data = r.json()
+            latest = data.get("tag_name", "").lstrip("v")
+            return {
+                "current": GSG_VERSION,
+                "latest": latest,
+                "has_update": latest != GSG_VERSION and latest > GSG_VERSION,
+                "release_notes": data.get("body", ""),
+                "release_url": data.get("html_url", "")
+            }
+    except Exception as e:
+        return {"current": GSG_VERSION, "latest": None, "has_update": False, "error": str(e)}
+
+@app.post("/api/update")
+async def trigger_update():
+    """Создаёт триггер-файл для обновления на хосте."""
+    if UPDATE_TRIGGER.exists():
+        return {"ok": False, "error": "Обновление уже запущено"}
+    UPDATE_TRIGGER.write_text(f"update_requested_at={datetime.now().isoformat()}\n")
+    return {"ok": True, "message": "Обновление запущено. Система перезапустится через 1-2 минуты."}
+
+@app.get("/api/update/status")
+async def update_status():
+    """Проверяет статус обновления."""
+    pending = UPDATE_TRIGGER.exists()
+    log = UPDATE_LOG.read_text() if UPDATE_LOG.exists() else ""
+    return {"pending": pending, "log": log}
+
 @app.get("/api/traffic/device-chains")
 async def get_device_chains():
     result = {}

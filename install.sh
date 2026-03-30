@@ -259,6 +259,14 @@ EOF
 chmod +x /etc/cron.weekly/gsg-docker-prune
 success "Автоочистка Docker: еженедельно"
 
+# ── Update Watcher (обновление из веб-интерфейса) ─────
+info "Настройка Update Watcher..."
+chmod +x "${INSTALL_DIR}/update-watcher.sh"
+if ! crontab -l 2>/dev/null | grep -q 'update-watcher'; then
+    (crontab -l 2>/dev/null; echo "0 */6 * * * ${INSTALL_DIR}/update-watcher.sh >> ${INSTALL_DIR}/update-watcher.log 2>&1") | crontab -
+fi
+success "Update Watcher: проверка триггера каждые 6 часов"
+
 # ── Docker конфиг ─────────────────────────────
 info "Запись конфигурации..."
 cat > "$INSTALL_DIR/.env" << EOF
