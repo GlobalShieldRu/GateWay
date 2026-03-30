@@ -473,7 +473,8 @@ async def parse_arp_and_leases(active_ips: set = None):
                             hostname = socket.gethostbyaddr(ip)[0]
                         except Exception:
                             pass
-                        devices[ip] = {"ip": ip, "mac": parts[3].lower(), "hostname": hostname}
+                        arp_flags = int(parts[2], 16) if len(parts) > 2 else 0
+                        devices[ip] = {"ip": ip, "mac": parts[3].lower(), "hostname": hostname, "_arp_flags": arp_flags}
     except Exception:
         pass
 
@@ -520,6 +521,14 @@ async def parse_arp_and_leases(active_ips: set = None):
             mac_keep[mac] = ip
             continue
         current_kept = mac_keep[mac]
+        # Rule 0: prefer reachable ARP entry (flags & 0x2) over incomplete (0x0)
+        cur_reachable  = (devices[current_kept].get("_arp_flags", 0) & 0x2) != 0
+        this_reachable = (dev.get("_arp_flags", 0) & 0x2) != 0
+        if this_reachable and not cur_reachable:
+            mac_keep[mac] = ip
+            continue
+        if cur_reachable and not this_reachable:
+            continue
         # Rule 1: prefer the IP that has active traffic
         if active_ips:
             current_active = current_kept in active_ips

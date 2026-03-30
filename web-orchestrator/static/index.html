@@ -290,9 +290,9 @@
         /* Device row grid (desktop) */
         .dev-row-grid {
             display: grid;
-            grid-template-columns: minmax(220px,280px) 120px 268px 1fr 240px 250px;
+            grid-template-columns: 2.2fr 0.8fr 2fr 1.5fr 1.8fr 1.2fr 2fr;
             align-items: center;
-            gap: 14px;
+            gap: 10px;
             padding: 14px 20px;
             border-bottom: 1px solid rgba(255,255,255,0.04);
             transition: background 0.15s;
@@ -613,6 +613,13 @@
             #devicesHeader-controls { flex-wrap: wrap; gap: 6px !important; }
             #scheduleTimeInput { display: none !important; }
             #resetScopeGlobal, #scheduleTypeSelect { font-size: 10px !important; }
+            /* Devices toolbar mobile */
+            #devicesToolbar { padding: 8px 12px !important; gap: 8px !important; }
+            #devicesToolbar .global-mode-btn { font-size: 9px !important; padding: 3px 7px !important; }
+            #dev-search { max-width: 100% !important; }
+            /* Mode/Node pills on mobile */
+            .mode-pill { font-size: 8px !important; padding: 2px 5px !important; }
+            .node-pill { font-size: 8px !important; padding: 1px 4px !important; }
 
             /* App chips — tighter */
             .app-chip { width: 30px !important; height: 30px !important; }
@@ -734,17 +741,7 @@
             </div>
         </div>
 
-        <!-- Global mode control -->
-        <div style="padding:12px 14px;border-bottom:1px solid var(--card-border);">
-            <div class="section-label" style="margin-bottom:8px;">Все устройства</div>
-            <select id="globalModeSelect" class="gsg-select" style="width:100%;margin-bottom:8px;">
-                <option value="">— Индивидуально —</option>
-                <option value="smart">Smart (умный)</option>
-                <option value="global">Через прокси</option>
-                <option value="bypass">Напрямую</option>
-                <option value="block">Заблокировать</option>
-            </select>
-        </div>
+        <!-- Global mode control removed — moved to devices toolbar -->
 
         <!-- Nav -->
         <nav style="padding:10px 10px;flex:1;display:flex;flex-direction:column;gap:2px;">
@@ -986,35 +983,34 @@
                             </div>
                             <div style="font-size:11px;color:var(--muted);margin-top:2px;">Активные клиенты локальной сети</div>
                         </div>
-                        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                            <!-- Traffic reset controls -->
-                            <div id="devicesHeader-controls" style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-                                <select id="scheduleTypeSelect" onchange="GatewayApp.actions.updateSchedule()" class="gsg-select" style="font-size:11px;padding:4px 8px;" title="Автосброс трафика">
-                                    <option value="never">Без сброса</option>
-                                    <option value="daily">Сброс в полночь</option>
-                                    <option value="monthly">Сброс 1-го числа</option>
-                                </select>
-                                <input id="scheduleTimeInput" type="time" value="00:00" onchange="GatewayApp.actions.updateSchedule()" class="gsg-select" style="font-size:11px;padding:4px 6px;width:80px;" title="Время сброса">
-                                <div style="position:relative;">
-                                    <select id="resetScopeGlobal" class="gsg-select" style="font-size:11px;padding:4px 8px;">
-                                        <option value="daily">Сбросить сегодня</option>
-                                        <option value="monthly">Сбросить месяц</option>
-                                        <option value="yearly">Сбросить год</option>
-                                        <option value="all">Сбросить всё</option>
-                                    </select>
-                                </div>
-                                <button onclick="GatewayApp.actions.resetTraffic(document.getElementById('resetScopeGlobal').value, null)" style="padding:4px 10px;border-radius:7px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);color:#f87171;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;" title="Сбросить трафик всех устройств">Сброс всех</button>
-                            </div>
+                    </div>
+                    <!-- Devices toolbar: counters + search + quick actions -->
+                    <div id="devicesToolbar" style="display:flex;align-items:center;gap:12px;padding:10px 20px;flex-wrap:wrap;border-bottom:1px solid rgba(255,255,255,0.04);">
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <span id="dev-count-online" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#34d399;">0 онлайн</span>
+                            <span style="color:rgba(255,255,255,0.1);">|</span>
+                            <span id="dev-count-active" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#60a5fa;">0 активных</span>
+                            <span style="color:rgba(255,255,255,0.1);">|</span>
+                            <span id="dev-count-vpn" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#c9a84c;">0 VPN</span>
+                        </div>
+                        <div style="flex:1;max-width:240px;">
+                            <input id="dev-search" class="gsg-input" placeholder="Поиск устройства..." style="width:100%;font-size:11px;padding:5px 10px;">
+                        </div>
+                        <div style="display:flex;gap:4px;margin-left:auto;">
+                            <button class="global-mode-btn" data-mode="smart" style="padding:4px 10px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.3);color:#c9a84c;transition:all 0.15s;" onmouseover="this.style.background='rgba(201,168,76,0.25)'" onmouseout="this.style.background='rgba(201,168,76,0.12)'">Все Smart</button>
+                            <button class="global-mode-btn" data-mode="global" style="padding:4px 10px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#3b82f6;transition:all 0.15s;" onmouseover="this.style.background='rgba(59,130,246,0.25)'" onmouseout="this.style.background='rgba(59,130,246,0.12)'">Все Global</button>
+                            <button class="global-mode-btn" data-mode="bypass" style="padding:4px 10px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;background:rgba(148,163,184,0.12);border:1px solid rgba(148,163,184,0.3);color:#94a3b8;transition:all 0.15s;" onmouseover="this.style.background='rgba(148,163,184,0.25)'" onmouseout="this.style.background='rgba(148,163,184,0.12)'">Все Bypass</button>
                         </div>
                     </div>
                     <!-- Desktop table header -->
-                    <div class="dev-table-hdr" style="display:grid;grid-template-columns:minmax(220px,280px) 120px 268px 1fr 240px 250px;gap:14px;padding:8px 20px;border-bottom:1px solid rgba(255,255,255,0.04);align-items:center;">
+                    <div class="dev-table-hdr" style="display:grid;grid-template-columns:2.2fr 0.8fr 2fr 1.5fr 1.8fr 1.2fr 2fr;gap:10px;padding:8px 20px;border-bottom:1px solid rgba(255,255,255,0.04);align-items:center;">
                         <div class="section-label sort-hdr" onclick="GatewayApp.ui.setSort('hostname')" style="cursor:pointer;user-select:none;display:flex;align-items:center;gap:3px;white-space:nowrap;">Клиент <span id="sort-ind-hostname" style="font-size:9px;"></span></div>
                         <div class="section-label" style="white-space:nowrap;">Активность</div>
                         <div class="section-label sort-hdr" onclick="GatewayApp.ui.setSort('traffic')" style="cursor:pointer;user-select:none;display:flex;align-items:center;gap:3px;white-space:nowrap;"><span id="sort-ind-traffic" style="font-size:9px;"></span>Трафик</div>
                         <div class="section-label sort-hdr" onclick="GatewayApp.ui.setSort('ip')" style="cursor:pointer;user-select:none;display:flex;align-items:center;gap:3px;white-space:nowrap;">Маршрут <span id="sort-ind-ip" style="font-size:9px;"></span></div>
                         <div class="section-label" style="white-space:nowrap;">Приложения</div>
-                        <div class="section-label sort-hdr" onclick="GatewayApp.ui.setSort('mode')" style="cursor:pointer;user-select:none;display:flex;align-items:center;gap:3px;white-space:nowrap;">Режим/Узел <span id="sort-ind-mode" style="font-size:9px;"></span></div>
+                        <div class="section-label sort-hdr" onclick="GatewayApp.ui.setSort('mode')" style="cursor:pointer;user-select:none;display:flex;align-items:center;gap:3px;white-space:nowrap;">Режим <span id="sort-ind-mode" style="font-size:9px;"></span></div>
+                        <div class="section-label" style="white-space:nowrap;">Узел</div>
                     </div>
                     <div id="devicesTableBody"></div>
                     <!-- Legend -->
@@ -1767,7 +1763,7 @@
 
             renderDevices: (devices) => {
                 const trafficKeys = devices.map(d => { const t = state.traffic?.[d.ip]; return t ? `${d.ip}:${(t.speed_down||0)>0||(t.speed_up||0)>0?1:0}` : ''; }).join(',');
-                const newHash = JSON.stringify(devices) + JSON.stringify(state.nodes) + JSON.stringify(state.deviceApps) + (state._modeStyle||'emoji') + trafficKeys;
+                const newHash = JSON.stringify(devices) + JSON.stringify(state.nodes) + JSON.stringify(state.deviceApps) + (state._modeStyle||'emoji') + trafficKeys + (state._devSearch||'');
                 if (state._devicesHash === newHash) return;
                 state._devicesHash = newHash;
 
@@ -1776,8 +1772,7 @@
                 const countEl = document.getElementById('devicesCount');
                 if (countEl) countEl.textContent = devices.length + ' онлайн';
 
-                const optionsHtml = `<option value="auto">⚡ Автоматически</option>` +
-                    state.nodes.map(n => `<option value="${n.tag}">🌐 ${n.tag}</option>`).join('');
+                // Node pills are now rendered inline in the row template
 
                 const sortedDevices = [...devices].sort((a, b) => {
                     // Primary: online first, offline last (stable)
@@ -1803,7 +1798,15 @@
                 });
                 ui.updateSortIndicators();
 
-                tbody.innerHTML = sortedDevices.map(dev => {
+                const filteredDevices = state._devSearch
+                    ? sortedDevices.filter(d => {
+                        const q = state._devSearch;
+                        const name = (d.custom_name || d.hostname || '').toLowerCase();
+                        return name.includes(q) || d.ip.includes(q) || (d.mac||'').includes(q);
+                    })
+                    : sortedDevices;
+
+                tbody.innerHTML = filteredDevices.map(dev => {
                     const isBlocked = dev.mode === 'block';
                     const isProtected = dev.mode !== 'bypass' && !isBlocked;
                     const statusColor = isBlocked ? '#ef4444' : (isProtected ? '#10b981' : '#94a3b8');
@@ -1875,20 +1878,6 @@
                     const _modeColors = { global:'#3b82f6', smart:'#c9a84c', bypass:'#f59e0b', block:'#ef4444' };
                     const _modeC = _modeColors[dev.mode] || '#64748b';
                     const _ms = state._modeStyle || 'emoji';
-                    const _modeAbbrMap = {global:'GL',smart:'SM',bypass:'BP',block:'BL'};
-                    const _modeTextMap = {global:'Global',smart:'Smart',bypass:'Bypass',block:'Block'};
-                    const _modeEmojiMap = {global:'🌐',smart:'🧠',bypass:'⚡',block:'🚫'};
-                    const modeIndicator = _ms === 'emoji'
-                        ? `<span style="font-size:14px;flex-shrink:0;" title="${dev.mode}">${_modeEmojiMap[dev.mode]||'🌐'}</span>`
-                        : _ms === 'badge'
-                        ? `<span style="display:inline-flex;align-items:center;justify-content:center;padding:0 5px;height:16px;border-radius:3px;background:${_modeC}22;border:1px solid ${_modeC};font-family:'JetBrains Mono',monospace;font-weight:700;font-size:8px;color:${_modeC};flex-shrink:0;" title="${dev.mode}">${_modeAbbrMap[dev.mode]||'GL'}</span>`
-                        : _ms === 'minimal'
-                        ? `<span style="width:8px;height:8px;border-radius:50%;background:${_modeC};display:inline-block;flex-shrink:0;box-shadow:0 0 6px ${_modeC}99;" title="${dev.mode}"></span>`
-                        : _ms === 'pill'
-                        ? `<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;background:${_modeC}1a;border:1px solid ${_modeC}55;font-size:9px;font-weight:700;color:${_modeC};flex-shrink:0;letter-spacing:0.04em;text-transform:uppercase;" title="${dev.mode}">${_modeTextMap[dev.mode]||dev.mode}</span>`
-                        : _ms === 'neon'
-                        ? `<span style="width:10px;height:10px;border-radius:50%;background:${_modeC};display:inline-block;flex-shrink:0;box-shadow:0 0 6px ${_modeC},0 0 14px ${_modeC}88,0 0 22px ${_modeC}44;" title="${dev.mode}"></span>`
-                        : `<span style="font-size:14px;flex-shrink:0;" title="${dev.mode}">${_modeEmojiMap[dev.mode]||'🌐'}</span>`;
 
                     let routeHtml;
                     if (dev.mode === 'bypass') {
@@ -1917,7 +1906,6 @@
                             <div style="min-width:0;flex:1;">
                                 <div style="display:flex;align-items:center;gap:6px;">
                                     <span class="dev-display-name" data-ip="${dev.ip}" style="font-size:13px;font-weight:700;color:${isBlocked ? '#f87171' : (isCustom ? '#93c5fd' : '#f1f5f9')};${isBlocked ? 'text-decoration:line-through;' : ''}white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${displayName}</span>
-                                    ${modeIndicator}
                                     <input class="rename-input" data-ip="${dev.ip}" data-orig="${displayName}" value="${displayName}" style="display:none;" maxlength="32">
                                     <button class="rename-btn" data-ip="${dev.ip}" title="Переименовать" onclick="event.stopPropagation();GatewayApp.ui.startRename('${dev.ip}')">
                                         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -1980,15 +1968,37 @@
                         <div class="dev-row-mobile-right" style="display:contents;">
                         <!-- Col 5: APPS -->
                         ${appsHtml}
-                        <!-- Col 6: MODE/NODE -->
+                        <!-- Col 6: MODE -->
                         <div>
-                            <div style="display:flex;flex-direction:column;gap:6px;">
-                                <select class="gsg-select device-mode-select" data-ip="${dev.ip}" style="width:100%;" title="Global — весь трафик через VPN\nSmart — умная маршрутизация: заблокированные сайты через VPN, остальное напрямую\nBypass — весь трафик напрямую, без VPN\nBlock — заблокировать устройство">
-                                    ${(() => { const ms = state._modeStyle || 'emoji'; const lbl = { emoji: ['🌐 Global','🧠 Smart','⚡ Bypass','🚫 Block'], badge: ['GL · Global','SM · Smart','BP · Bypass','BL · Block'], minimal: ['● Global','● Smart','● Bypass','● Block'], pill: ['Global','Smart','Bypass','Block'], neon: ['⬤ Global','⬤ Smart','⬤ Bypass','⬤ Block'] }[ms] || ['🌐 Global','🧠 Smart','⚡ Bypass','🚫 Block']; return ['global','smart','bypass','block'].map((v,i)=>`<option value="${v}" ${dev.mode===v?'selected':''}>${lbl[i]}</option>`).join(''); })()}
-                                </select>
-                                <select class="gsg-select device-node-select" data-ip="${dev.ip}" style="width:100%;" ${isBlocked?'disabled':''}>
-                                    ${optionsHtml}
-                                </select>
+                            <div style="display:flex;gap:3px;flex-wrap:wrap;">
+                                ${['smart','global','bypass','block'].map(m => {
+                                    const pillColors = {smart:'#c9a84c',global:'#3b82f6',bypass:'#94a3b8',block:'#ef4444'};
+                                    const pillLabels = {smart:'Smart',global:'Global',bypass:'Bypass',block:'Block'};
+                                    const c = pillColors[m];
+                                    const active = dev.mode === m;
+                                    return `<span class="mode-pill" data-ip="${dev.ip}" data-mode="${m}" title="${{smart:'Smart',global:'Global',bypass:'Bypass',block:'Block'}[m]}" style="padding:2px 7px;border-radius:5px;font-size:9px;font-weight:700;cursor:pointer;transition:all 0.15s;white-space:nowrap;${active ? `background:${c}22;border:1px solid ${c};color:${c};` : `background:transparent;border:1px solid rgba(255,255,255,0.08);color:rgba(148,163,184,0.5);`}">${pillLabels[m]}</span>`;
+                                }).join('')}
+                            </div>
+                        </div>
+                        <!-- Col 7: NODE -->
+                        <div>
+                            <div style="display:flex;gap:3px;flex-wrap:wrap;">
+                                ${(() => {
+                                    const curNode = dev.assigned_node || 'auto';
+                                    const getFlag = (tag) => { if (/ny|new.?york/i.test(tag)) return '\u{1F1FA}\u{1F1F8}'; if (/stock|stok|swed/i.test(tag)) return '\u{1F1F8}\u{1F1EA}'; return '\u{1F310}'; };
+                                    const autoActive = curNode === 'auto';
+                                    const autoColor = '#10b981';
+                                    let pills = `<span class="node-pill" data-ip="${dev.ip}" data-node="auto" style="font-size:9px;padding:2px 6px;border-radius:5px;cursor:pointer;white-space:nowrap;${autoActive ? `background:${autoColor}22;border:1px solid ${autoColor};color:${autoColor};` : `background:transparent;border:1px solid rgba(255,255,255,0.08);color:rgba(148,163,184,0.5);`}">\u26A1 Auto</span>`;
+                                    state.nodes.forEach(n => {
+                                        const active = curNode === n.tag;
+                                        const nc = '#60a5fa';
+                                        const flag = getFlag(n.tag);
+                                        const hasFlag = /[\u{1F1E0}-\u{1F1FF}]{2}/u.test(n.tag);
+                                        const label = hasFlag ? n.tag : flag + ' ' + n.tag;
+                                        pills += `<span class="node-pill" data-ip="${dev.ip}" data-node="${n.tag}" title="${n.tag}" style="font-size:9px;padding:2px 6px;border-radius:5px;cursor:pointer;white-space:nowrap;${active ? `background:${nc}22;border:1px solid ${nc};color:${nc};` : `background:transparent;border:1px solid rgba(255,255,255,0.08);color:rgba(148,163,184,0.5);`}">${label}</span>`;
+                                    });
+                                    return pills;
+                                })()}
                             </div>
                         </div>
                         </div><!-- end mobile-right -->
@@ -1996,10 +2006,21 @@
                     </div>`;
                 }).join('');
 
-                devices.forEach(dev => {
-                    const nodeSelect = tbody.querySelector(`.device-node-select[data-ip="${dev.ip}"]`);
-                    if (nodeSelect) nodeSelect.value = dev.assigned_node || 'auto';
-                });
+                // Node pills are self-selecting via inline rendering
+
+                // Update toolbar counters
+                const onlineCount = devices.filter(d => d.online !== false).length;
+                const activeCount = devices.filter(d => {
+                    const t = state.traffic?.[d.ip];
+                    return t && ((t.speed_down || 0) + (t.speed_up || 0)) > 0;
+                }).length;
+                const vpnCount = devices.filter(d => d.mode === 'smart' || d.mode === 'global').length;
+                const elOnline = document.getElementById('dev-count-online');
+                const elActive = document.getElementById('dev-count-active');
+                const elVpn = document.getElementById('dev-count-vpn');
+                if (elOnline) elOnline.textContent = onlineCount + ' онлайн';
+                if (elActive) elActive.textContent = activeCount + ' активных';
+                if (elVpn) elVpn.textContent = vpnCount + ' VPN';
 
                 ui.updateTrafficDOM();
             },
@@ -2527,13 +2548,29 @@
 
                     // ── Top domains per branch from active connections ──
                     const _topDomains = { auto: [], ny: [], direct: [] };
+                    // Active apps per branch (for smart icon flash)
+                    box._activeApps = { auto: new Set(), ny: new Set(), direct: new Set() };
                     {
                         const _domCount = { auto: {}, ny: {}, direct: {} };
+                        const _appPatterns = [
+                            ['youtube',   /youtube|googlevideo|ytimg/i],
+                            ['telegram',  /telegram|t\.me/i],
+                            ['tiktok',    /tiktok|bytedance|musical\.ly/i],
+                            ['instagram', /instagram|cdninstagram/i],
+                            ['netflix',   /netflix|nflxvideo/i],
+                            ['gemini',    /gemini|generativelanguage/i],
+                            ['claude',    /claude|anthropic/i],
+                            ['chatgpt',   /openai|chatgpt/i],
+                        ];
                         (state.allConnections || []).forEach(c => {
                             const chain = c.chain || 'DIRECT';
                             const br = chain === 'DIRECT' ? 'direct' : _isNyTag(chain) ? 'ny' : 'auto';
                             const h = c.host;
                             if (!h || /^\d+\.\d+\.\d+\.\d+$/.test(h)) return;
+                            // Detect app from host
+                            for (const [app, re] of _appPatterns) {
+                                if (re.test(h)) { box._activeApps[br].add(app); break; }
+                            }
                             // Shorten: strip common CDN prefixes, keep last 2 parts
                             const parts = h.split('.');
                             const short = parts.length > 2 ? parts.slice(-2).join('.') : h;
@@ -2825,8 +2862,23 @@
                                             const _appsId = pk.branch === 'direct' ? 'rl-dir-apps' : pk.branch === 'ny' ? 'rl-ny-apps' : 'rl-auto-apps';
                                             const _appsEl = document.getElementById(_appsId);
                                             if (_appsEl?.children.length) {
-                                                const _ri = Math.floor(Math.random() * _appsEl.children.length);
-                                                const _icon = _appsEl.children[_ri];
+                                                // Smart flash: prefer icon of an active app on this branch
+                                                const _brActiveApps = box._activeApps?.[pk.branch];
+                                                let _icon = null;
+                                                if (_brActiveApps?.size) {
+                                                    const _activeArr = [..._brActiveApps];
+                                                    const _candidates = [..._appsEl.children].filter(el =>
+                                                        _activeArr.some(a => el.title && el.title.toLowerCase() === a)
+                                                    );
+                                                    if (_candidates.length) {
+                                                        if (!box._appFlashIdx) box._appFlashIdx = { auto: 0, ny: 0, direct: 0 };
+                                                        const idx = (box._appFlashIdx[pk.branch] || 0) % _candidates.length;
+                                                        box._appFlashIdx[pk.branch] = idx + 1;
+                                                        _icon = _candidates[idx];
+                                                    }
+                                                }
+                                                // Fallback: random icon
+                                                if (!_icon) _icon = _appsEl.children[Math.floor(Math.random() * _appsEl.children.length)];
                                                 if (_icon) {
                                                     _icon.classList.remove('app-flash');
                                                     void _icon.offsetWidth;
@@ -4514,19 +4566,46 @@
                 if (saved) state.deviceApps = JSON.parse(saved);
             } catch(e) {}
 
-            // Global mode for all devices
-            document.getElementById('globalModeSelect')?.addEventListener('change', async (e) => {
-                const mode = e.target.value;
-                if (!mode) return;
-                e.target.value = '';
-                for (const dev of state.devices) {
-                    await actions.updateDeviceSettings(dev.ip, mode, 'auto');
-                }
-                await actions.fetchData();
+            // Global mode buttons (toolbar)
+            document.querySelectorAll('.global-mode-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const mode = btn.dataset.mode;
+                    if (!mode) return;
+                    for (const dev of state.devices) {
+                        await actions.updateDeviceSettings(dev.ip, mode, 'auto');
+                    }
+                    await actions.fetchData();
+                });
             });
 
-            // App chip clicks
+            // Device search
+            document.getElementById('dev-search')?.addEventListener('input', (e) => {
+                state._devSearch = e.target.value.toLowerCase().trim();
+                state._devicesHash = null;
+                ui.renderDevices(state.devices);
+            });
+
+            // Mode pill + node pill + app chip clicks (delegated)
             document.getElementById('devicesTableBody')?.addEventListener('click', (e) => {
+                // Mode pill
+                const pill = e.target.closest('.mode-pill');
+                if (pill) {
+                    const ip = pill.dataset.ip;
+                    const mode = pill.dataset.mode;
+                    const dev = state.devices.find(d => d.ip === ip);
+                    actions.updateDeviceSettings(ip, mode, dev?.assigned_node || 'auto');
+                    return;
+                }
+                // Node pill
+                const nodePill = e.target.closest('.node-pill');
+                if (nodePill) {
+                    const ip = nodePill.dataset.ip;
+                    const node = nodePill.dataset.node;
+                    const dev = state.devices.find(d => d.ip === ip);
+                    actions.updateDeviceSettings(ip, dev?.mode || 'smart', node);
+                    return;
+                }
+                // App chip
                 const chip = e.target.closest('.app-chip');
                 if (!chip) return;
                 const ip = chip.dataset.ip;
@@ -4566,10 +4645,6 @@
                 } else if (e.target.classList.contains('tiktok-node-select')) {
                     const dev = state.devices.find(d => d.ip === ip);
                     actions.updateDeviceSettings(ip, dev?.mode || 'smart', dev?.assigned_node || 'auto', e.target.value);
-                } else if (e.target.classList.contains('device-mode-select') || e.target.classList.contains('device-node-select')) {
-                    const modeEl = document.querySelector(`.device-mode-select[data-ip="${ip}"]`);
-                    const nodeEl = document.querySelector(`.device-node-select[data-ip="${ip}"]`);
-                    if (modeEl && nodeEl) actions.updateDeviceSettings(ip, modeEl.value, nodeEl.value);
                 }
             });
 
