@@ -503,12 +503,19 @@ EOF
     success "Записано: /etc/network/interfaces.d/gsg-lan.conf"
 fi
 
-# Метод 2: Netplan (Ubuntu 20.04+)
+# Метод 2: Netplan (Ubuntu 20.04+, Armbian)
 if command -v netplan &>/dev/null; then
+    # Удаляем DHCP-restore от предыдущей деинсталляции
+    rm -f /etc/netplan/90-dhcp-restore.yaml
+
+    # Определяем renderer из существующего конфига (NetworkManager или networkd)
+    NETPLAN_RENDERER=$(grep -rh 'renderer:' /etc/netplan/ 2>/dev/null | head -1 | awk '{print $2}')
+    [ -z "$NETPLAN_RENDERER" ] && NETPLAN_RENDERER="networkd"
+
     cat > /etc/netplan/01-gsg-lan.yaml << EOF
 network:
   version: 2
-  renderer: networkd
+  renderer: ${NETPLAN_RENDERER}
   ethernets:
     ${LAN_IFACE}:
       addresses: [${GATEWAY_IP}/24]
@@ -519,7 +526,7 @@ network:
       nameservers:
         addresses: [8.8.8.8, 1.1.1.1]
 EOF
-    success "Netplan: конфигурация записана"
+    success "Netplan: конфигурация записана (renderer: ${NETPLAN_RENDERER})"
 fi
 
 if [ "${GATEWAY_IP}" != "${CURRENT_IP}" ]; then
