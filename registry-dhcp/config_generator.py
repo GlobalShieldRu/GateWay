@@ -46,8 +46,8 @@ def generate():
             mac = cfg.get("mac", "")
             static_ip = cfg.get("static_ip", "")
             if mac and static_ip:
-                lines.append(f"dhcp-host={mac},{static_ip}")
-                print(f"[INFO] Static IP: {mac} → {static_ip}")
+                lines.append(f"dhcp-host={mac},{static_ip},2m")
+                print(f"[INFO] Static IP: {mac} → {static_ip} (lease 2m)")
     except Exception:
         pass
 

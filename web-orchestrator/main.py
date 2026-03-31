@@ -3,6 +3,7 @@ import json
 import asyncio
 import time
 import socket
+import logging
 import psutil
 import httpx
 import aiofiles
@@ -810,10 +811,32 @@ async def update_device(ip: str, data: DeviceUpdate):
         async with aiofiles.open(GSG_CONFIG_DIR / ".reload_singbox", 'w') as f:
             await f.write("1")
     # Trigger dnsmasq reload if static IP or MAC changed
+    static_ip_changed = data.static_ip != existing.get("static_ip", "")
     if data.static_ip != "" or data.mac:
         async with aiofiles.open(GSG_CONFIG_DIR / ".reload_dhcp", 'w') as f:
             await f.write("1")
+    # Force DHCP renew: release old lease so client gets new static IP
+    if static_ip_changed and new_mac and data.static_ip:
+        asyncio.create_task(_dhcp_force_renew(ip, new_mac))
     return {"success": True}
+
+
+async def _dhcp_force_renew(old_ip: str, mac: str):
+    """Release old DHCP lease to force client to renew and get new static IP."""
+    try:
+        await asyncio.sleep(3)  # Wait for dnsmasq to reload config
+        iface = os.getenv("GSG_LAN_INTERFACE", "eth0")
+        proc = await asyncio.create_subprocess_exec(
+            "docker", "exec", "gsg-dhcp", "dhcp_release", iface, old_ip, mac,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await proc.communicate()
+        if proc.returncode == 0:
+            logging.info(f"[DHCP] Released lease {old_ip} ({mac}) — client should renew")
+        else:
+            logging.warning(f"[DHCP] dhcp_release failed: {stderr.decode().strip()}")
+    except Exception as e:
+        logging.warning(f"[DHCP] Force renew failed: {e}")
 
 @app.get("/api/nodes")
 async def get_nodes():

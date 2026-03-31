@@ -84,11 +84,8 @@
         /* Sidebar */
         #sidebar {
             width: var(--sidebar-w);
-            background: rgba(5,5,12,0.97);
-            background-color: rgb(5,5,12); /* solid fallback for iOS */
+            background: rgb(5,5,12);
             border-right: 1px solid var(--card-border);
-            -webkit-backdrop-filter: blur(40px);
-            backdrop-filter: blur(40px);
         }
 
         /* Nav item */
@@ -544,24 +541,38 @@
         .static-ip-edit-btn:hover { color: #93c5fd !important; }
         .rename-input { background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.4); border-radius: 6px; color: #f1f5f9; font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; padding: 2px 6px; outline: none; max-width: 180px; }
 
+        /* ─── Tablet/small screens ≤ 900px ─────────────────── */
+        @media (max-width: 900px) {
+            body { overflow-x: hidden !important; }
+        }
+
         /* ─── Mobile ≤ 768px ────────────────────────────────── */
         @media (max-width: 768px) {
-            body { overflow: auto; }
+            body { overflow-x: hidden !important; overflow-y: auto; }
+
+            /* Prevent horizontal overflow on all containers */
+            #main-scroll, #app, main { max-width: 100vw !important; overflow-x: hidden !important; }
+
+            /* Glass cards — constrain to viewport */
+            .glass { max-width: 100% !important; box-sizing: border-box !important; }
 
             /* Sidebar */
             #sidebar {
-                position: fixed;
-                inset-y: 0; left: 0;
-                z-index: 100;
-                transform: translateX(-100%);
-                transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
-                width: 82vw; max-width: 280px;
-                overflow-y: auto;
+                position: fixed !important;
+                top: 0 !important; bottom: 0 !important; left: 0 !important;
+                z-index: 200 !important;
+                transform: translateX(-100%) !important;
+                transition: transform 0.28s cubic-bezier(0.4,0,0.2,1) !important;
+                width: 82vw !important; max-width: 280px !important;
+                overflow-y: auto !important;
                 -webkit-overflow-scrolling: touch;
-                height: 100%;
+                height: 100vh !important; height: 100dvh !important;
                 background-color: rgb(5,5,12) !important;
+                display: flex !important;
+                flex-direction: column !important;
             }
-            #sidebar.open { transform: translateX(0); }
+            #sidebar.open { transform: translateX(0) !important; }
+            #sidebar { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; background: rgb(5,5,12) !important; }
 
             /* Mobile header */
             #mobileHeader { display: flex !important; }
@@ -569,8 +580,24 @@
             /* Main content — tighter padding */
             #main-scroll { padding: 12px !important; gap: 12px !important; }
 
-            /* Top grid: single column */
-            #topGrid { grid-template-columns: 1fr !important; }
+            /* Top grid: stack vertically on mobile */
+            #topGrid {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 12px !important;
+            }
+            /* Override inline min-width on panels */
+            #panelStatus { min-width: 0 !important; flex: unset !important; overflow-x: hidden !important; max-width: 100vw !important; }
+            #panelSub    { min-width: 0 !important; flex: unset !important; order: -1 !important; }
+            /* Hide drag divider on mobile */
+            #topGridDivider { display: none !important; }
+            #sidebarDivider { display: none !important; }
+            #logoWatermark { display: none !important; }
+            /* Brighter sidebar on mobile */
+            #sidebar .section-label { color: #94a3b8 !important; }
+            #sidebar .metric-pill { background: rgba(255,255,255,0.06) !important; border-color: rgba(255,255,255,0.1) !important; }
+            #sidebar .nav-item { color: #cbd5e1 !important; }
+            #sidebar .nav-item.active { color: #f1f5f9 !important; }
 
             /* Traffic summary bar: 2×2 */
             #trafficSummaryBar {
@@ -621,8 +648,11 @@
             .mode-pill { font-size: 8px !important; padding: 2px 5px !important; }
             .node-pill { font-size: 8px !important; padding: 1px 4px !important; }
 
-            /* App chips — tighter */
-            .app-chip { width: 30px !important; height: 30px !important; }
+            /* App chips — tighter + consistent rows */
+            .app-chip { width: 26px !important; height: 26px !important; font-size: 13px !important; }
+            .dev-row-mobile-right > div > div[style*="flex-direction:column"] > div[style*="max-width"] {
+                max-width: 100% !important;
+            }
 
             /* History modal — near-fullscreen */
             #historyModal > div:nth-child(2) {
@@ -634,8 +664,8 @@
                 grid-template-columns: 1fr 1fr !important;
             }
 
-            /* Route viz — scrollable */
-            #routeViz { overflow-x: auto; }
+            /* Route viz — hide on mobile, too complex for small screens */
+            #routeViz { display: none !important; }
 
             /* Glass cards — reduce padding */
             .glass[style*="padding:24px"] { padding: 16px !important; }
@@ -673,14 +703,14 @@
 </div>
 
 <!-- Mobile backdrop -->
-<div id="mobileBackdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:90;backdrop-filter:blur(2px);"></div>
+<div id="mobileBackdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:90;"></div>
 
-<!-- Logo watermark -->
-<div style="position:fixed;left:50%;top:50%;transform:translate(calc(-50% + var(--sidebar-w) / 2), -50%);pointer-events:none;z-index:2;opacity:0.16;">
-    <img src="/static/logo.png" alt="" style="width:1040px;height:1040px;object-fit:contain;filter:saturate(0.15) blur(0.3px);">
+<!-- Logo watermark (desktop only) -->
+<div id="logoWatermark" class="desktop-only" style="position:fixed;left:50%;top:50%;transform:translate(calc(-50% + var(--sidebar-w) / 2), -50%);pointer-events:none;z-index:0;opacity:0.08;">
+    <img src="/static/logo.png" alt="" style="width:1040px;height:1040px;object-fit:contain;filter:saturate(0.1) blur(0.5px);">
 </div>
 
-<div style="display:flex;height:100vh;height:100dvh;position:relative;z-index:1;">
+<div style="display:flex;height:100vh;height:100dvh;position:relative;">
 
     <!-- SIDEBAR -->
     <aside id="sidebar" class="flex flex-col shrink-0" style="height:100vh;height:100dvh;overflow-y:auto;">
@@ -1002,10 +1032,10 @@
                     <!-- Legend -->
                     <div style="padding:10px 20px;border-top:1px solid rgba(255,255,255,0.04);display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
                         <span class="section-label" style="margin-right:4px;font-family:'JetBrains Mono',monospace;font-size:10px;">Легенда</span>
-                        <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:5px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.15);font-size:10px;font-family:'JetBrains Mono',monospace;color:#93c5fd;">Smart — обход блокировок</span>
-                        <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:5px;background:rgba(168,85,247,0.08);border:1px solid rgba(168,85,247,0.15);font-size:10px;font-family:'JetBrains Mono',monospace;color:#c084fc;">Global — весь трафик через узел</span>
-                        <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:5px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.15);font-size:10px;font-family:'JetBrains Mono',monospace;color:#fbbf24;">Bypass — напрямую</span>
-                        <span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:5px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.15);font-size:10px;font-family:'JetBrains Mono',monospace;color:#f87171;">Block — блокировка</span>
+                        <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.3);font-size:9px;font-weight:700;color:#c9a84c;white-space:nowrap;">Smart — обход блокировок</span>
+                        <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);font-size:9px;font-weight:700;color:#3b82f6;white-space:nowrap;">Global — весь трафик через узел</span>
+                        <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;background:rgba(148,163,184,0.12);border:1px solid rgba(148,163,184,0.3);font-size:9px;font-weight:700;color:#94a3b8;white-space:nowrap;">Bypass — напрямую</span>
+                        <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);font-size:9px;font-weight:700;color:#ef4444;white-space:nowrap;">Block — блокировка</span>
                     </div>
                 </div>
             </div>
@@ -1674,9 +1704,8 @@
 
                 const tbody = document.getElementById('devicesTableBody');
                 if (!tbody || !devices) return;
-                // Skip re-render if user is actively editing a device name
-                const activeRename = tbody.querySelector('.rename-input[style*="inline"]');
-                if (activeRename) return;
+                // Skip re-render if user is actively editing a name or IP
+                if (tbody.querySelector('.rename-input[style*="inline"]') || tbody.querySelector('.static-ip-input[style*="inline"]')) return;
                 const countEl = document.getElementById('devicesCount');
                 if (countEl) countEl.textContent = devices.length + ' онлайн';
 
@@ -1710,7 +1739,8 @@
                     ? sortedDevices.filter(d => {
                         const q = state._devSearch;
                         const name = (d.custom_name || d.hostname || '').toLowerCase();
-                        return name.includes(q) || d.ip.includes(q) || (d.mac||'').includes(q);
+                        const vendor = (state.vendorCache[d.mac] || '').toLowerCase();
+                        return name.includes(q) || d.ip.includes(q) || (d.static_ip||'').includes(q) || (d.mac||'').includes(q) || vendor.includes(q);
                     })
                     : sortedDevices;
 
@@ -1822,9 +1852,9 @@
                                 </div>
                                 <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);margin-top:1px;display:flex;flex-direction:column;gap:1px;" class="ip-row" data-ip="${dev.ip}">
                                     <div style="display:flex;align-items:center;gap:4px;">
-                                        <span class="ip-display">${dev.static_ip||dev.ip}</span>
+                                        <span class="ip-display">${dev.static_ip||dev.ip}</span>${dev.static_ip && dev.static_ip !== dev.ip ? `<span style="font-size:8px;color:rgba(100,116,139,0.35);">(${dev.ip})</span>` : ''}
                                         <button class="static-ip-edit-btn" data-ip="${dev.ip}" title="Статичный IP (DHCP резерв)" onclick="event.stopPropagation();GatewayApp.ui.startStaticIpEdit('${dev.ip}')" style="background:none;border:none;color:rgba(100,116,139,0);cursor:pointer;padding:0;line-height:1;transition:color 0.15s;flex-shrink:0;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
-                                        <span class="static-ip-prefix" style="display:none;font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">${dev.ip.split('.').slice(0,3).join('.')}.</span><input class="static-ip-input gsg-input" type="number" min="1" max="254" data-ip="${dev.ip}" data-mac="${dev.mac||''}" value="${(dev.static_ip||dev.ip).split('.')[3]||''}" placeholder="${dev.ip.split('.')[3]}" style="display:none;width:44px;font-size:10px;padding:2px 5px;font-family:'JetBrains Mono',monospace;">
+                                        <span class="static-ip-prefix" style="display:none;font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">${dev.ip.split('.').slice(0,3).join('.')}.</span><input class="static-ip-input gsg-input" type="number" min="1" max="254" data-ip="${dev.ip}" data-mac="${dev.mac||''}" value="${(dev.static_ip||dev.ip).split('.')[3]||''}" placeholder="${dev.ip.split('.')[3]}" style="display:none;width:56px;font-size:11px;padding:3px 6px;font-family:'JetBrains Mono',monospace;">
                                     </div>
                                     <span style="font-size:9px;color:rgba(100,116,139,0.5);">${dev.mac}</span>
                                 </div>
@@ -1833,8 +1863,8 @@
                             </div>
                         </div>
                         <!-- Col 2: ACTIVITY -->
-                        <div class="dev-col-spark dev-spark" data-ip="${dev.ip}" style="display:flex;align-items:flex-end;gap:1px;height:26px;padding:2px 0;overflow:hidden;">
-                            ${ui.makeSparkBars(state.deviceTrafficHistory[dev.ip] || [], state.deviceChainHistory[dev.ip])}
+                        <div class="dev-col-spark dev-spark" data-ip="${dev.ip}" style="display:flex;align-items:center;gap:1px;height:26px;padding:2px 0;overflow:hidden;">
+                            ${ui.makeSparkBars(state.deviceTrafficHistory[dev.ip] || [], state.deviceChainHistory[dev.ip], state._deviceUpHistory?.[dev.ip])}
                         </div>
                         <!-- Col 3: TRAFFIC -->
                         <div class="dev-col-trafik">
@@ -1971,10 +2001,14 @@
                     } else {
                         setHistCells(ip, {down: showDown, up: showUp}, {down:0, up:0}, 0, 0);
                     }
-                    // Update sparkbar history (total)
+                    // Update sparkbar history (down + up)
                     if (!state.deviceTrafficHistory[ip]) state.deviceTrafficHistory[ip] = [];
                     state.deviceTrafficHistory[ip].push(data.speed_down || 0);
                     if (state.deviceTrafficHistory[ip].length > 36) state.deviceTrafficHistory[ip].shift();
+                    if (!state._deviceUpHistory) state._deviceUpHistory = {};
+                    if (!state._deviceUpHistory[ip]) state._deviceUpHistory[ip] = [];
+                    state._deviceUpHistory[ip].push(data.speed_up || 0);
+                    if (state._deviceUpHistory[ip].length > 36) state._deviceUpHistory[ip].shift();
                     // Update per-chain breakdown history for stacked bars
                     // Use total_down proportions × current speed to avoid racing with backend speed zeroing
                     const _nyTagSp = (state.nodes.find(n => /ny|new[\s-]?york/i.test(n.tag)))?.tag;
@@ -1998,7 +2032,7 @@
                     state.deviceChainHistory[ip].push({ a: _spA, n: _spN, d: _spD });
                     if (state.deviceChainHistory[ip].length > 36) state.deviceChainHistory[ip].shift();
                     const sparkEl = document.querySelector(`.dev-spark[data-ip="${ip}"]`);
-                    if (sparkEl) sparkEl.innerHTML = ui.makeSparkBars(state.deviceTrafficHistory[ip], state.deviceChainHistory[ip]);
+                    if (sparkEl) sparkEl.innerHTML = ui.makeSparkBars(state.deviceTrafficHistory[ip], state.deviceChainHistory[ip], state._deviceUpHistory?.[ip]);
                 });
                 // Update route column with live chain breakdown (hash-gated to prevent flicker)
                 if (state.deviceChains) {
@@ -2033,28 +2067,40 @@
                 }
             },
 
-            makeSparkBars: (history, chainHistory) => {
+            makeSparkBars: (history, chainHistory, upHistory) => {
                 const bars = history.slice(-36);
+                const upBars = upHistory ? upHistory.slice(-36) : [];
                 const chains = chainHistory ? chainHistory.slice(-36) : null;
-                const max = Math.max(1, ...bars);
+                const maxDown = Math.max(1, ...bars);
+                const maxUp = Math.max(1, ...upBars, 1);
+                const maxAll = Math.max(maxDown, maxUp);
                 return bars.map((v, i) => {
-                    const h = Math.max(2, Math.round((v / max) * 22));
-                    if (!v) return `<div style="width:3px;height:2px;background:rgba(255,255,255,0.07);border-radius:1px;align-self:flex-end;"></div>`;
+                    const u = upBars[i] || 0;
+                    const hDown = Math.max(v ? 2 : 0, Math.round((v / maxAll) * 11));
+                    const hUp = Math.max(u ? 2 : 0, Math.round((u / maxAll) * 11));
+                    if (!v && !u) return `<div style="width:3px;height:26px;display:flex;flex-direction:column;justify-content:center;"><div style="height:1px;background:rgba(255,255,255,0.05);"></div></div>`;
+                    // Down bar (top half — grows upward from center)
+                    let downHtml;
                     const c = chains?.[i];
                     if (c && (c.a + c.n + c.d) > 0) {
-                        // Stacked bar: auto=gold, ny=blue, direct=gray (bottom→top)
                         const tot = c.a + c.n + c.d;
-                        const hA = Math.round((c.a / tot) * h);
-                        const hN = Math.round((c.n / tot) * h);
-                        const hD = h - hA - hN;
-                        return `<div style="width:3px;height:${h}px;display:flex;flex-direction:column-reverse;border-radius:1px;overflow:hidden;align-self:flex-end;transition:height 0.3s;">`
+                        const hA = Math.round((c.a / tot) * hDown);
+                        const hN = Math.round((c.n / tot) * hDown);
+                        const hD = hDown - hA - hN;
+                        downHtml = `<div style="height:${hDown}px;display:flex;flex-direction:column-reverse;overflow:hidden;border-radius:1px 1px 0 0;">`
                             + (hA > 0 ? `<div style="height:${hA}px;background:#c9a84c;flex-shrink:0;"></div>` : '')
                             + (hN > 0 ? `<div style="height:${hN}px;background:#60a5fa;flex-shrink:0;"></div>` : '')
                             + (hD > 0 ? `<div style="height:${hD}px;background:#94a3b8;flex-shrink:0;"></div>` : '')
                             + `</div>`;
+                    } else {
+                        downHtml = hDown > 0 ? `<div style="height:${hDown}px;background:#34d399;border-radius:1px 1px 0 0;"></div>` : '';
                     }
-                    // Fallback: solid green (no chain data yet)
-                    return `<div style="width:3px;height:${h}px;background:#10b981;border-radius:1px;align-self:flex-end;transition:height 0.3s;"></div>`;
+                    // Up bar (bottom half — grows downward from center)
+                    const upHtml = hUp > 0 ? `<div style="height:${hUp}px;background:rgba(96,165,250,0.6);border-radius:0 0 1px 1px;"></div>` : '';
+                    return `<div style="width:3px;height:26px;display:flex;flex-direction:column;justify-content:center;gap:0;">`
+                        + `<div style="height:13px;display:flex;flex-direction:column;justify-content:flex-end;">${downHtml}</div>`
+                        + `<div style="height:13px;display:flex;flex-direction:column;justify-content:flex-start;">${upHtml}</div>`
+                        + `</div>`;
                 }).join('');
             },
 
