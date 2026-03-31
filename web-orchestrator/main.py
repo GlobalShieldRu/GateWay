@@ -20,6 +20,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 
 GSG_VERSION = "1.2.1"
+_start_time = time.time()
 
 app = FastAPI(title="GSG Smart Gateway API")
 
@@ -381,6 +382,147 @@ async def _rotate_log():
         except Exception:
             pass
 
+async def send_heartbeat():
+    """Отправляет heartbeat на GlobalShield API. Вызывается при чтении/обновлении подписки."""
+    try:
+        device = await read_json(GSG_DEVICE_FILE, {})
+        device_id    = device.get('device_id', '')
+        device_token = device.get('device_token', '')
+        if device_id and device_token:
+            devices = await read_json(GSG_DEVICES_FILE, {})
+            uptime_hours = int((time.time() - psutil.boot_time()) / 3600)
+
+            # client_count — количество онлайн устройств из панели GSG
+            client_count = 0
+            try:
+                active_ips = set(monitor.stats.keys())
+                active_devices = await parse_arp_and_leases(active_ips)
+                client_count = len(active_devices)
+            except Exception:
+                pass
+
+            # mihomo_ok — TCP connect на порт 9090
+            mihomo_ok = False
+            try:
+                s = socket.create_connection(('127.0.0.1', 9090), timeout=1)
+                s.close()
+                mihomo_ok = True
+            except Exception:
+                pass
+
+            # active_connections
+            active_connections = 0
+            try:
+                active_connections = len(monitor.active_conns)
+            except Exception:
+                pass
+
+            # nodes_online / nodes_total
+            nodes_online = 0
+            nodes_total = 0
+            try:
+                nodes_data = await read_json(GSG_NODES_FILE, {"nodes": []})
+                nodes_list = nodes_data.get("nodes", [])
+                nodes_total = len(nodes_list)
+                # Проверяем статус через Mihomo API
+                mihomo_proxies = {}
+                try:
+                    async with httpx.AsyncClient(timeout=2.0) as hc:
+                        r = await hc.get("http://127.0.0.1:9090/proxies")
+                        if r.status_code == 200:
+                            mihomo_proxies = r.json().get("proxies", {})
+                except Exception:
+                    pass
+                for n in nodes_list:
+                    tag = n.get("tag", "")
+                    if tag in mihomo_proxies:
+                        hist = mihomo_proxies[tag].get("history", [])
+                        if hist and hist[-1].get("delay", 0) > 0:
+                            nodes_online += 1
+                    else:
+                        nodes_online += 1  # неизвестно — считаем онлайн
+            except Exception:
+                pass
+
+            # cpu_temp
+            cpu_temp = 0
+            try:
+                temps = psutil.sensors_temperatures()
+                for sensor_list in temps.values():
+                    for entry in sensor_list:
+                        if entry.current and entry.current > 0:
+                            cpu_temp = int(entry.current)
+                            break
+                    if cpu_temp:
+                        break
+            except Exception:
+                pass
+            if not cpu_temp:
+                try:
+                    with open('/sys/class/thermal/thermal_zone0/temp') as f:
+                        cpu_temp = int(f.read().strip()) // 1000
+                except Exception:
+                    pass
+
+            # ram_percent
+            ram_percent = 0
+            try:
+                ram_percent = int(psutil.virtual_memory().percent)
+            except Exception:
+                pass
+
+            # disk_percent
+            disk_percent = 0
+            try:
+                disk_percent = int(psutil.disk_usage('/').percent)
+            except Exception:
+                pass
+
+            # traffic_today_down / traffic_today_up — сумма по всем устройствам за сегодня
+            traffic_today_down = 0
+            traffic_today_up = 0
+            try:
+                today_key = datetime.now().strftime("%Y-%m-%d")
+                for ip_data in traffic_history.data.values():
+                    daily = ip_data.get('daily', {})
+                    if today_key in daily:
+                        traffic_today_down += daily[today_key].get('down', 0)
+                        traffic_today_up   += daily[today_key].get('up', 0)
+            except Exception:
+                pass
+
+            # subscription_expiry
+            subscription_expiry = ''
+            try:
+                sub = await read_json(GSG_SUBSCRIPTION_FILE, {})
+                subscription_expiry = sub.get('expiry', '') or sub.get('last_update', '') or ''
+            except Exception:
+                pass
+
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                await client.post(
+                    f"{GLOBALSHIELD_API}/devices/heartbeat",
+                    json={
+                        'version':             GSG_VERSION,
+                        'client_count':        client_count,
+                        'uptime_hours':        uptime_hours,
+                        'mihomo_ok':           mihomo_ok,
+                        'active_connections':  active_connections,
+                        'nodes_online':        nodes_online,
+                        'nodes_total':         nodes_total,
+                        'cpu_temp':            cpu_temp,
+                        'ram_percent':         ram_percent,
+                        'disk_percent':        disk_percent,
+                        'traffic_today_down':  traffic_today_down,
+                        'traffic_today_up':    traffic_today_up,
+                        'subscription_expiry': subscription_expiry,
+                    },
+                    headers={'X-Device-ID': device_id, 'X-Device-Token': device_token},
+                )
+    except Exception:
+        pass
+
+
 @app.on_event("startup")
 async def startup_event():
     # Ensure DNS works (resolv.conf may be empty in network_mode:host containers)
@@ -396,6 +538,10 @@ async def startup_event():
     asyncio.create_task(monitor.poll_mihomo())
     asyncio.create_task(traffic_history.run(monitor))
     asyncio.create_task(_rotate_log())
+    async def _delayed_heartbeat():
+        await asyncio.sleep(60)  # ждём пока monitor и traffic_history наполнятся
+        await send_heartbeat()
+    asyncio.create_task(_delayed_heartbeat())
 
 @app.get("/api/traffic")
 async def get_traffic():
@@ -871,6 +1017,7 @@ async def get_license():
 
 @app.get("/api/subscription")
 async def get_sub():
+    asyncio.create_task(send_heartbeat())
     return await read_json(GSG_SUBSCRIPTION_FILE, {"url": "", "global_node": "auto", "last_update": None})
 
 @app.put("/api/subscription")
@@ -911,6 +1058,7 @@ async def update_sub(data: dict):
             await f.write(json.dumps(sub))
     async with aiofiles.open(GSG_CONFIG_DIR / ".reload_singbox", 'w') as f:
         await f.write("1")
+    asyncio.create_task(send_heartbeat())
     return {"success": True}
 
 @app.put("/api/subscription/node")

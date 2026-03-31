@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 
+### Добавлено
+- Heartbeat: GSG-устройство раз в час отправляет версию, количество клиентов и uptime на API (web-orchestrator/main.py)
+- Heartbeat endpoint `POST /v1/devices/heartbeat` — авторизация по X-Device-ID + X-Device-Token, обновляет last_seen_at и version (vless_backend)
+- Endpoint `GET /v1/devices/stats` — статистика GSG-флота для внутреннего использования (vless_backend)
+- Telegram-команда `/gsg_stats` для администратора — отображает активность устройств с цветовыми индикаторами
+- Heartbeat расширен полями диагностики: mihomo_ok, active_connections, nodes_online/total, cpu_temp, ram_percent, disk_percent, traffic_today_down/up, subscription_expiry
+- БД: 12 новых колонок в таблице gsg_devices через миграции DO $$ BEGIN ALTER TABLE (vless_backend)
+- `/v1/devices/stats` возвращает total_clients, problems и полные данные по каждому устройству
+- Telegram-команда `/gsg_device <id>` — полная диагностика конкретного GSG-устройства по подстроке device_id
+
 ## [1.2.1] — 2026-03-31
 
 ### Исправлено
