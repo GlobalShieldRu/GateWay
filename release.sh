@@ -13,6 +13,8 @@ REPO_DIR="/root/GSG"
 MAIN_PY="web-orchestrator/main.py"
 CHANGELOG="CHANGELOG.md"
 
+RELEASE_ENV="$(dirname "$0")/.release.env"
+[[ -f "$RELEASE_ENV" ]] && source "$RELEASE_ENV"
 TG_TOKEN="${TELEGRAM_BOT_TOKEN:-}"
 TG_CHAT="${TELEGRAM_NOTIFY_CHAT_ID:-}"
 # ─────────────────────────────────────────────────────────────────────────────
@@ -180,40 +182,92 @@ fi
 
 # ─── 7. Telegram уведомление ─────────────────────────────────────────────────
 if [[ -n "$TG_TOKEN" && -n "$TG_CHAT" ]]; then
-  log "Отправляем Telegram уведомление..."
+  log "Подготовка Telegram-поста..."
 
-  # Форматируем release notes для Telegram (первые 5 строк)
-  TG_CHANGES=""
-  if [[ -n "$RELEASE_NOTES" ]]; then
-    TG_CHANGES=$(echo "$RELEASE_NOTES" | head -8 | sed 's/^### /\n<b>/; s/$/<\/b>/' | sed 's/^- /• /')
+  # Генерируем черновик из CHANGELOG (упрощённый, для пользователей)
+  DRAFT_FILE="/tmp/gsg-release-post-${VERSION}.txt"
+
+  # Парсим секции CHANGELOG
+  ADDED="" FIXED="" CHANGED=""
+  if [[ -f "$CHANGELOG" ]]; then
+    SECTION_RAW=$(awk "/^## \[$VERSION\]/{found=1; next} found && /^## \[/{exit} found{print}" "$CHANGELOG")
+    ADDED=$(echo "$SECTION_RAW" | awk '/^### Добавлено/{found=1; next} found && /^### /{exit} found && /^- /{print}' | sed 's/^- //' | head -6)
+    FIXED=$(echo "$SECTION_RAW" | awk '/^### Исправлено/{found=1; next} found && /^### /{exit} found && /^- /{print}' | sed 's/^- //' | head -6)
+    CHANGED=$(echo "$SECTION_RAW" | awk '/^### Изменено/{found=1; next} found && /^### /{exit} found && /^- /{print}' | sed 's/^- //' | head -6)
   fi
 
-  DEPLOY_STATUS="не деплоился"
-  $DEPLOY && DEPLOY_STATUS="задеплоен на <code>$SERVER</code>"
+  # Формируем черновик
+  {
+    echo "🛡 <b>GlobalShield Gateway — обновление v${VERSION}</b>"
+    echo ""
+    echo "Обновление для роутера-шлюза GSG."
+    echo ""
+    if [[ -n "$ADDED" ]]; then
+      echo "🆕 <b>Что нового:</b>"
+      while IFS= read -r line; do echo "• ${line}"; done <<< "$ADDED"
+      echo ""
+    fi
+    if [[ -n "$FIXED" ]]; then
+      echo "🔧 <b>Исправлено:</b>"
+      while IFS= read -r line; do echo "• ${line}"; done <<< "$FIXED"
+      echo ""
+    fi
+    if [[ -n "$CHANGED" ]]; then
+      echo "⚙️ <b>Улучшено:</b>"
+      while IFS= read -r line; do echo "• ${line}"; done <<< "$CHANGED"
+      echo ""
+    fi
+    echo "Благодарим за использование Global Shield!"
+    echo ""
+    echo "🤖 Бот: @Global_Shield_bot"
+    echo "🛟 Поддержка: @Global_Shield_supp"
+  } > "$DRAFT_FILE"
 
-  TG_TEXT="🛡 <b>GSG Smart Gateway v${VERSION}</b>
+  echo ""
+  echo "═══════════════ ЧЕРНОВИК ПОСТА ═══════════════"
+  cat "$DRAFT_FILE"
+  echo "══════════════════════════════════════════════"
+  echo ""
+  echo "Варианты:"
+  echo "  [y] — отправить как есть"
+  echo "  [e] — открыть в редакторе"
+  echo "  [n] — пропустить"
+  read -rp "Отправить в Telegram? [y/e/n] " tg_confirm
 
-${TG_CHANGES}
-━━━━━━━━━━━━━━━
-📦 <a href=\"https://github.com/GlobalShieldRu/GateWay/releases/tag/v${VERSION}\">Release на GitHub</a>
-🚀 ${DEPLOY_STATUS}
-#release #gsg"
-
-  # Отправляем через локальный прокси (Telegram заблокирован в РФ)
-  PROXY_ARGS=""
-  if curl -s --proxy "http://127.0.0.1:2080" --max-time 3 https://t.me > /dev/null 2>&1; then
-    PROXY_ARGS="--proxy http://127.0.0.1:2080"
+  if [[ "$tg_confirm" == "e" ]]; then
+    ${EDITOR:-nano} "$DRAFT_FILE"
+    echo ""
+    echo "═══════════════ ИТОГОВЫЙ ПОСТ ═══════════════"
+    cat "$DRAFT_FILE"
+    echo "══════════════════════════════════════════════"
+    read -rp "Отправить? [y/N] " tg_confirm2
+    [[ "$tg_confirm2" =~ ^[Yy]$ ]] || tg_confirm="n"
+    [[ "$tg_confirm2" =~ ^[Yy]$ ]] && tg_confirm="y"
   fi
 
-  HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" $PROXY_ARGS \
-    -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
-    -H "Content-Type: application/json" \
-    -d "{\"chat_id\": \"${TG_CHAT}\", \"text\": $(echo "$TG_TEXT" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'), \"parse_mode\": \"HTML\", \"disable_web_page_preview\": true}" \
-    2>/dev/null)
+  if [[ "$tg_confirm" =~ ^[Yy]$ ]]; then
+    TG_TEXT=$(cat "$DRAFT_FILE")
 
-  [[ "$HTTP_STATUS" == "200" ]] && ok "Telegram уведомление отправлено" || warn "Telegram: HTTP $HTTP_STATUS"
+    # Отправляем через локальный прокси (Telegram заблокирован в РФ)
+    PROXY_ARGS=""
+    if curl -s --proxy "http://127.0.0.1:2080" --max-time 3 https://t.me > /dev/null 2>&1; then
+      PROXY_ARGS="--proxy http://127.0.0.1:2080"
+    fi
+
+    HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" $PROXY_ARGS \
+      -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+      -H "Content-Type: application/json" \
+      -d "{\"chat_id\": \"${TG_CHAT}\", \"text\": $(echo "$TG_TEXT" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'), \"parse_mode\": \"HTML\", \"disable_web_page_preview\": true}" \
+      2>/dev/null)
+
+    [[ "$HTTP_STATUS" == "200" ]] && ok "Telegram пост отправлен" || warn "Telegram: HTTP $HTTP_STATUS"
+  else
+    warn "Telegram пост пропущен"
+  fi
+
+  rm -f "$DRAFT_FILE"
 else
-  warn "Telegram: TELEGRAM_BOT_TOKEN или TELEGRAM_NOTIFY_CHAT_ID не заданы"
+  warn "Telegram: токен не задан. Создайте .release.env: TELEGRAM_BOT_TOKEN=... TELEGRAM_NOTIFY_CHAT_ID=..."
 fi
 
 # ─── Готово ───────────────────────────────────────────────────────────────────
