@@ -48,6 +48,25 @@ def main():
         server_config = {}
 
     gui_nodes = [{"tag": n["name"], "type": n["type"], "server": n["server"], "server_port": n.get("port", 443)} for n in nodes]
+
+    # Защита: не перезаписывать nodes.json пустым если предыдущий был непустой
+    if not gui_nodes and GSG_NODES_FILE.exists():
+        try:
+            prev = json.loads(GSG_NODES_FILE.read_text())
+            if prev.get("nodes"):
+                print(f"[WARN] Подписка вернула 0 узлов, сохраняю предыдущие {len(prev['nodes'])} узлов", flush=True)
+                gui_nodes = prev["nodes"]
+                nodes = [{"name": n["tag"], "type": n["type"], "server": n["server"], "port": n["server_port"]} for n in gui_nodes]
+                # Восстанавливаем server_config из предыдущего Mihomo YAML
+                if MIHOMO_CONFIG.exists():
+                    try:
+                        server_config = yaml.safe_load(MIHOMO_CONFIG.read_text()) or {}
+                        print(f"[WARN] Восстановлен server_config из {MIHOMO_CONFIG} ({len(server_config.get('proxies', []))} proxies)", flush=True)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
     with open(GSG_NODES_FILE, 'w') as f:
         json.dump({"nodes": gui_nodes, "updated": str(time.time())}, f)
 
