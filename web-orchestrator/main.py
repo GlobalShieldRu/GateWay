@@ -534,6 +534,13 @@ async def startup_event():
                 f.write('\nnameserver 8.8.8.8\nnameserver 1.1.1.1\n')
     except Exception:
         pass
+    # Восстановить rules.json если повреждён
+    try:
+        rules = json.loads(GSG_RULES_FILE.read_text())
+    except Exception:
+        bak = Path(str(GSG_RULES_FILE) + '.bak')
+        if bak.exists():
+            GSG_RULES_FILE.write_text(bak.read_text())
     await traffic_history.load()
     asyncio.create_task(monitor.poll_mihomo())
     asyncio.create_task(traffic_history.run(monitor))
@@ -601,6 +608,18 @@ async def read_json(path: Path, default):
         return default
     except Exception:
         return default
+
+async def _backup_rules():
+    """Бэкапит rules.json перед перезаписью."""
+    src = GSG_RULES_FILE
+    bak = Path(str(GSG_RULES_FILE) + '.bak')
+    if src.exists():
+        try:
+            content = src.read_text()
+            if content.strip():  # не бэкапим пустой файл
+                bak.write_text(content)
+        except Exception:
+            pass
 
 async def parse_arp_and_leases(active_ips: set = None):
     devices: dict = {}  # ip → device
@@ -730,6 +749,13 @@ class DHCPUpdate(BaseModel):
 
 class GlobalNodeUpdate(BaseModel):
     global_node: str
+
+class RouteOverride(BaseModel):
+    domain: str
+    target: str  # "DIRECT" | "node:<name>" | "group:<name>"
+
+class DeleteOverridesRequest(BaseModel):
+    domains: List[str]
 
 @app.get("/api/status")
 async def get_status():
@@ -1090,6 +1116,7 @@ async def update_rules(data: RulesUpdate):
     rules["proxy"] = [r.strip() for r in data.proxy if r.strip()]
 
     # Записываем обратно всё вместе
+    await _backup_rules()
     async with aiofiles.open(GSG_RULES_FILE, 'w') as f:
         await f.write(json.dumps(rules, indent=2))
 
@@ -1115,6 +1142,7 @@ async def save_ai_rules(req: AiSettingsRequest):
         "domains": [d.strip() for d in req.domains if d.strip()]
     }
 
+    await _backup_rules()
     async with aiofiles.open(GSG_RULES_FILE, 'w') as f:
         await f.write(json.dumps(rules, indent=4))
 
@@ -1463,6 +1491,87 @@ async def change_password(req: ChangePasswordRequest):
     resp = JSONResponse({"ok": True})
     resp.delete_cookie("gsg_token", path="/")
     return resp
+
+async def _close_connections_by_domain(domains: list):
+    """Закрывает соединения Mihomo для указанных доменов чтобы переподключились по новым правилам."""
+    try:
+        await asyncio.sleep(3)  # ждём reload конфига
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            r = await client.get("http://127.0.0.1:9090/connections")
+            if r.status_code != 200:
+                return
+            conns = r.json().get("connections", [])
+            for c in conns:
+                host = (c.get("metadata", {}).get("host", "") or "").lower()
+                if any(d in host for d in domains):
+                    cid = c.get("id")
+                    if cid:
+                        await client.delete(f"http://127.0.0.1:9090/connections/{cid}")
+    except Exception:
+        pass
+
+@app.get("/api/rules/overrides")
+async def get_route_overrides():
+    rules = await read_json(GSG_RULES_FILE, {})
+    return rules.get("route_overrides", [])
+
+@app.post("/api/rules/overrides")
+async def add_route_overrides(data: List[RouteOverride]):
+    await _backup_rules()
+    rules = await read_json(GSG_RULES_FILE, {})
+    overrides = rules.get("route_overrides", [])
+
+    # Upsert по домену
+    existing = {o["domain"]: o for o in overrides}
+    for item in data:
+        existing[item.domain.lower().strip()] = {"domain": item.domain.lower().strip(), "target": item.target}
+
+    rules["route_overrides"] = list(existing.values())
+    async with aiofiles.open(GSG_RULES_FILE, 'w') as f:
+        await f.write(json.dumps(rules, indent=2))
+
+    # Trigger reload
+    async with aiofiles.open(GSG_CONFIG_DIR / ".reload_singbox", 'w') as f:
+        await f.write("1")
+
+    # Закрыть затронутые соединения в Mihomo чтобы переподключились по новым правилам
+    changed_domains = [item.domain.lower() for item in data]
+    asyncio.create_task(_close_connections_by_domain(changed_domains))
+
+    return {"success": True, "count": len(rules["route_overrides"])}
+
+@app.delete("/api/rules/overrides")
+async def delete_route_overrides(data: DeleteOverridesRequest):
+    domains = data.domains
+    await _backup_rules()
+    rules = await read_json(GSG_RULES_FILE, {})
+    overrides = rules.get("route_overrides", [])
+    rules["route_overrides"] = [o for o in overrides if o["domain"] not in [d.lower() for d in domains]]
+    async with aiofiles.open(GSG_RULES_FILE, 'w') as f:
+        await f.write(json.dumps(rules, indent=2))
+    async with aiofiles.open(GSG_CONFIG_DIR / ".reload_singbox", 'w') as f:
+        await f.write("1")
+    asyncio.create_task(_close_connections_by_domain([d.lower() for d in domains]))
+    return {"success": True}
+
+@app.get("/api/proxies/list")
+async def get_proxies_list():
+    nodes = []
+    groups = []
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            r = await client.get("http://127.0.0.1:9090/proxies")
+            if r.status_code == 200:
+                for name, proxy in r.json().get("proxies", {}).items():
+                    ptype = proxy.get("type", "")
+                    if ptype in ("URLTest", "Selector", "Fallback"):
+                        if not name.startswith("GSG-ROUTE-"):  # скрываем служебные
+                            groups.append(name)
+                    elif ptype not in ("Direct", "Reject", "Compatible"):
+                        nodes.append(name)
+    except Exception:
+        pass
+    return {"nodes": sorted(nodes), "groups": sorted(groups)}
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 

@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import yaml
 import httpx
@@ -136,6 +137,76 @@ def main():
             })
             existing_group_names.append(g_name)
 
+    # --- ROUTE OVERRIDES ---
+    # Санитизация имени узла для использования в имени proxy-group.
+    # Заменяем ASCII-пробелы и спецсимволы на дефис, сохраняем эмодзи и буквы.
+    def sanitize_node_name(name):
+        # Заменяем ASCII-пунктуацию и пробелы на дефис
+        result = re.sub(r'[ \t|/\\:*?"<>]+', '-', name)
+        # Убираем дефисы в начале/конце и дублирующиеся
+        result = re.sub(r'-{2,}', '-', result).strip('-')
+        return result
+
+    route_overrides = user_rules.get("route_overrides", [])
+
+    # Создаём GSG-ROUTE-* proxy-groups для уникальных node: targets
+    seen_node_groups = {}  # node_name -> gsg_group_name
+    for override in route_overrides:
+        target = override.get("target", "")
+        if not target.startswith("node:"):
+            continue
+        node_name = target[len("node:"):]
+        if node_name in seen_node_groups:
+            continue
+        if node_name not in node_names:
+            print(f"[WARN] route_overrides: узел '{node_name}' не найден в подписке, пропускаем", flush=True)
+            seen_node_groups[node_name] = None
+            continue
+        g_name = f"GSG-ROUTE-{sanitize_node_name(node_name)}"
+        if g_name not in existing_group_names:
+            server_config["proxy-groups"].append({
+                "name": g_name, "type": "select",
+                "proxies": [node_name]
+            })
+            existing_group_names.append(g_name)
+        seen_node_groups[node_name] = g_name
+
+    # Формируем правила из route_overrides
+    override_rules = []
+    for override in route_overrides:
+        domain = override.get("domain", "").strip()
+        target = override.get("target", "").strip()
+        if not domain or not target:
+            continue
+
+        # Определяем тип правила: нет точки → KEYWORD, иначе SUFFIX
+        rule_type = "DOMAIN-KEYWORD" if '.' not in domain else "DOMAIN-SUFFIX"
+
+        if target == "DIRECT" or target == "REJECT":
+            resolved_target = target
+        elif target.startswith("node:"):
+            node_name = target[len("node:"):]
+            resolved_target = seen_node_groups.get(node_name)
+            if resolved_target is None:
+                print(f"[WARN] route_overrides: пропускаем правило для '{domain}', узел недоступен", flush=True)
+                continue
+        elif target.startswith("group:"):
+            group_name = target[len("group:"):]
+            if group_name not in existing_group_names:
+                print(f"[WARN] route_overrides: группа '{group_name}' не найдена, пропускаем правило для '{domain}'", flush=True)
+                continue
+            resolved_target = group_name
+        else:
+            print(f"[WARN] route_overrides: неизвестный формат target '{target}', пропускаем", flush=True)
+            continue
+
+        override_rules.append(f"{rule_type},{domain},{resolved_target}")
+
+    if override_rules:
+        print(f"\n[GSG] === ROUTE OVERRIDES ({len(override_rules)} правил) ===", flush=True)
+        for r in override_rules:
+            print(f"  {r}", flush=True)
+
     domain_rules = []
     ip_rules = []
     rule_providers = {}
@@ -250,7 +321,7 @@ def main():
     if sub_rules:
         server_config["sub-rules"] = sub_rules
 
-    server_config["rules"] = domain_rules + ip_rules + custom_routing_rules + [f"MATCH,{global_node}"]
+    server_config["rules"] = override_rules + domain_rules + ip_rules + custom_routing_rules + [f"MATCH,{global_node}"]
 
     print("\n[GSG] === ГРУППА GSG-AI ===", flush=True)
     if ai_nodes:

@@ -1110,6 +1110,16 @@
                         </div>
                     </div>
                 </div>
+                <!-- Route overrides panel -->
+                <div class="glass" style="padding:24px; margin-top:20px;">
+                    <div style="font-size:15px;font-weight:800;color:#f1f5f9;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                        Правила маршрутизации
+                        <span id="routing-overrides-count" style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#64748b;font-weight:400;"></span>
+                    </div>
+                    <div id="routing-overrides-list" style="display:flex;flex-wrap:wrap;gap:4px;min-height:28px;"></div>
+                    <div style="margin-top:10px;font-size:10px;color:#475569;">Создаются во вкладке «Соединения»: выбери соединения → укажи узел → Применить</div>
+                </div>
             </div>
 
             <!-- DHCP tab -->
@@ -1203,8 +1213,18 @@
                             <option value="VPN">Через VPN</option>
                         </select>
                     </div>
+                    <!-- Action bar for route overrides -->
+                    <div id="conn-action-bar" style="display:none;padding:8px 12px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);border-radius:10px;margin-bottom:8px;align-items:center;gap:10px;flex-wrap:wrap;">
+                        <span id="conn-selected-count" style="font-size:11px;font-weight:700;color:#FBBF24;">Выбрано: 0</span>
+                        <select id="conn-target-select" class="gsg-select" style="font-size:11px;padding:4px 8px;">
+                            <option value="">Маршрутизировать через...</option>
+                            <option value="DIRECT">Напрямую</option>
+                        </select>
+                        <button id="conn-apply-btn" onclick="GatewayApp.actions.applyRouteOverride()" style="padding:4px 12px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);color:#FBBF24;">Применить</button>
+                    </div>
                     <!-- Table header -->
-                    <div style="display:grid;grid-template-columns:180px 1fr 90px 100px;gap:10px;padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:4px;">
+                    <div style="display:grid;grid-template-columns:28px 170px 1fr 90px 100px;gap:10px;padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:4px;">
+                        <span style="display:flex;align-items:center;"><input type="checkbox" id="conn-select-all" style="accent-color:#FBBF24;cursor:pointer;" title="Выбрать все видимые"></span>
                         <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">Клиент</span>
                         <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">Назначение</span>
                         <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">Через</span>
@@ -1239,6 +1259,11 @@
                             </div>
                           </div>
                         </div>
+                    </div>
+                    <!-- Route overrides panel -->
+                    <div id="route-overrides-panel" style="margin-top:12px;">
+                        <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px;">Правила маршрутизации</div>
+                        <div id="route-overrides-list"><div style="font-size:10px;color:#475569;">Нет активных правил</div></div>
                     </div>
                 </div>
             </div>
@@ -1523,7 +1548,9 @@
             _chartBars: [],
             _tunnelOnlineAt: 0,
             _tunnelWasOffline: false,
-            _devSearch: ''
+            _devSearch: '',
+            _selectedHosts: new Set(),
+            routeOverrides: []
         };
 
         const utils = {
@@ -1658,7 +1685,8 @@
                 }
 
                 // Immediately fetch connections when switching to that tab
-                if (tabId === 'tab-connections') actions.fetchConnections();
+                if (tabId === 'tab-connections') { actions.fetchConnections(); actions.fetchRouteOverrides(); actions.fetchProxiesList(); }
+                if (tabId === 'tab-routing') { actions.fetchRouteOverrides(); }
 
                 // Render stats when switching to stats tab (rAF — wait for layout)
                 if (tabId === 'tab-stats') requestAnimationFrame(() => requestAnimationFrame(() => ui.renderStats()));
@@ -3753,11 +3781,14 @@
                     const chain   = c.chain || 'DIRECT';
                     const isDirect = chain === 'DIRECT';
                     const chainColor = isDirect ? '#94a3b8' : '#60a5fa';
+                    const rawHost = c.host || '';
                     const host = c.host ? (c.dst_port ? `${c.host}:${c.dst_port}` : c.host) : (c.dst_port || '—');
                     const upFmt   = utils.formatBytes(c.upload);
                     const downFmt = utils.formatBytes(c.download);
                     const netBadge = `<span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;background:rgba(100,116,139,0.12);border:1px solid rgba(100,116,139,0.2);color:#64748b;">${c.network}</span>`;
-                    return `<div style="display:grid;grid-template-columns:180px 1fr 90px 100px;gap:10px;padding:7px 10px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);margin-bottom:3px;align-items:center;" onmouseover="this.style.background='rgba(255,255,255,0.04)'" onmouseout="this.style.background='rgba(255,255,255,0.02)'">
+                    const checked = state._selectedHosts.has(rawHost) ? 'checked' : '';
+                    return `<div class="conn-row" data-host="${rawHost}" data-src="${c.src}" data-chain="${chain}" style="display:grid;grid-template-columns:28px 170px 1fr 90px 100px;gap:10px;padding:7px 10px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);margin-bottom:3px;align-items:center;" onmouseover="this.style.background='rgba(255,255,255,0.04)'" onmouseout="this.style.background='rgba(255,255,255,0.02)'">
+                        <div style="display:flex;align-items:center;"><input type="checkbox" class="conn-checkbox" data-host="${rawHost}" ${checked} style="accent-color:#FBBF24;cursor:pointer;"></div>
                         <div style="min-width:0;">
                             <div style="font-size:12px;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${srcName}</div>
                             <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);margin-top:1px;">${c.src}</div>
@@ -3773,6 +3804,49 @@
                         </div>
                     </div>`;
                 }).join('');
+                // Update select-all checkbox state
+                const selAll = document.getElementById('conn-select-all');
+                if (selAll) {
+                    const visible = box.querySelectorAll('.conn-checkbox');
+                    const checkedCount = box.querySelectorAll('.conn-checkbox:checked').length;
+                    selAll.checked = visible.length > 0 && checkedCount === visible.length;
+                    selAll.indeterminate = checkedCount > 0 && checkedCount < visible.length;
+                }
+            },
+
+            updateConnActionBar: () => {
+                const bar = document.getElementById('conn-action-bar');
+                const count = document.getElementById('conn-selected-count');
+                if (!bar) return;
+                const n = state._selectedHosts.size;
+                bar.style.display = n > 0 ? 'flex' : 'none';
+                if (count) {
+                    const uniqueDomains = new Set([...state._selectedHosts].map(h => {
+                        const p = h.split('.');
+                        return p.length > 2 ? p.slice(-2).join('.') : h;
+                    }).filter(d => d && !(/^\d+\.\d+\.\d+\.\d+$/.test(d))));
+                    count.textContent = 'Выбрано: ' + n + ' (' + uniqueDomains.size + ' доменов)';
+                }
+            },
+
+            renderRouteOverrides: () => {
+                const overrides = state.routeOverrides || [];
+                const pillsHtml = overrides.length ? overrides.map(o => {
+                    const targetDisplay = o.target === 'DIRECT' ? 'Напрямую' : o.target.replace('node:','').replace('group:','');
+                    return '<div style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.2);margin:2px;">'
+                        + '<span style="font-family:\'JetBrains Mono\',monospace;font-size:10px;font-weight:600;color:#c9a84c;">' + o.domain + '</span>'
+                        + '<span style="font-size:9px;color:#475569;">\u2192</span>'
+                        + '<span style="font-size:10px;color:#94a3b8;">' + targetDisplay + '</span>'
+                        + '<button onclick="GatewayApp.actions.deleteRouteOverride(\'' + o.domain + '\')" style="background:none;border:none;color:#ef4444;cursor:pointer;padding:0 2px;font-size:14px;line-height:1;">\u00d7</button>'
+                        + '</div>';
+                }).join('') : '<div style="font-size:10px;color:#475569;">Нет активных правил</div>';
+                // Рендерим в оба места: вкладка Соединения и вкладка Маршрутизация
+                ['route-overrides-list', 'routing-overrides-list'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.innerHTML = pillsHtml;
+                });
+                const countEl = document.getElementById('routing-overrides-count');
+                if (countEl) countEl.textContent = overrides.length ? `(${overrides.length})` : '';
             },
 
             setChartPeriod: (period) => {
@@ -4349,6 +4423,65 @@
                 }
             },
 
+            fetchRouteOverrides: async () => {
+                try {
+                    const data = await utils.apiCall('/rules/overrides', { _silent: true });
+                    if (data) { state.routeOverrides = data; ui.renderRouteOverrides(); }
+                } catch (e) { /* silent */ }
+            },
+
+            fetchProxiesList: async () => {
+                try {
+                    const data = await utils.apiCall('/proxies/list', { _silent: true });
+                    if (!data) return;
+                    const sel = document.getElementById('conn-target-select');
+                    if (!sel) return;
+                    sel.innerHTML = '<option value="">Маршрутизировать через...</option><option value="DIRECT">Напрямую</option>';
+                    if (data.groups?.length) {
+                        const og = document.createElement('optgroup');
+                        og.label = 'Группы';
+                        data.groups.forEach(g => { const o = document.createElement('option'); o.value = 'group:' + g; o.textContent = g; og.appendChild(o); });
+                        sel.appendChild(og);
+                    }
+                    if (data.nodes?.length) {
+                        const og = document.createElement('optgroup');
+                        og.label = 'Узлы';
+                        data.nodes.forEach(n => { const o = document.createElement('option'); o.value = 'node:' + n; o.textContent = n; og.appendChild(o); });
+                        sel.appendChild(og);
+                    }
+                } catch (e) { /* silent */ }
+            },
+
+            applyRouteOverride: async () => {
+                const target = document.getElementById('conn-target-select')?.value;
+                if (!target) { ui.showToast('Выберите узел для маршрутизации', 'error'); return; }
+                const domains = [...new Set([...state._selectedHosts].map(h => {
+                    const parts = h.split('.');
+                    return parts.length > 2 ? parts.slice(-2).join('.') : h;
+                }))].filter(d => d && !(/^\d+\.\d+\.\d+\.\d+$/.test(d)));
+                if (!domains.length) { ui.showToast('Нет доменов для маршрутизации', 'error'); return; }
+                const overrides = domains.map(d => ({ domain: d, target: target }));
+                const res = await utils.apiCall('/rules/overrides', { method: 'POST', body: JSON.stringify(overrides) });
+                if (res !== null) {
+                    state._selectedHosts.clear();
+                    document.getElementById('conn-select-all') && (document.getElementById('conn-select-all').checked = false);
+                    ui.updateConnActionBar();
+                    await actions.fetchRouteOverrides();
+                    const targetDisplay = target === 'DIRECT' ? 'Напрямую' : target.replace('node:','').replace('group:','');
+                    ui.showToast(`Маршрут: ${domains.join(', ')} -> ${targetDisplay}`, 'success');
+                    ui.addEvent('\u{1F500}', `Маршрут: ${domains.join(', ')} -> ${targetDisplay}`, '#c9a84c');
+                }
+            },
+
+            deleteRouteOverride: async (domain) => {
+                const res = await utils.apiCall('/rules/overrides', { method: 'DELETE', body: JSON.stringify({ domains: [domain] }) });
+                if (res !== null) {
+                    await actions.fetchRouteOverrides();
+                    ui.showToast(`Правило удалено: ${domain}`, 'info');
+                    ui.addEvent('\u{1F5D1}', `Правило удалено: ${domain}`, '#94a3b8');
+                }
+            },
+
             fetchTrafficHistory: async () => {
                 const data = await utils.apiCall('/traffic/history', { _silent: true });
                 if (data) {
@@ -4534,6 +4667,38 @@
                 state._devSearch = e.target.value.toLowerCase().trim();
                 state._devicesHash = null;
                 ui.renderDevices(state.devices);
+            });
+
+            // Connection checkbox handling (delegated)
+            document.addEventListener('change', (e) => {
+                if (e.target.id === 'conn-select-all') {
+                    const checked = e.target.checked;
+                    const box = document.getElementById('connectionsBox');
+                    if (!box) return;
+                    box.querySelectorAll('.conn-checkbox').forEach(cb => {
+                        cb.checked = checked;
+                        const host = cb.dataset.host;
+                        if (host) { checked ? state._selectedHosts.add(host) : state._selectedHosts.delete(host); }
+                    });
+                    ui.updateConnActionBar();
+                    return;
+                }
+                if (e.target.classList.contains('conn-checkbox')) {
+                    const host = e.target.dataset.host;
+                    if (!host) return;
+                    e.target.checked ? state._selectedHosts.add(host) : state._selectedHosts.delete(host);
+                    ui.updateConnActionBar();
+                    // Update select-all state
+                    const box = document.getElementById('connectionsBox');
+                    const selAll = document.getElementById('conn-select-all');
+                    if (box && selAll) {
+                        const visible = box.querySelectorAll('.conn-checkbox');
+                        const checkedCount = box.querySelectorAll('.conn-checkbox:checked').length;
+                        selAll.checked = visible.length > 0 && checkedCount === visible.length;
+                        selAll.indeterminate = checkedCount > 0 && checkedCount < visible.length;
+                    }
+                    return;
+                }
             });
 
             // Mode pill + node pill + app chip clicks (delegated)
