@@ -726,6 +726,9 @@
                         <button id="gsgUpdateBtn" onclick="GatewayApp.actions.checkUpdate()" style="display:flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.25);cursor:pointer;color:var(--gold);padding:0;" title="Обновить GSG">
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4"/></svg>
                         </button>
+                        <button id="gsgRollbackBtn" onclick="GatewayApp.actions.triggerRollback()" style="display:none;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.35);cursor:pointer;color:#ef4444;padding:0;" title="Откатить обновление">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -4633,6 +4636,39 @@
                 }
             },
 
+            triggerRollback: async () => {
+                const rbState = await utils.apiCall('/rollback/state');
+                if (!rbState?.can_rollback) {
+                    ui.showToast('Откат недоступен', 'error');
+                    return;
+                }
+                const pre  = rbState.pre_update  || {};
+                const post = rbState.post_update  || {};
+                const fromVer = post.version || '?';
+                const toVer   = pre.version  || '?';
+                const toHash  = (pre.git_hash_short || pre.git_hash || '?');
+                if (!confirm(`Откатить обновление?\n\nТекущая версия: v${fromVer}\nВернуться к: v${toVer} (${toHash})\n\nСистема перезапустится через 1-2 минуты.`)) return;
+                const res = await utils.apiCall('/rollback', { method: 'POST' });
+                if (res?.ok) {
+                    const btn = document.getElementById('gsgRollbackBtn');
+                    if (btn) { btn.style.display = 'none'; }
+                    ui.showToast('Откат запущен. Страница перезагрузится автоматически.', 'info');
+                    ui.addEvent('↩️', `Откат запущен: v${fromVer} → v${toVer}`, '#ef4444');
+                    const poll = setInterval(async () => {
+                        try {
+                            const v = await utils.apiCall('/version');
+                            if (v?.update_status === 'rolled_back') {
+                                clearInterval(poll);
+                                location.reload();
+                            }
+                        } catch(e) { /* сервер перезапускается */ }
+                    }, 5000);
+                    setTimeout(() => { clearInterval(poll); location.reload(); }, 180000);
+                } else {
+                    ui.showToast(res?.detail || res?.error || 'Ошибка запуска отката', 'error');
+                }
+            },
+
             updateSchedule: async () => {
                 const type = document.getElementById('scheduleTypeSelect')?.value || 'never';
                 const time = document.getElementById('scheduleTimeInput')?.value || '00:00';
@@ -4837,11 +4873,25 @@
             // Always expert mode
             state.expertMode = true;
 
-            // Load version
+            // Load version + rollback state
             utils.apiCall('/version').then(v => {
-                if (v?.version) {
+                if (!v) return;
+                if (v.version) {
                     const el = document.getElementById('gsgVersion');
                     if (el) el.textContent = v.version;
+                }
+                // Показываем уведомление если был недавний откат
+                if (v.last_rollback) {
+                    const rb = v.last_rollback;
+                    ui.addEvent('↩️', `Откат выполнен (${rb.trigger_type}): ${rb.reason || ''}`, '#ef4444');
+                }
+            });
+            // Кнопка отката — показываем если can_rollback
+            utils.apiCall('/rollback/state').then(s => {
+                const btn = document.getElementById('gsgRollbackBtn');
+                if (!btn) return;
+                if (s?.can_rollback) {
+                    btn.style.display = 'flex';
                 }
             });
 

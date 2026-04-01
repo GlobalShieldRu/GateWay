@@ -1343,9 +1343,26 @@ async def post_feedback(req: FeedbackRequest):
 
     return {"ok": True}
 
+UPDATE_STATE_FILE = GSG_CONFIG_DIR / ".update_state.json"
+
+def _read_update_state() -> dict:
+    """Читает .update_state.json, возвращает {} при ошибке."""
+    try:
+        return json.loads(UPDATE_STATE_FILE.read_text())
+    except Exception:
+        return {}
+
 @app.get("/api/version")
 async def get_version():
-    return {"version": GSG_VERSION}
+    state = _read_update_state()
+    result: dict = {"version": GSG_VERSION}
+    if state:
+        post = state.get("post_update") or {}
+        pre  = state.get("pre_update") or {}
+        result["previous_version"] = pre.get("version")
+        result["update_status"]    = post.get("status")
+        result["last_rollback"]    = state.get("last_rollback")
+    return result
 
 GITHUB_REPO = "GlobalShieldRu/GateWay"
 UPDATE_TRIGGER = GSG_CONFIG_DIR / ".update_trigger"
@@ -1384,6 +1401,45 @@ async def update_status():
     pending = UPDATE_TRIGGER.exists()
     log = UPDATE_LOG.read_text() if UPDATE_LOG.exists() else ""
     return {"pending": pending, "log": log}
+
+@app.get("/api/rollback/state")
+async def rollback_state():
+    """Возвращает состояние последнего обновления и возможность отката."""
+    if not UPDATE_STATE_FILE.exists():
+        return {"available": False}
+    try:
+        data = _read_update_state()
+        if not data:
+            return {"available": False}
+        post = data.get("post_update") or {}
+        pre  = data.get("pre_update") or {}
+        can_rollback = (
+            post.get("status") == "healthy"
+            and bool(pre.get("git_hash"))
+        )
+        return {
+            "available":    True,
+            "pre_update":   pre,
+            "post_update":  post,
+            "last_rollback": data.get("last_rollback"),
+            "can_rollback": can_rollback,
+        }
+    except Exception:
+        return {"available": False}
+
+@app.post("/api/rollback")
+async def trigger_rollback():
+    """Запускает ручной откат к предыдущей версии."""
+    if not UPDATE_STATE_FILE.exists():
+        raise HTTPException(status_code=400, detail="Нет данных о предыдущем обновлении")
+    if UPDATE_TRIGGER.exists():
+        raise HTTPException(status_code=409, detail="Операция уже выполняется")
+    async with aiofiles.open(UPDATE_TRIGGER, 'w') as f:
+        await f.write(
+            f"rollback_requested=true\n"
+            f"rollback_requested_at={datetime.now().isoformat()}\n"
+        )
+    return {"ok": True, "message": "Откат запущен. Система перезапустится через 1-2 минуты."}
 
 @app.get("/api/traffic/device-chains")
 async def get_device_chains():

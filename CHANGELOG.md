@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### Добавлено
+- update-watcher.sh: lockfile, save_state(), healthcheck (web/mihomo/dhcp/netenforcer/internet), do_rollback() с авто-откатом при провале healthcheck, Telegram-уведомление об откате
+- API: GET /api/rollback/state — состояние последнего обновления, POST /api/rollback — запуск ручного отката через триггер-файл
+- API: GET /api/version расширен полями previous_version, update_status, last_rollback
+- Веб-интерфейс: кнопка отката (красная, рядом с кнопкой обновления), видна только если can_rollback=true; уведомление об откате при загрузке страницы
+- install.sh: cron update-watcher каждую минуту (было каждые 6 часов)
+
 ## [1.3.0] — 2026-04-01
 
 ### Добавлено

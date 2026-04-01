@@ -263,9 +263,9 @@ success "Автоочистка Docker: еженедельно"
 info "Настройка Update Watcher..."
 chmod +x "${INSTALL_DIR}/update-watcher.sh"
 if ! crontab -l 2>/dev/null | grep -q 'update-watcher'; then
-    (crontab -l 2>/dev/null; echo "0 */6 * * * ${INSTALL_DIR}/update-watcher.sh >> ${INSTALL_DIR}/update-watcher.log 2>&1") | crontab -
+    (crontab -l 2>/dev/null; echo "* * * * * ${INSTALL_DIR}/update-watcher.sh >> ${INSTALL_DIR}/update-watcher.log 2>&1") | crontab -
 fi
-success "Update Watcher: проверка триггера каждые 6 часов"
+success "Update Watcher: проверка триггера каждую минуту"
 
 # ── Docker конфиг ─────────────────────────────
 info "Запись конфигурации..."
