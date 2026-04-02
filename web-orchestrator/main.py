@@ -1843,10 +1843,56 @@ async def trigger_update():
 
 @app.get("/api/update/status")
 async def update_status():
-    """Проверяет статус обновления."""
+    """Возвращает статус обновления с прогрессом и последними строками лога."""
     pending = UPDATE_TRIGGER.exists()
-    log = UPDATE_LOG.read_text() if UPDATE_LOG.exists() else ""
-    return {"pending": pending, "log": log}
+    log_text = ""
+    stage = 0
+    total_stages = 6
+    stage_label = ""
+    status = "idle"
+
+    if UPDATE_LOG.exists():
+        log_text = UPDATE_LOG.read_text()
+        lines = log_text.strip().split("\n")
+        # Парсим последнюю стадию
+        for line in reversed(lines):
+            if "[STAGE:" in line:
+                try:
+                    s = line.split("[STAGE:")[1].split("]")[0]
+                    stage = int(s.split("/")[0])
+                    total_stages = int(s.split("/")[1])
+                    stage_label = line.split("] ", 1)[1] if "] " in line else ""
+                except:
+                    pass
+                break
+            if "завершено успешно" in line.lower():
+                status = "success"
+                stage = total_stages
+                break
+            if "откат" in line.lower() and "запущен" not in line.lower():
+                status = "rolled_back"
+                break
+            if "ошибка" in line.lower():
+                status = "error"
+                break
+
+        if pending:
+            status = "running"
+        elif status == "idle" and stage > 0:
+            status = "success" if stage >= total_stages else "running"
+
+    # Последние 30 строк лога
+    recent_lines = log_text.strip().split("\n")[-30:] if log_text else []
+
+    return {
+        "pending": pending,
+        "status": status,
+        "stage": stage,
+        "total_stages": total_stages,
+        "stage_label": stage_label,
+        "progress": round(stage / total_stages * 100) if total_stages > 0 else 0,
+        "log_lines": recent_lines,
+    }
 
 @app.get("/api/rollback/state")
 async def rollback_state():

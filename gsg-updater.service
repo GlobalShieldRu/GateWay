@@ -1,0 +1,15 @@
+[Unit]
+Description=GSG Update Watcher
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+ExecStart=/bin/bash /root/GSG/update-watcher.sh
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/gsg-update.log
+StandardError=append:/var/log/gsg-update.log
+
+[Install]
+WantedBy=multi-user.target

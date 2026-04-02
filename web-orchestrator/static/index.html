@@ -2474,6 +2474,70 @@
                 previewBox.innerHTML = matched.length > 0 ? matched.join('') : '<span style="color:#ef4444;">Нет совпадений</span>';
             },
 
+            showUpdateProgress: () => {
+                let modal = document.getElementById('updateProgressModal');
+                if (!modal) {
+                    modal = document.createElement('div');
+                    modal.id = 'updateProgressModal';
+                    modal.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;';
+                    modal.innerHTML = '<div style="background:#0f1117;border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:32px;width:480px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;gap:16px;">'
+                        + '<div style="font-size:16px;font-weight:800;color:#f1f5f9;display:flex;align-items:center;gap:8px;">🔄 Обновление GSG</div>'
+                        + '<div id="updateStageLabel" style="font-size:12px;color:#94a3b8;">Запуск...</div>'
+                        + '<div style="height:8px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden;">'
+                        + '<div id="updateProgressBar" style="height:100%;width:0%;background:linear-gradient(90deg,#3b82f6,#22c55e);border-radius:4px;transition:width 0.5s;"></div>'
+                        + '</div>'
+                        + '<div id="updateLogBox" style="flex:1;min-height:200px;max-height:400px;overflow-y:auto;background:rgba(0,0,0,0.4);border-radius:8px;padding:10px;font-family:JetBrains Mono,monospace;font-size:10px;color:#64748b;line-height:1.6;"></div>'
+                        + '<div id="updateResultMsg" style="display:none;font-size:12px;font-weight:700;text-align:center;padding:8px;border-radius:8px;"></div>'
+                        + '</div>';
+                    document.body.appendChild(modal);
+                }
+                modal.style.display = 'flex';
+            },
+
+            updateProgress: (s) => {
+                const bar = document.getElementById('updateProgressBar');
+                const label = document.getElementById('updateStageLabel');
+                const logBox = document.getElementById('updateLogBox');
+                const result = document.getElementById('updateResultMsg');
+
+                if (bar) bar.style.width = s.progress + '%';
+                if (label) label.textContent = s.stage_label || ('Этап ' + s.stage + '/' + s.total_stages);
+
+                if (logBox && s.log_lines) {
+                    logBox.innerHTML = s.log_lines.map(function(line) {
+                        var color = '#64748b';
+                        if (line.includes('[STAGE:')) color = '#60a5fa';
+                        else if (line.includes('ОШИБКА') || line.includes('FAIL')) color = '#ef4444';
+                        else if (line.includes('Healthcheck пройден') || line.includes('завершено')) color = '#34d399';
+                        else if (line.includes('Откат')) color = '#fbbf24';
+                        return '<div style="color:' + color + ';">' + line.replace(/</g, '&lt;') + '</div>';
+                    }).join('');
+                    logBox.scrollTop = logBox.scrollHeight;
+                }
+
+                if (result) {
+                    if (s.status === 'success') {
+                        result.style.display = 'block';
+                        result.style.background = 'rgba(34,197,94,0.1)';
+                        result.style.color = '#22c55e';
+                        result.textContent = '✅ Обновление завершено! Перезагрузка...';
+                        if (bar) bar.style.background = 'linear-gradient(90deg,#22c55e,#34d399)';
+                    } else if (s.status === 'rolled_back') {
+                        result.style.display = 'block';
+                        result.style.background = 'rgba(251,191,36,0.1)';
+                        result.style.color = '#fbbf24';
+                        result.textContent = '⚠️ Откат выполнен — вернулись к предыдущей версии';
+                        if (bar) bar.style.background = '#fbbf24';
+                    } else if (s.status === 'error') {
+                        result.style.display = 'block';
+                        result.style.background = 'rgba(239,68,68,0.1)';
+                        result.style.color = '#ef4444';
+                        result.textContent = '❌ Ошибка обновления';
+                        if (bar) bar.style.background = '#ef4444';
+                    }
+                }
+            },
+
             updateAiPreview: () => {
                 const filterInput = document.getElementById('aiNodesFilter');
                 const previewBox = document.getElementById('aiMatchedNodes');
@@ -5545,13 +5609,21 @@
                     if (confirm(`Доступна версия v${data.latest}.\n\nОбновить сейчас? Система перезапустится через 1-2 минуты.`)) {
                         const res = await utils.apiCall('/update', { method: 'POST' });
                         if (res?.ok) {
-                            if (btn) { btn.innerHTML = '⏳'; btn.disabled = true; btn.style.opacity = '0.6'; btn.classList.add('gsg-spin'); }
-                            ui.showToast('Обновление запущено. Страница перезагрузится автоматически.', 'success');
+                            if (btn) { btn.innerHTML = '⏳'; btn.disabled = true; btn.style.opacity = '0.6'; }
                             ui.addEvent('🔄', 'Обновление запущено', '#22c55e');
+                            // Показываем прогресс-модал
+                            ui.showUpdateProgress();
                             const poll = setInterval(async () => {
-                                try { const s = await utils.apiCall('/update/status'); if (s && !s.pending) { clearInterval(poll); location.reload(); } } catch(e) { /* сервер перезапускается */ }
-                            }, 5000);
-                            setTimeout(() => { clearInterval(poll); location.reload(); }, 180000);
+                                try {
+                                    const s = await utils.apiCall('/update/status', { _silent: true });
+                                    if (s) {
+                                        ui.updateProgress(s);
+                                        if (s.status === 'success') { clearInterval(poll); setTimeout(() => location.reload(), 2000); }
+                                        if (s.status === 'error' || s.status === 'rolled_back') { clearInterval(poll); }
+                                    }
+                                } catch(e) { /* сервер перезапускается */ }
+                            }, 2000);
+                            setTimeout(() => { clearInterval(poll); location.reload(); }, 300000);
                         } else {
                             ui.showToast(res?.error || 'Ошибка запуска обновления', 'error');
                         }
