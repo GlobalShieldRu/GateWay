@@ -72,7 +72,7 @@ def _verify_token(token: str | None) -> bool:
     return token == auth.get("token")
 
 # Public paths that don't require authentication
-_PUBLIC = {"/api/login", "/api/auth/check", "/api/auth/setup"}
+_PUBLIC = {"/api/login", "/api/auth/check", "/api/auth/setup", "/api/version"}
 
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
