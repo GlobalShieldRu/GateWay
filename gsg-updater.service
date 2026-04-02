@@ -5,6 +5,8 @@ Requires=docker.service
 
 [Service]
 Type=simple
+User=root
+Environment=HOME=/root
 ExecStart=/bin/bash /root/GSG/update-watcher.sh
 Restart=always
 RestartSec=10

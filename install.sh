@@ -25,8 +25,8 @@ echo ""
 # ── Зависимости ───────────────────────────────
 info "Проверка зависимостей..."
 MISSING=()
-for cmd in git curl python3; do
-    command -v "$cmd" &>/dev/null || MISSING+=("$cmd")
+for cmd in git curl python3 inotifywait; do
+    command -v "$cmd" &>/dev/null || { [[ "$cmd" == "inotifywait" ]] && MISSING+=("inotify-tools") || MISSING+=("$cmd"); }
 done
 if [ ${#MISSING[@]} -gt 0 ]; then
     info "Устанавливаем: ${MISSING[*]}"
@@ -259,13 +259,19 @@ EOF
 chmod +x /etc/cron.weekly/gsg-docker-prune
 success "Автоочистка Docker: еженедельно"
 
-# ── Update Watcher (обновление из веб-интерфейса) ─────
+# ── Update Watcher (systemd сервис, inotifywait) ─────
 info "Настройка Update Watcher..."
-chmod +x "${INSTALL_DIR}/update-watcher.sh"
-if ! crontab -l 2>/dev/null | grep -q 'update-watcher'; then
-    (crontab -l 2>/dev/null; echo "* * * * * ${INSTALL_DIR}/update-watcher.sh >> ${INSTALL_DIR}/update-watcher.log 2>&1") | crontab -
-fi
-success "Update Watcher: проверка триггера каждую минуту"
+chmod +x "${INSTALL_DIR}/update-watcher.sh" "${INSTALL_DIR}"/*.sh 2>/dev/null || true
+# Убираем старый cron если был
+crontab -l 2>/dev/null | grep -v 'update-watcher' | crontab - 2>/dev/null || true
+# Ставим systemd-сервис
+cp "${INSTALL_DIR}/gsg-updater.service" /etc/systemd/system/gsg-updater.service
+systemctl daemon-reload
+systemctl enable gsg-updater
+systemctl restart gsg-updater
+# git safe directory
+git config --global --add safe.directory "${INSTALL_DIR}" 2>/dev/null || true
+success "Update Watcher: systemd (gsg-updater.service)"
 
 # ── Docker конфиг ─────────────────────────────
 info "Запись конфигурации..."
