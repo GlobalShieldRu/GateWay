@@ -309,6 +309,17 @@ def main():
             device_sub.append(f"GEOIP,telegram,{target}")
             device_sub.append(f"RULE-SET,telegram-cidr,{target}")
             device_sub.append(f"IP-CIDR,5.28.192.0/22,{target}")
+            # TikTok — через tiktok_node если задан, иначе через target
+            tiktok_node_tag = info.get('tiktok_node', 'auto')
+            tiktok_target = target
+            if tiktok_node_tag and tiktok_node_tag != 'auto':
+                for name in node_names:
+                    if tiktok_node_tag.lower() in name.lower() or name == tiktok_node_tag:
+                        tiktok_target = name
+                        break
+            device_sub.append(f"GEOSITE,tiktok,{tiktok_target}")
+            for td in ["tiktokv.com", "tiktokcdn.com", "tiktokcdn-eu.com", "tiktokcdn-us.com", "bytedance.com", "byteimg.com", "ibytedtos.com", "ipstatp.com", "musical.ly"]:
+                device_sub.append(f"DOMAIN-SUFFIX,{td},{tiktok_target}")
             if rulesets.get('rkn_bypass', True):
                 for site in ["youtube", "meta", "instagram", "twitter"]:
                     device_sub.append(f"GEOSITE,{site},{target}")
