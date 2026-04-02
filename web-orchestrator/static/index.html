@@ -783,9 +783,9 @@
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18" stroke-width="3"/></svg>
                 Устройства
             </div>
-            <div class="nav-item expert-item" id="nav-routing" onclick="GatewayApp.ui.switchTab('tab-routing', this)" style="display:flex;">
+            <div class="nav-item expert-item" id="nav-groups" onclick="GatewayApp.ui.switchTab('tab-groups', this)" style="display:flex;">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                Маршрутизация
+                Маршруты
             </div>
             <div class="nav-item expert-item" id="nav-dhcp" onclick="GatewayApp.ui.switchTab('tab-dhcp', this)" style="display:flex;">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
@@ -1043,6 +1043,74 @@
                 </div>
             </div>
 
+            <!-- Groups tab -->
+            <div id="tab-groups" class="tab-content expert-item reveal reveal-2">
+                <!-- Top: two panels with draggable divider -->
+                <div id="routesGrid" style="display:flex;gap:0;align-items:stretch;margin-bottom:20px;">
+                    <!-- LEFT: Rulesets + Groups -->
+                    <div id="routesLeft" class="glass" style="padding:20px;flex:0 0 55%;display:flex;flex-direction:column;gap:16px;overflow-y:auto;">
+                        <div style="font-size:13px;font-weight:800;color:#f1f5f9;display:flex;align-items:center;gap:6px;">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                            Базы правил
+                        </div>
+                        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                            <label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);cursor:pointer;flex:1;min-width:180px;" onmouseover="this.style.background='rgba(255,255,255,0.04)'" onmouseout="this.style.background='rgba(255,255,255,0.02)'">
+                                <input type="checkbox" id="rulesetRkn" class="gsg-check" onchange="GatewayApp.actions.saveRulesets()">
+                                <div><div style="font-size:11px;font-weight:700;color:#f1f5f9;">Обход блокировок РКН</div><div style="font-size:9px;color:var(--muted);">AntiFilter</div></div>
+                            </label>
+                            <label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);cursor:pointer;flex:1;min-width:180px;" onmouseover="this.style.background='rgba(255,255,255,0.04)'" onmouseout="this.style.background='rgba(255,255,255,0.02)'">
+                                <input type="checkbox" id="rulesetRuDirect" class="gsg-check" onchange="GatewayApp.actions.saveRulesets()">
+                                <div><div style="font-size:11px;font-weight:700;color:#f1f5f9;">Прямой доступ к .RU</div><div style="font-size:9px;color:var(--muted);">Мимо прокси</div></div>
+                            </label>
+                        </div>
+                        <!-- Маршруты внутри левой панели -->
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+                            <div style="font-size:13px;font-weight:800;color:#f1f5f9;">Маршруты</div>
+                            <button class="btn-primary" style="font-size:10px;padding:4px 12px;" onclick="GatewayApp.ui.showGroupEditor()">+ Создать</button>
+                        </div>
+                        <div id="groups-list" style="display:flex;flex-direction:column;gap:10px;"></div>
+                    </div>
+                    <!-- Divider (synced with top panels) -->
+                    <div title="Перетащить" style="width:14px;cursor:col-resize;display:flex;align-items:center;justify-content:center;flex-shrink:0;user-select:none;" onpointerdown="GatewayApp.ui.startPanelResize(event)">
+                        <div style="width:3px;height:36px;border-radius:2px;background:rgba(255,255,255,0.07);transition:background 0.15s;" onmouseover="this.style.background='rgba(201,168,76,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.07)'"></div>
+                    </div>
+                    <!-- RIGHT: Route test -->
+                    <div id="routesRight" class="glass" style="padding:20px;flex:1;min-width:280px;overflow-y:auto;">
+                        <div style="font-size:13px;font-weight:800;color:#f1f5f9;margin-bottom:12px;display:flex;align-items:center;gap:6px;">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#c9a84c" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                            Проверка маршрутов
+                        </div>
+                        <div id="route-test-results"><div style="text-align:center;color:#475569;font-size:11px;padding:8px 0;">Загрузка...</div></div>
+                    </div>
+                </div>
+                <!-- Inline editor for new group -->
+                <div id="group-editor" class="glass" style="padding:20px;margin-top:16px;display:none;">
+                    <div style="font-size:14px;font-weight:700;color:#f1f5f9;margin-bottom:14px;" id="group-editor-title">Новая группа</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                        <div>
+                            <div class="section-label" style="margin-bottom:6px;">Название</div>
+                            <input type="text" id="groupEditName_new" class="gsg-input" placeholder="Например: Видео" style="width:100%;">
+                            <div class="section-label" style="margin-top:12px;margin-bottom:6px;">Фильтр узлов (через запятую)</div>
+                            <input type="text" id="groupEditFilter_new" class="gsg-input" placeholder="Stockholm, NY" style="width:100%;">
+                            <div class="section-label" style="margin-top:12px;margin-bottom:6px;">Тип</div>
+                            <select id="groupEditType_new" class="gsg-select" style="width:100%;">
+                                <option value="url-test">Auto (мин. пинг)</option>
+                                <option value="fallback">Fallback (резерв)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <div class="section-label" style="margin-bottom:6px;">Домены и ключевые слова</div>
+                            <textarea id="groupEditDomains_new" class="gsg-textarea" rows="7" placeholder="youtube.com&#10;netflix.com&#10;speedtest.net"></textarea>
+                            <div style="font-size:10px;color:var(--muted);margin-top:4px;">Без точки → KEYWORD (все поддомены). С точкой → SUFFIX.</div>
+                        </div>
+                    </div>
+                    <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end;">
+                        <button onclick="GatewayApp.ui.hideGroupEditor()" style="padding:8px 16px;border-radius:8px;background:rgba(255,255,255,0.06);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);cursor:pointer;">Отмена</button>
+                        <button class="btn-primary" onclick="GatewayApp.actions.saveGroup()">Создать</button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Routing tab -->
             <div id="tab-routing" class="tab-content expert-item reveal reveal-2">
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
@@ -1076,7 +1144,11 @@
                                 <textarea rows="3" id="rulesDirectInput" class="gsg-textarea" placeholder="domain:example.ru, ip:192.168.1.1..."></textarea>
                             </div>
                             <div>
-                                <div class="section-label" style="margin-bottom:6px;color:var(--blue);">🔒 Прокси (Proxy)</div>
+                                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                                    <div class="section-label" style="margin:0;color:var(--blue);">🔒 Прокси (Proxy)</div>
+                                    <span style="font-size:10px;color:var(--muted);">→</span>
+                                    <select id="proxyNodeSelect" class="gsg-select" style="font-size:11px;padding:3px 8px;height:24px;min-width:100px;max-width:200px;"></select>
+                                </div>
                                 <textarea rows="3" id="rulesProxyInput" class="gsg-textarea" placeholder="domain:netflix.com..."></textarea>
                             </div>
                         </div>
@@ -1199,6 +1271,8 @@
                             </div>
                         </div>
                     </div>
+                    <!-- Live route distribution -->
+                    <div id="connRouteDistrib" style="display:flex;gap:8px;margin-bottom:12px;"></div>
                     <!-- Filter bar -->
                     <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
                         <div style="position:relative;flex:1;min-width:160px;">
@@ -1216,14 +1290,15 @@
                             <option value="VPN">Через VPN</option>
                         </select>
                     </div>
-                    <!-- Action bar for route overrides -->
-                    <div id="conn-action-bar" style="display:none;padding:8px 12px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);border-radius:10px;margin-bottom:8px;align-items:center;gap:10px;flex-wrap:wrap;">
+                    <!-- Action bar for route groups -->
+                    <div id="conn-action-bar" style="display:none;padding:8px 12px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);border-radius:10px;margin-bottom:8px;align-items:center;gap:8px;flex-wrap:wrap;">
                         <span id="conn-selected-count" style="font-size:11px;font-weight:700;color:#FBBF24;">Выбрано: 0</span>
-                        <select id="conn-target-select" class="gsg-select" style="font-size:11px;padding:4px 8px;">
-                            <option value="">Маршрутизировать через...</option>
-                            <option value="DIRECT">Напрямую</option>
-                        </select>
-                        <button id="conn-apply-btn" onclick="GatewayApp.actions.applyRouteOverride()" style="padding:4px 12px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);color:#FBBF24;">Применить</button>
+                        <span style="font-size:10px;color:#94a3b8;">→</span>
+                        <button onclick="GatewayApp.actions.addToGroup('auto')" style="padding:4px 10px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);color:#34d399;">Auto</button>
+                        <button onclick="GatewayApp.actions.addToGroup('ai')" style="padding:4px 10px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;background:rgba(96,165,250,0.12);border:1px solid rgba(96,165,250,0.3);color:#60a5fa;">AI</button>
+                        <button onclick="GatewayApp.actions.addToGroup('bypass')" style="padding:4px 10px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;background:rgba(148,163,184,0.12);border:1px solid rgba(148,163,184,0.3);color:#94a3b8;">Bypass</button>
+                        <select id="conn-target-select" class="gsg-select" style="font-size:10px;padding:3px 6px;max-width:150px;"></select>
+                        <button id="conn-apply-btn" onclick="GatewayApp.actions.addToGroup(document.getElementById('conn-target-select')?.value)" style="padding:4px 10px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);color:#FBBF24;">→</button>
                     </div>
                     <!-- Table header -->
                     <div style="display:grid;grid-template-columns:28px 170px 1fr 90px 100px;gap:10px;padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:4px;">
@@ -1293,7 +1368,7 @@
                         <div style="display:flex;gap:4px;">
                             <button id="periodBtn-live"    onclick="GatewayApp.ui.setChartPeriod('live')"    style="font-size:10px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:'Syne',sans-serif;transition:all 0.15s;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.4);color:#fbbf24;">Live</button>
                             <button id="periodBtn-days"    onclick="GatewayApp.ui.setChartPeriod('days')"    style="font-size:10px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:'Syne',sans-serif;transition:all 0.15s;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);color:var(--muted);">7 дней</button>
-                            <button id="periodBtn-month"   onclick="GatewayApp.ui.setChartPeriod('month')"   style="font-size:10px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:'Syne',sans-serif;transition:all 0.15s;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);color:var(--muted);">Месяц</button>
+                            <button id="periodBtn-month"   onclick="GatewayApp.ui.setChartPeriod('month')"   style="font-size:10px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:'Syne',sans-serif;transition:all 0.15s;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);color:var(--muted);">30 дней</button>
                             <button id="periodBtn-alltime" onclick="GatewayApp.ui.setChartPeriod('alltime')" style="font-size:10px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:'Syne',sans-serif;transition:all 0.15s;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);color:var(--muted);">Всё время</button>
                         </div>
                     </div>
@@ -1526,6 +1601,8 @@
             networkData: null,
             _devicesHash: null,
             trafficHistory: [],
+            proxyGroups: [],
+            _editingGroupId: null,
             routeVizMode: 0,
             dotsMode: 'bidirectional',
             _modeStyle: 'emoji',
@@ -1690,6 +1767,7 @@
                 // Immediately fetch connections when switching to that tab
                 if (tabId === 'tab-connections') { actions.fetchConnections(); actions.fetchRouteOverrides(); actions.fetchProxiesList(); }
                 if (tabId === 'tab-routing') { actions.fetchRouteOverrides(); }
+                if (tabId === 'tab-groups') { actions.fetchGroups(); actions.fetchRulesets(); actions.testRoutes(); }
 
                 // Render stats when switching to stats tab (rAF — wait for layout)
                 if (tabId === 'tab-stats') requestAnimationFrame(() => requestAnimationFrame(() => ui.renderStats()));
@@ -2198,6 +2276,202 @@
                 });
                 if (proto) conns = conns.filter(c => c.network === proto);
                 ui.renderConnectionRows(conns);
+            },
+
+            // --- PROXY GROUPS UI ---
+            _getConflicts: () => {
+                // Строим карту домен→[группы] для обнаружения конфликтов
+                const map = {};
+                for (const pg of state.proxyGroups) {
+                    for (const d of (pg.domains || [])) {
+                        const key = d.trim().toLowerCase();
+                        if (!key) continue;
+                        if (!map[key]) map[key] = [];
+                        map[key].push(pg.name);
+                    }
+                }
+                // Оставляем только конфликты (>1 группы)
+                const conflicts = {};
+                for (const [domain, groups] of Object.entries(map)) {
+                    if (groups.length > 1) conflicts[domain] = groups;
+                }
+                return conflicts;
+            },
+
+            renderGroups: () => {
+                const container = document.getElementById('groups-list');
+                if (!container) return;
+
+                const TYPE_LABELS = { 'url-test': 'Auto', 'fallback': 'Fallback', 'select': 'Select' };
+                const TYPE_COLORS = { 'url-test': '#60a5fa', 'fallback': '#fbbf24', 'select': '#a78bfa' };
+                const conflicts = GatewayApp.ui._getConflicts();
+                const expanded = state._editingGroupId;
+
+                // Предупреждение о конфликтах
+                const conflictKeys = Object.keys(conflicts);
+                let conflictsHtml = '';
+                if (conflictKeys.length > 0) {
+                    const conflictLines = conflictKeys.map(d => {
+                        const groups = conflicts[d];
+                        // Для каждой группы — кнопка удаления домена из неё
+                        const groupBtns = groups.map(gName => {
+                            const gObj = state.proxyGroups.find(g => g.name === gName);
+                            if (!gObj) return gName;
+                            return '<span onclick="GatewayApp.actions.removeDomain(\'' + gObj.id + '\',\'' + d.replace(/'/g,"\\'") + '\')" style="cursor:pointer;padding:1px 6px;border-radius:3px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.15);color:#fca5a5;" onmouseover="this.style.background=\'rgba(239,68,68,0.2)\'" onmouseout="this.style.background=\'rgba(239,68,68,0.08)\'">' + gName + ' ✕</span>';
+                        }).join(' ');
+                        return '<div style="margin-bottom:4px;"><code>' + d + '</code> → удалить из: ' + groupBtns + '</div>';
+                    }).join('');
+                    conflictsHtml = '<div style="padding:12px 16px;border-radius:10px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);margin-bottom:16px;">' +
+                        '<div style="font-size:12px;font-weight:700;color:#fbbf24;margin-bottom:8px;">⚠️ Конфликты доменов</div>' +
+                        '<div style="font-size:11px;color:#d4a017;">' + conflictLines + '</div>' +
+                        '<div style="margin-top:6px;font-size:10px;color:#94a3b8;">Нажмите на группу, чтобы удалить домен из неё.</div></div>';
+                }
+
+                const _renderNodePill = (n) => {
+                    const on = n.status === 'online';
+                    const bg = on ? 'rgba(52,211,153,0.08)' : 'rgba(239,68,68,0.08)';
+                    const clr = on ? '#34d399' : '#ef4444';
+                    const bdr = on ? 'rgba(52,211,153,0.2)' : 'rgba(239,68,68,0.2)';
+                    return '<span style="font-size:10px;padding:2px 7px;border-radius:4px;background:' + bg + ';color:' + clr + ';border:1px solid ' + bdr + ';">' + n.tag + '</span>';
+                };
+                const _renderDomainPill = (d, isConflict, groupId) => {
+                    const bg = isConflict ? 'rgba(251,191,36,0.1)' : 'rgba(255,255,255,0.04)';
+                    const clr = isConflict ? '#fbbf24' : '#94a3b8';
+                    const bdr = isConflict ? 'border:1px solid rgba(251,191,36,0.2);' : '';
+                    const esc = d.replace(/'/g, "\\'");
+                    const x = '<span onclick="event.stopPropagation();GatewayApp.actions.removeDomain(\'' + groupId + '\',\'' + esc + '\')" style="margin-left:3px;cursor:pointer;opacity:0.4;font-size:9px;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.4">✕</span>';
+                    return '<span draggable="true" ondragstart="event.dataTransfer.setData(\'text/plain\',\'' + groupId + '|' + esc + '\')" style="font-size:10px;padding:2px 7px;border-radius:4px;background:' + bg + ';color:' + clr + ';' + bdr + 'font-family:JetBrains Mono,monospace;display:inline-flex;align-items:center;gap:2px;cursor:grab;">' + d + x + '</span>';
+                };
+
+                container.innerHTML = conflictsHtml + state.proxyGroups.map(pg => {
+                    const color = TYPE_COLORS[pg.type] || '#94a3b8';
+                    const label = TYPE_LABELS[pg.type] || pg.type;
+                    const domains = pg.domains || [];
+                    const isBuiltin = pg.builtin;
+                    const isExpanded = expanded === pg.id;
+
+                    // Узлы
+                    const filt = (pg.node_filter || '').toLowerCase().trim();
+                    let matchedNodes = [];
+                    if (filt && state.nodes) {
+                        const filters = filt.split(',').map(f => f.trim()).filter(f => f);
+                        matchedNodes = state.nodes.filter(n => filters.some(f => n.tag.toLowerCase().includes(f)));
+                    } else {
+                        matchedNodes = state.nodes || [];
+                    }
+
+                    // Конфликтные домены в этой группе
+                    const myConflicts = domains.filter(d => conflicts[d.trim().toLowerCase()]);
+
+                    const borderNormal = isExpanded ? 'rgba(96,165,250,0.4)' : 'rgba(255,255,255,0.06)';
+                    return `<div class="glass" data-group-id="${pg.id}" style="padding:0;border:2px solid ` + borderNormal + `;transition:border-color 0.2s;" ondragover="event.preventDefault();this.style.borderColor='rgba(52,211,153,0.6)'" ondragleave="this.style.borderColor='` + borderNormal + `'" ondrop="event.preventDefault();this.style.borderColor='` + borderNormal + `';var p=event.dataTransfer.getData('text/plain').split('|');if(p[0]!=='${pg.id}')GatewayApp.actions.moveDomain(p[0],'${pg.id}',p[1])">
+                        <!-- Header (кликабельный) -->
+                        <div onclick="GatewayApp.ui.toggleGroup('${pg.id}')" style="padding:20px;cursor:pointer;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                                <div style="display:flex;align-items:center;gap:8px;">
+                                    <span style="font-size:15px;font-weight:800;color:#f1f5f9;">${pg.name}</span>
+                                    <span style="font-size:9px;padding:2px 8px;border-radius:4px;background:${color}22;color:${color};border:1px solid ${color}44;font-weight:700;">${label}</span>
+                                    ${isBuiltin ? '<span style="font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(148,163,184,0.08);color:#64748b;border:1px solid rgba(148,163,184,0.15);">🔒</span>' : ''}
+                                    ${myConflicts.length > 0 ? '<span style="font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(251,191,36,0.1);color:#fbbf24;border:1px solid rgba(251,191,36,0.2);">⚠️ конфликт</span>' : ''}
+                                </div>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" style="transform:rotate(${isExpanded ? '180' : '0'}deg);transition:transform 0.2s;"><polyline points="6 9 12 15 18 9"/></svg>
+                            </div>
+                            <!-- Узлы (скрываем для bypass/direct) -->
+                            ${(pg.type !== 'direct' && pg.id !== 'bypass') ? `<div style="margin-bottom:8px;">
+                                <div style="font-size:10px;color:#64748b;margin-bottom:4px;">Узлы (${matchedNodes.length})${pg.node_filter ? ' — фильтр: ' + pg.node_filter : ' — все'}:</div>
+                                <div style="display:flex;flex-wrap:wrap;gap:3px;">
+                                    ${matchedNodes.slice(0, 6).map(n => _renderNodePill(n)).join('')}
+                                    ${matchedNodes.length > 6 ? '<span style="font-size:10px;color:#64748b;">+' + (matchedNodes.length - 6) + '</span>' : ''}
+                                </div>
+                            </div>` : '<div style="margin-bottom:4px;font-size:10px;color:#34d399;">↗ Трафик идёт напрямую, минуя прокси</div>'}
+                            <!-- Домены -->
+                            ${domains.length > 0 ? `<div>
+                                <div style="font-size:10px;color:#64748b;margin-bottom:4px;">Домены (${domains.length}):</div>
+                                <div style="display:flex;flex-wrap:wrap;gap:3px;">
+                                    ${domains.slice(0, 12).map(d => _renderDomainPill(d, !!conflicts[d.trim().toLowerCase()], pg.id)).join('')}
+                                    ${domains.length > 12 ? '<span style="font-size:10px;color:#64748b;">+' + (domains.length - 12) + '</span>' : ''}
+                                </div>
+                            </div>` : `<div style="font-size:10px;color:#475569;">Нет доменов</div>`}
+                        </div>
+                        <!-- Inline editor -->
+                        ${isExpanded ? `<div style="padding:0 20px 20px;border-top:1px solid rgba(255,255,255,0.06);">
+                            <div style="padding-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                                <div>
+                                    <div class="section-label" style="margin-bottom:6px;">Название</div>
+                                    <input type="text" id="groupEditName" class="gsg-input" value="${pg.name}" ${isBuiltin ? 'disabled' : ''} style="width:100%;">
+                                    ${(pg.type !== 'direct' && pg.id !== 'bypass') ? `
+                                    <div class="section-label" style="margin-top:12px;margin-bottom:6px;">Фильтр узлов</div>
+                                    <input type="text" id="groupEditFilter" class="gsg-input" value="${pg.node_filter || ''}" placeholder="Stockholm, NY" style="width:100%;" oninput="GatewayApp.ui.updateGroupPreview()">
+                                    <div id="groupMatchedNodes" style="font-size:11px;color:#93c5fd;margin-top:6px;min-height:18px;display:flex;flex-wrap:wrap;gap:4px;"></div>
+                                    <div class="section-label" style="margin-top:12px;margin-bottom:6px;">Тип</div>
+                                    <select id="groupEditType" class="gsg-select" style="width:100%;">
+                                        <option value="url-test" ${pg.type==='url-test'?'selected':''}>Auto (мин. пинг)</option>
+                                        <option value="fallback" ${pg.type==='fallback'?'selected':''}>Fallback (резерв)</option>
+                                    </select>` : `
+                                    <input type="hidden" id="groupEditFilter" value="">
+                                    <input type="hidden" id="groupEditType" value="direct">
+                                    <div style="margin-top:12px;padding:10px;border-radius:8px;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.15);font-size:11px;color:#34d399;">
+                                        ↗ Трафик доменов из этой группы идёт напрямую, минуя VPN
+                                    </div>`}
+                                </div>
+                                <div>
+                                    <div class="section-label" style="margin-bottom:6px;">Домены и ключевые слова</div>
+                                    <textarea id="groupEditDomains" class="gsg-textarea" rows="8" placeholder="youtube.com&#10;netflix.com">${domains.join('\n')}</textarea>
+                                    <div style="font-size:10px;color:var(--muted);margin-top:4px;">Без точки → KEYWORD (все поддомены). С точкой → SUFFIX.</div>
+                                </div>
+                            </div>
+                            <div style="margin-top:14px;display:flex;gap:8px;justify-content:space-between;">
+                                <div>${!isBuiltin ? `<button onclick="GatewayApp.actions.deleteGroup('${pg.id}')" style="padding:8px 14px;border-radius:8px;background:rgba(239,68,68,0.08);color:#ef4444;border:1px solid rgba(239,68,68,0.15);cursor:pointer;font-size:12px;">Удалить группу</button>` : ''}</div>
+                                <button class="btn-primary" onclick="GatewayApp.actions.saveGroup()">Сохранить</button>
+                            </div>
+                        </div>` : ''}
+                    </div>`;
+                }).join('');
+
+                // Инициализируем превью узлов для открытого редактора
+                if (expanded) setTimeout(() => GatewayApp.ui.updateGroupPreview(), 50);
+            },
+
+            toggleGroup: (groupId) => {
+                if (state._editingGroupId === groupId) {
+                    state._editingGroupId = null;
+                } else {
+                    state._editingGroupId = groupId;
+                }
+                GatewayApp.ui.renderGroups();
+            },
+
+            showGroupEditor: () => {
+                // Создание новой группы — используем inline editor внизу
+                const editor = document.getElementById('group-editor');
+                if (!editor) return;
+                state._editingGroupId = null;
+                document.getElementById('group-editor-title').textContent = 'Новая группа';
+                document.getElementById('groupEditName_new').value = '';
+                document.getElementById('groupEditFilter_new').value = '';
+                document.getElementById('groupEditType_new').value = 'url-test';
+                document.getElementById('groupEditDomains_new').value = '';
+                editor.style.display = 'block';
+            },
+
+            hideGroupEditor: () => {
+                const editor = document.getElementById('group-editor');
+                if (editor) editor.style.display = 'none';
+            },
+
+            updateGroupPreview: () => {
+                const filterInput = document.getElementById('groupEditFilter');
+                const previewBox = document.getElementById('groupMatchedNodes');
+                if (!filterInput || !previewBox || !state.nodes) return;
+                const filters = filterInput.value.split(',').map(f => f.trim().toLowerCase()).filter(f => f);
+                if (filters.length === 0) {
+                    previewBox.innerHTML = '<span style="color:#64748b;">Все узлы (фильтр пуст)</span>';
+                    return;
+                }
+                const matched = state.nodes
+                    .filter(n => filters.some(f => n.tag.toLowerCase().includes(f)))
+                    .map(n => `<span style="padding:2px 6px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);border-radius:4px;font-size:10px;">${n.tag}</span>`);
+                previewBox.innerHTML = matched.length > 0 ? matched.join('') : '<span style="color:#ef4444;">Нет совпадений</span>';
             },
 
             updateAiPreview: () => {
@@ -3362,13 +3636,24 @@
                 e.currentTarget.setPointerCapture(e.pointerId);
                 const startX  = e.clientX;
                 const startLW = left.getBoundingClientRect().width;
-                const totalW  = () => grid.getBoundingClientRect().width - 14; // minus divider
+                const totalW  = () => grid.getBoundingClientRect().width - 14;
+                // Routes panels to sync
+                const rL = document.getElementById('routesLeft');
+                const rR = document.getElementById('routesRight');
+                const rG = document.getElementById('routesGrid');
                 const onMove = (ev) => {
                     const dx  = ev.clientX - startX;
                     const tot = totalW();
                     const newW = Math.min(Math.max(startLW + dx, 320), tot - 240);
+                    const ratio = newW / tot;
                     left.style.flex  = `0 0 ${newW}px`;
                     right.style.flex = `0 0 ${tot - newW}px`;
+                    // Sync routes panels
+                    if (rL && rR && rG) {
+                        const rt = rG.getBoundingClientRect().width - 14;
+                        rL.style.flex = `0 0 ${ratio * rt}px`;
+                        rR.style.flex = `0 0 ${(1 - ratio) * rt}px`;
+                    }
                 };
                 const onUp = () => {
                     e.currentTarget.removeEventListener('pointermove', onMove);
@@ -3762,6 +4047,23 @@
                 ui.renderConnectionRows(conns);
             },
 
+            _findGroupForDomain: (host) => {
+                if (!host || !state.proxyGroups) return null;
+                const h = host.toLowerCase();
+                for (const pg of state.proxyGroups) {
+                    for (const d of (pg.domains || [])) {
+                        const dl = d.trim().toLowerCase();
+                        if (!dl) continue;
+                        if (dl.includes('.')) { // SUFFIX
+                            if (h === dl || h.endsWith('.' + dl)) return pg;
+                        } else { // KEYWORD
+                            if (h.includes(dl)) return pg;
+                        }
+                    }
+                }
+                return null;
+            },
+
             renderConnectionRows: (conns) => {
                 const box = document.getElementById('connectionsBox');
                 const countEl = document.getElementById('connCount');
@@ -3800,7 +4102,14 @@
                             ${netBadge}
                             <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${host}">${host}</span>
                         </div>
-                        <div style="font-size:11px;font-weight:700;color:${chainColor};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${chain}">${chain}</div>
+                        <div style="font-size:11px;font-weight:700;color:${chainColor};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${chain}">${(() => {
+                            const grp = ui._findGroupForDomain(rawHost);
+                            if (grp) {
+                                const gc = grp.type === 'direct' ? '#34d399' : grp.id === 'ai' ? '#a78bfa' : '#60a5fa';
+                                return '<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:' + gc + '22;color:' + gc + ';border:1px solid ' + gc + '44;margin-right:4px;">' + grp.name + '</span>';
+                            }
+                            return '';
+                        })()}${chain}</div>
                         <div style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:10px;">
                             <div style="color:#34d399;">↓${downFmt}</div>
                             <div style="color:#60a5fa;">↑${upFmt}</div>
@@ -3814,6 +4123,21 @@
                     const checkedCount = box.querySelectorAll('.conn-checkbox:checked').length;
                     selAll.checked = visible.length > 0 && checkedCount === visible.length;
                     selAll.indeterminate = checkedCount > 0 && checkedCount < visible.length;
+                }
+                // Update live route distribution
+                const distEl = document.getElementById('connRouteDistrib');
+                if (distEl && conns.length) {
+                    const direct = conns.filter(c => (c.chain || 'DIRECT') === 'DIRECT').length;
+                    const vpn = conns.length - direct;
+                    const total = conns.length;
+                    distEl.innerHTML = [
+                        { label: 'Напрямую', count: direct, color: '#94a3b8' },
+                        { label: 'Через VPN', count: vpn, color: '#60a5fa' }
+                    ].map(r => '<div style="flex:1;padding:8px 12px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;gap:8px;">'
+                        + '<span style="font-size:16px;font-weight:800;color:' + r.color + ';font-family:JetBrains Mono,monospace;">' + r.count + '</span>'
+                        + '<span style="font-size:10px;color:var(--muted);">' + r.label + '</span>'
+                        + '<span style="font-size:9px;color:' + r.color + ';">' + (total > 0 ? Math.round(r.count/total*100) : 0) + '%</span>'
+                        + '</div>').join('');
                 }
             },
 
@@ -3857,7 +4181,7 @@
                 const labels = {
                     live: 'Трафик (последние 60 сек)',
                     days: 'Трафик за последние 7 дней',
-                    month: 'Трафик за текущий месяц',
+                    month: 'Трафик за последние 30 дней',
                     alltime: 'Трафик за всё время'
                 };
                 const lbl = document.getElementById('chartPeriodLabel');
@@ -3899,19 +4223,31 @@
                     }).join('') : '<div style="color:var(--muted);font-size:13px;">Нет данных за сегодня</div>';
                 }
 
-                // Route distribution
+                // Route distribution — историческая статистика по узлам
                 const routeEl = document.getElementById('statsRouteChart');
-                if (routeEl && state.allConnections?.length) {
-                    const direct = state.allConnections.filter(c => (c.chain || 'DIRECT') === 'DIRECT').length;
-                    const vpn = state.allConnections.length - direct;
-                    const total = state.allConnections.length;
+                if (routeEl) {
+                    const _nH = state.nodeHistory || {};
+                    const _dH2 = state.deviceHistory || {};
+                    const _isNy = (t) => /ny|new[\s\-]?york/i.test(t);
+                    let stTotal = 0, nyTotal = 0;
+                    Object.entries(_nH).forEach(([tag, h]) => {
+                        const t = (h.alltime_down || 0) + (h.alltime_up || 0);
+                        if (_isNy(tag)) nyTotal += t; else if (tag !== 'auto' && tag !== 'DIRECT') stTotal += t;
+                    });
+                    let devTotal = 0;
+                    Object.values(_dH2).forEach(h => { devTotal += (h.alltime_down || 0) + (h.alltime_up || 0); });
+                    const directTotal = Math.max(0, devTotal - stTotal - nyTotal);
+                    const allTotal = stTotal + nyTotal + directTotal;
+                    const pct = (v) => allTotal > 0 ? Math.round(v / allTotal * 100) : 0;
+
                     routeEl.innerHTML = [
-                        { label: 'Напрямую', count: direct, color: '#94a3b8' },
-                        { label: 'Через VPN', count: vpn, color: '#60a5fa' }
-                    ].map(r => `<div style="flex:1;min-width:120px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:14px;">
-                        <div style="font-size:22px;font-weight:800;color:${r.color};font-family:'JetBrains Mono',monospace;">${r.count}</div>
+                        { label: 'Stockholm', total: stTotal, color: '#34d399' },
+                        { label: 'NY', total: nyTotal, color: '#60a5fa' },
+                        { label: 'Напрямую', total: directTotal, color: '#94a3b8' }
+                    ].map(r => `<div style="flex:1;min-width:100px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:14px;">
+                        <div style="font-size:18px;font-weight:800;color:${r.color};font-family:'JetBrains Mono',monospace;">${utils.formatBytes(r.total)}</div>
                         <div style="font-size:11px;color:var(--muted);margin-top:2px;">${r.label}</div>
-                        <div style="font-size:10px;color:${r.color};margin-top:4px;">${total > 0 ? Math.round(r.count/total*100) : 0}%</div>
+                        <div style="font-size:10px;color:${r.color};margin-top:4px;">${pct(r.total)}%</div>
                     </div>`).join('');
                 }
 
@@ -3947,7 +4283,6 @@
                         if (isLive) {
                             const devHist = (state._trafficHistoryDevices || []).slice(-60);
                             let devSnap = devHist[idx] || {};
-                            // Fallback to current traffic if snapshot empty
                             if (!Object.keys(devSnap).length && state.traffic) {
                                 devSnap = {};
                                 Object.entries(state.traffic).forEach(([ip, d]) => {
@@ -3964,10 +4299,79 @@
                                 })
                                 .sort((a, b) => b.speed - a.speed).slice(0, 4);
                             const devsHtml = topDevs.length
-                                ? `<div style="margin-top:7px;padding-top:7px;border-top:1px solid rgba(255,255,255,0.08);">${topDevs.map(d => `<div style="display:flex;justify-content:space-between;gap:14px;margin-top:3px;"><span style="color:rgba(148,163,184,0.65);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;">${d.name}</span><span style="color:#34d399;font-family:'JetBrains Mono',monospace;font-size:10px;">${utils.formatBytes(d.speed)}</span></div>`).join('')}</div>` : '';
-                            html = `<div style="color:rgba(148,163,184,0.7);margin-bottom:5px;font-size:10px;">${timeLabel}</div><div style="color:#34d399;">↓ ${utils.formatBytes(item.down)}</div><div style="color:#60a5fa;margin-top:2px;">↑ ${utils.formatBytes(item.up)}</div>${devsHtml}`;
+                                ? `<div style="margin-top:7px;padding-top:7px;border-top:1px solid rgba(255,255,255,0.08);">${topDevs.map(d => `<div style="display:flex;justify-content:space-between;gap:14px;margin-top:3px;"><span style="color:rgba(148,163,184,0.65);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;">${d.name}</span><span style="color:#f1f5f9;font-family:'JetBrains Mono',monospace;font-size:10px;">${utils.formatBytes(d.speed)}</span></div>`).join('')}</div>` : '';
+                            // Node segments for live
+                            let liveNodeHtml = '';
+                            if (item.autoDown !== undefined) {
+                                const st = (item.autoDown||0)+(item.autoUp||0);
+                                const ny = (item.nyDown||0)+(item.nyUp||0);
+                                const dr = (item.directDown||0)+(item.directUp||0);
+                                liveNodeHtml = `<div style="margin-top:5px;font-size:10px;display:flex;gap:8px;"><span style="color:#34d399;">Stockholm ${utils.formatBytes(st)}</span><span style="color:#60a5fa;">NY ${utils.formatBytes(ny)}</span><span style="color:#94a3b8;">Direct ${utils.formatBytes(dr)}</span></div>`;
+                            }
+                            html = `<div style="color:rgba(148,163,184,0.7);margin-bottom:5px;font-size:10px;">${timeLabel}</div><div style="color:#34d399;">↓ ${utils.formatBytes(item.down)}</div><div style="color:#60a5fa;margin-top:2px;">↑ ${utils.formatBytes(item.up)}</div>${liveNodeHtml}${devsHtml}`;
                         } else {
-                            html = `<div style="color:rgba(148,163,184,0.7);margin-bottom:5px;font-size:10px;">${item.label}</div><div style="color:#34d399;">↓ ${utils.formatBytes(item.down)}</div><div style="color:#60a5fa;margin-top:2px;">↑ ${utils.formatBytes(item.up)}</div>`;
+                            // Для исторических периодов — показываем устройства за этот день/месяц
+                            const _dH = state.deviceHistory || {};
+                            const _devNames = {};
+                            (state.devices || []).forEach(d => { _devNames[d.ip] = d.custom_name || d.hostname || d.ip; });
+                            const isMonthly = (state._chartPeriod === 'alltime');
+                            // Собираем трафик по устройствам для этого бара
+                            const _dnH = state.deviceNodeHistory || {};
+                            const _isNyT = (t) => /ny|new[\s\-]?york/i.test(t);
+                            const barDevs = [];
+                            Object.entries(_dH).forEach(([ip, h]) => {
+                                let total = 0, matchKey = null;
+                                if (isMonthly) {
+                                    const allMonths = Object.keys(h.monthly || {});
+                                    matchKey = allMonths.find(m => (m.slice(5).replace('-','.') + "'" + m.slice(2,4)) === item.label);
+                                    if (matchKey) { const mv = h.monthly[matchKey]; total = (mv?.down||0)+(mv?.up||0); }
+                                } else if (item._dailyKey) {
+                                    matchKey = item._dailyKey;
+                                    const dv = h.daily?.[matchKey];
+                                    if (dv) total = (dv.down||0)+(dv.up||0);
+                                } else {
+                                    const allDays = Object.keys(h.daily || {});
+                                    matchKey = allDays.find(d => d.slice(5).replace('-','.') === item.label);
+                                    if (matchKey) { const dv = h.daily[matchKey]; total = (dv?.down||0)+(dv?.up||0); }
+                                }
+                                if (total > 0) {
+                                    // Per-node breakdown for this device
+                                    let devSt = 0, devNy = 0, devDr = 0;
+                                    const devNodes = _dnH[ip] || {};
+                                    Object.entries(devNodes).forEach(([nodeTag, nh]) => {
+                                        let nt = 0;
+                                        if (isMonthly && matchKey) { const mv = nh.monthly?.[matchKey]; nt = (mv?.down||0)+(mv?.up||0); }
+                                        else if (matchKey) { const dv = nh.daily?.[matchKey]; nt = (dv?.down||0)+(dv?.up||0); }
+                                        if (_isNyT(nodeTag)) devNy += nt;
+                                        else if (nodeTag === 'DIRECT') devDr += nt;
+                                        else devSt += nt;
+                                    });
+                                    barDevs.push({ name: _devNames[ip] || ip, total, st: devSt, ny: devNy, dr: devDr });
+                                }
+                            });
+                            barDevs.sort((a, b) => b.total - a.total);
+                            const topBarDevs = barDevs.slice(0, 5);
+                            const barDevsHtml = topBarDevs.length
+                                ? `<div style="margin-top:7px;padding-top:7px;border-top:1px solid rgba(255,255,255,0.08);">${topBarDevs.map(d => {
+                                    let nodeDetail = '';
+                                    if (d.st || d.ny || d.dr) {
+                                        const parts = [];
+                                        if (d.st) parts.push('<span style="color:#34d399;">' + utils.formatBytes(d.st) + '</span>');
+                                        if (d.ny) parts.push('<span style="color:#60a5fa;">' + utils.formatBytes(d.ny) + '</span>');
+                                        if (d.dr) parts.push('<span style="color:#94a3b8;">' + utils.formatBytes(d.dr) + '</span>');
+                                        nodeDetail = '<div style="display:flex;gap:6px;font-size:9px;font-family:JetBrains Mono,monospace;">' + parts.join('') + '</div>';
+                                    }
+                                    return `<div style="margin-top:4px;"><div style="display:flex;justify-content:space-between;gap:14px;"><span style="color:rgba(148,163,184,0.65);max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;">${d.name}</span><span style="color:#f1f5f9;font-family:'JetBrains Mono',monospace;font-size:10px;">${utils.formatBytes(d.total)}</span></div>${nodeDetail}</div>`;
+                                }).join('')}</div>` : '';
+                            // Сегменты по узлам
+                            let nodeHtml = '';
+                            if (item.autoDown !== undefined) {
+                                const st = (item.autoDown||0)+(item.autoUp||0);
+                                const ny = (item.nyDown||0)+(item.nyUp||0);
+                                const dr = (item.directDown||0)+(item.directUp||0);
+                                nodeHtml = `<div style="margin-top:5px;font-size:10px;display:flex;gap:8px;"><span style="color:#34d399;">Stockholm ${utils.formatBytes(st)}</span><span style="color:#60a5fa;">NY ${utils.formatBytes(ny)}</span><span style="color:#94a3b8;">Direct ${utils.formatBytes(dr)}</span></div>`;
+                            }
+                            html = `<div style="color:rgba(148,163,184,0.7);margin-bottom:5px;font-size:10px;">${item.label}</div><div style="color:#34d399;">↓ ${utils.formatBytes(item.down)}</div><div style="color:#60a5fa;margin-top:2px;">↑ ${utils.formatBytes(item.up)}</div>${nodeHtml}${barDevsHtml}`;
                         }
                         tip.innerHTML = html;
                         let tx = mx + 14;
@@ -3988,36 +4392,60 @@
                 const _devH = state.deviceHistory || {};
 
                 if (period === 'live') {
-                    bars = state._trafficHistory.slice(-60).map(h => ({ label: '', down: h.down, up: h.up }));
+                    bars = state._trafficHistory.slice(-60).map(h => ({
+                        label: '', down: h.down, up: h.up,
+                        autoDown: h.autoDown || 0, autoUp: h.autoUp || 0,
+                        nyDown: h.nyDown || 0, nyUp: h.nyUp || 0,
+                        directDown: h.directDown || 0, directUp: h.directUp || 0
+                    }));
                 } else if (period === 'days') {
+                    const _nH = state.nodeHistory || {};
+                    const _isNy = (t) => /ny|new[\s\-]?york/i.test(t);
                     for (let i = 6; i >= 0; i--) {
                         const d = new Date(); d.setDate(d.getDate() - i);
                         const key = d.toISOString().slice(0, 10);
-                        let down = 0, up = 0;
+                        let down = 0, up = 0, autoD = 0, autoU = 0, nyD = 0, nyU = 0;
                         Object.values(_devH).forEach(h => { down += h.daily?.[key]?.down || 0; up += h.daily?.[key]?.up || 0; });
-                        bars.push({ label: key.slice(5).replace('-', '.'), down, up });
+                        Object.entries(_nH).forEach(([tag, h]) => {
+                            const dd = h.daily?.[key]?.down || 0, du = h.daily?.[key]?.up || 0;
+                            if (_isNy(tag)) { nyD += dd; nyU += du; } else if (tag !== 'auto' && tag !== 'DIRECT') { autoD += dd; autoU += du; }
+                        });
+                        bars.push({ label: key.slice(5).replace('-', '.'), _dailyKey: key, down, up, autoDown: autoD, autoUp: autoU, nyDown: nyD, nyUp: nyU, directDown: Math.max(0, down - autoD - nyD), directUp: Math.max(0, up - autoU - nyU) });
                     }
                 } else if (period === 'month') {
-                    const nowStr = new Date().toISOString().slice(0, 10);
-                    const monthStr = nowStr.slice(0, 7);
-                    const daysInMonth = new Date(parseInt(monthStr.slice(0,4)), parseInt(monthStr.slice(5,7)), 0).getDate();
-                    for (let i = 1; i <= daysInMonth; i++) {
-                        const key = `${monthStr}-${String(i).padStart(2, '0')}`;
-                        let down = 0, up = 0;
+                    const _nH = state.nodeHistory || {};
+                    const _isNy = (t) => /ny|new[\s\-]?york/i.test(t);
+                    for (let i = 29; i >= 0; i--) {
+                        const d = new Date(); d.setDate(d.getDate() - i);
+                        const key = d.toISOString().slice(0, 10);
+                        let down = 0, up = 0, autoD = 0, autoU = 0, nyD = 0, nyU = 0;
                         Object.values(_devH).forEach(h => { down += h.daily?.[key]?.down || 0; up += h.daily?.[key]?.up || 0; });
-                        bars.push({ label: String(i), down, up });
+                        Object.entries(_nH).forEach(([tag, h]) => {
+                            const dd = h.daily?.[key]?.down || 0, du = h.daily?.[key]?.up || 0;
+                            if (_isNy(tag)) { nyD += dd; nyU += du; } else if (tag !== 'auto' && tag !== 'DIRECT') { autoD += dd; autoU += du; }
+                        });
+                        bars.push({ label: key.slice(5).replace('-', '.'), _dailyKey: key, down, up, autoDown: autoD, autoUp: autoU, nyDown: nyD, nyUp: nyU, directDown: Math.max(0, down - autoD - nyD), directUp: Math.max(0, up - autoU - nyU) });
                     }
                 } else if (period === 'alltime') {
+                    const _nH = state.nodeHistory || {};
+                    const _isNy = (t) => /ny|new[\s\-]?york/i.test(t);
                     const monthMap = {};
                     Object.values(_devH).forEach(h => {
                         Object.entries(h.monthly || {}).forEach(([m, v]) => {
-                            if (!monthMap[m]) monthMap[m] = { down: 0, up: 0 };
+                            if (!monthMap[m]) monthMap[m] = { down: 0, up: 0, autoDown: 0, autoUp: 0, nyDown: 0, nyUp: 0 };
                             monthMap[m].down += v.down || 0;
                             monthMap[m].up   += v.up   || 0;
                         });
                     });
+                    Object.entries(_nH).forEach(([tag, h]) => {
+                        Object.entries(h.monthly || {}).forEach(([m, v]) => {
+                            if (!monthMap[m]) monthMap[m] = { down: 0, up: 0, autoDown: 0, autoUp: 0, nyDown: 0, nyUp: 0 };
+                            if (_isNy(tag)) { monthMap[m].nyDown += v.down || 0; monthMap[m].nyUp += v.up || 0; }
+                            else if (tag !== 'auto' && tag !== 'DIRECT') { monthMap[m].autoDown += v.down || 0; monthMap[m].autoUp += v.up || 0; }
+                        });
+                    });
                     bars = Object.entries(monthMap).sort(([a], [b]) => a.localeCompare(b))
-                        .map(([m, v]) => ({ label: m.slice(5).replace('-', '.') + '\'' + m.slice(2, 4), down: v.down, up: v.up }));
+                        .map(([m, v]) => ({ label: m.slice(5).replace('-', '.') + '\'' + m.slice(2, 4), down: v.down, up: v.up, autoDown: v.autoDown, autoUp: v.autoUp, nyDown: v.nyDown, nyUp: v.nyUp, directDown: Math.max(0, v.down - v.autoDown - v.nyDown), directUp: Math.max(0, v.up - v.autoUp - v.nyUp) }));
                 }
 
                 state._chartBars = bars;
@@ -4075,18 +4503,31 @@
                     });
                 }
 
-                // Bars
+                // Bars — сегментированные по узлам для всех периодов
                 bars.forEach((item, i) => {
                     const x = padL + i * barW;
-                    const dH = (item.down / maxVal) * cH;
-                    const uH = (item.up   / maxVal) * cH;
-                    if (dH > 0) {
-                        ctx.fillStyle = 'rgba(16,185,129,0.75)';
-                        ctx.fillRect(x + 0.5, padT + cH - dH, Math.max(barW - 1, 1), dH);
-                    }
-                    if (uH > 0) {
-                        ctx.fillStyle = 'rgba(96,165,250,0.55)';
-                        ctx.fillRect(x + 0.5, padT + cH - dH - uH, Math.max(barW - 1, 1), uH);
+                    const bw = Math.max(barW - 1, 1);
+
+                    if (item.autoDown !== undefined) {
+                        const segments = [
+                            { val: (item.directDown || 0) + (item.directUp || 0), color: 'rgba(148,163,184,0.35)' },
+                            { val: (item.autoDown || 0) + (item.autoUp || 0), color: 'rgba(16,185,129,0.75)' },
+                            { val: (item.nyDown || 0) + (item.nyUp || 0), color: 'rgba(96,165,250,0.7)' },
+                        ];
+                        let yOff = 0;
+                        for (const seg of segments) {
+                            if (seg.val > 0) {
+                                const h = (seg.val / maxVal) * cH;
+                                ctx.fillStyle = seg.color;
+                                ctx.fillRect(x + 0.5, padT + cH - yOff - h, bw, h);
+                                yOff += h;
+                            }
+                        }
+                    } else {
+                        const dH = (item.down / maxVal) * cH;
+                        const uH = (item.up   / maxVal) * cH;
+                        if (dH > 0) { ctx.fillStyle = 'rgba(16,185,129,0.75)'; ctx.fillRect(x + 0.5, padT + cH - dH, bw, dH); }
+                        if (uH > 0) { ctx.fillStyle = 'rgba(96,165,250,0.55)'; ctx.fillRect(x + 0.5, padT + cH - dH - uH, bw, uH); }
                     }
                 });
 
@@ -4094,14 +4535,36 @@
                 const last = bars[bars.length - 1] || { down: 0, up: 0 };
                 ctx.textAlign = 'right';
                 ctx.textBaseline = 'top';
-                ctx.fillStyle = 'rgba(16,185,129,0.85)';
-                ctx.fillRect(cssW - padR - 170, padT - 13, 8, 8);
-                ctx.fillStyle = 'rgba(148,163,184,0.6)';
-                ctx.fillText(`↓ ${utils.formatBytes(last.down)}`, cssW - padR - 95, padT - 12);
-                ctx.fillStyle = 'rgba(96,165,250,0.85)';
-                ctx.fillRect(cssW - padR - 85, padT - 13, 8, 8);
-                ctx.fillStyle = 'rgba(148,163,184,0.6)';
-                ctx.fillText(`↑ ${utils.formatBytes(last.up)}`, cssW - padR, padT - 12);
+
+                if (last.autoDown !== undefined) {
+                    // Легенда по узлам
+                    const legendItems = [
+                        { label: 'Stockholm', color: 'rgba(16,185,129,0.85)', val: (last.autoDown||0) + (last.autoUp||0) },
+                        { label: 'NY', color: 'rgba(96,165,250,0.85)', val: (last.nyDown||0) + (last.nyUp||0) },
+                        { label: 'Direct', color: 'rgba(148,163,184,0.5)', val: (last.directDown||0) + (last.directUp||0) },
+                    ];
+                    let lx = cssW - padR;
+                    for (let li = legendItems.length - 1; li >= 0; li--) {
+                        const item = legendItems[li];
+                        if (item.val <= 0 && li > 0) continue;
+                        const txt = `${item.label} ${utils.formatBytes(item.val)}`;
+                        ctx.fillStyle = 'rgba(148,163,184,0.6)';
+                        ctx.fillText(txt, lx, padT - 12);
+                        lx -= ctx.measureText(txt).width + 4;
+                        ctx.fillStyle = item.color;
+                        ctx.fillRect(lx - 6, padT - 13, 8, 8);
+                        lx -= 18;
+                    }
+                } else {
+                    ctx.fillStyle = 'rgba(16,185,129,0.85)';
+                    ctx.fillRect(cssW - padR - 170, padT - 13, 8, 8);
+                    ctx.fillStyle = 'rgba(148,163,184,0.6)';
+                    ctx.fillText(`↓ ${utils.formatBytes(last.down)}`, cssW - padR - 95, padT - 12);
+                    ctx.fillStyle = 'rgba(96,165,250,0.85)';
+                    ctx.fillRect(cssW - padR - 85, padT - 13, 8, 8);
+                    ctx.fillStyle = 'rgba(148,163,184,0.6)';
+                    ctx.fillText(`↑ ${utils.formatBytes(last.up)}`, cssW - padR, padT - 12);
+                }
             }
         };
 
@@ -4308,6 +4771,13 @@
                         const proxyEl = document.getElementById('rulesProxyInput');
                         if (directEl) directEl.value = (rules.direct || []).join('\n');
                         if (proxyEl) proxyEl.value = (rules.proxy || []).join('\n');
+                        // Заполняем селектор узла для proxy-группы
+                        const proxyNodeSel = document.getElementById('proxyNodeSelect');
+                        if (proxyNodeSel && state.nodes) {
+                            const savedNode = rules.proxy_node || 'auto';
+                            proxyNodeSel.innerHTML = `<option value="auto"${savedNode==='auto'?' selected':''}>Auto (мин. пинг)</option>` +
+                                state.nodes.map(n => `<option value="${n.tag}"${savedNode===n.tag?' selected':''}>${n.tag}</option>`).join('');
+                        }
                     }
                 }
             },
@@ -4435,45 +4905,64 @@
 
             fetchProxiesList: async () => {
                 try {
-                    const data = await utils.apiCall('/proxies/list', { _silent: true });
-                    if (!data) return;
+                    // Заполняем селектор пользовательскими группами (Auto/AI/Bypass уже как кнопки)
+                    const groups = await utils.apiCall('/groups', { _silent: true });
                     const sel = document.getElementById('conn-target-select');
                     if (!sel) return;
-                    sel.innerHTML = '<option value="">Маршрутизировать через...</option><option value="DIRECT">Напрямую</option>';
-                    if (data.groups?.length) {
-                        const og = document.createElement('optgroup');
-                        og.label = 'Группы';
-                        data.groups.forEach(g => { const o = document.createElement('option'); o.value = 'group:' + g; o.textContent = g; og.appendChild(o); });
-                        sel.appendChild(og);
+                    const builtinIds = new Set(['auto', 'ai', 'bypass']);
+                    const customGroups = (groups || []).filter(g => !builtinIds.has(g.id));
+                    if (customGroups.length) {
+                        sel.innerHTML = '<option value="">Другая группа...</option>' +
+                            customGroups.map(g => '<option value="' + g.id + '">' + g.name + '</option>').join('');
+                        sel.style.display = '';
+                    } else {
+                        sel.style.display = 'none';
                     }
-                    if (data.nodes?.length) {
-                        const og = document.createElement('optgroup');
-                        og.label = 'Узлы';
-                        data.nodes.forEach(n => { const o = document.createElement('option'); o.value = 'node:' + n; o.textContent = n; og.appendChild(o); });
-                        sel.appendChild(og);
-                    }
+                    // Кэшируем группы в state
+                    if (groups) state.proxyGroups = groups;
                 } catch (e) { /* silent */ }
             },
 
-            applyRouteOverride: async () => {
-                const target = document.getElementById('conn-target-select')?.value;
-                if (!target) { ui.showToast('Выберите узел для маршрутизации', 'error'); return; }
+            addToGroup: async (groupId) => {
+                if (!groupId) { ui.showToast('Выберите группу', 'error'); return; }
                 const domains = [...new Set([...state._selectedHosts].map(h => {
                     const parts = h.split('.');
                     return parts.length > 2 ? parts.slice(-2).join('.') : h;
                 }))].filter(d => d && !(/^\d+\.\d+\.\d+\.\d+$/.test(d)));
                 if (!domains.length) { ui.showToast('Нет доменов для маршрутизации', 'error'); return; }
-                const overrides = domains.map(d => ({ domain: d, target: target }));
-                const res = await utils.apiCall('/rules/overrides', { method: 'POST', body: JSON.stringify(overrides) });
-                if (res !== null) {
-                    state._selectedHosts.clear();
-                    document.getElementById('conn-select-all') && (document.getElementById('conn-select-all').checked = false);
-                    ui.updateConnActionBar();
-                    await actions.fetchRouteOverrides();
-                    const targetDisplay = target === 'DIRECT' ? 'Напрямую' : target.replace('node:','').replace('group:','');
-                    ui.showToast(`Маршрут: ${domains.join(', ')} -> ${targetDisplay}`, 'success');
-                    ui.addEvent('\u{1F500}', `Маршрут: ${domains.join(', ')} -> ${targetDisplay}`, '#c9a84c');
+
+                // Получаем текущую группу
+                const pg = state.proxyGroups.find(g => g.id === groupId);
+                if (!pg) { ui.showToast('Группа не найдена', 'error'); return; }
+
+                // Добавляем новые домены (без дубликатов)
+                const existing = new Set((pg.domains || []).map(d => d.toLowerCase()));
+                const newDomains = [...(pg.domains || [])];
+                const added = [];
+                for (const d of domains) {
+                    if (!existing.has(d.toLowerCase())) {
+                        newDomains.push(d);
+                        existing.add(d.toLowerCase());
+                        added.push(d);
+                    }
                 }
+                if (!added.length) { ui.showToast('Домены уже в группе ' + pg.name, 'info'); return; }
+
+                const res = await utils.apiCall('/groups/' + groupId, { method: 'PUT', body: JSON.stringify({ domains: newDomains }) });
+                if (res) {
+                    state._selectedHosts.clear();
+                    const selAll = document.getElementById('conn-select-all');
+                    if (selAll) selAll.checked = false;
+                    ui.updateConnActionBar();
+                    ui.showToast(added.join(', ') + ' → ' + pg.name, 'success');
+                    ui.addEvent('\u{1F500}', added.join(', ') + ' → ' + pg.name, '#c9a84c');
+                }
+            },
+
+            applyRouteOverride: async () => {
+                // Legacy — для обратной совместимости
+                const target = document.getElementById('conn-target-select')?.value;
+                if (target) { await actions.addToGroup(target); }
             },
 
             deleteRouteOverride: async (domain) => {
@@ -4542,6 +5031,444 @@
                 } catch (e) {
                     alert('Ошибка скрипта: ' + e.message);
                 }
+            },
+
+            // --- PROXY GROUPS ---
+            fetchGroups: async () => {
+                const data = await utils.apiCall('/groups', { _silent: true });
+                if (data) {
+                    state.proxyGroups = data;
+                    ui.renderGroups();
+                }
+            },
+
+            saveGroup: async () => {
+                const editId = state._editingGroupId;
+                // Для существующей группы — поля внутри карточки, для новой — в нижнем редакторе
+                const suffix = editId ? '' : '_new';
+                const nameEl = document.getElementById('groupEditName' + suffix);
+                const filterEl = document.getElementById('groupEditFilter' + suffix);
+                const typeEl = document.getElementById('groupEditType' + suffix);
+                const domainsEl = document.getElementById('groupEditDomains' + suffix);
+
+                const name = (nameEl?.value || '').trim();
+                const node_filter = (filterEl?.value || '').trim();
+                const type = typeEl?.value || 'url-test';
+                const domains = (domainsEl?.value || '').split('\n').map(d => d.trim()).filter(d => d);
+
+                if (!name && !editId) { alert('Введите название группы'); return; }
+
+                // Проверка конфликтов
+                const otherGroups = state.proxyGroups.filter(g => g.id !== editId);
+                const otherDomains = new Set();
+                for (const g of otherGroups) for (const d of (g.domains || [])) otherDomains.add(d.trim().toLowerCase());
+                const newConflicts = domains.filter(d => otherDomains.has(d.trim().toLowerCase()));
+                if (newConflicts.length > 0) {
+                    const conflictingGroups = {};
+                    for (const d of newConflicts) {
+                        const dk = d.trim().toLowerCase();
+                        for (const g of otherGroups) {
+                            if ((g.domains || []).some(gd => gd.trim().toLowerCase() === dk)) {
+                                conflictingGroups[d] = g.name;
+                            }
+                        }
+                    }
+                    const msg = Object.entries(conflictingGroups).map(([d,g]) => `${d} → уже в «${g}»`).join('\n');
+                    if (!confirm(`Обнаружены конфликты доменов:\n${msg}\n\nПриоритет будет у первой группы в списке. Продолжить?`)) return;
+                }
+
+                let res;
+                if (editId) {
+                    const payload = { node_filter, type, domains };
+                    // Имя можно менять только для не-builtin
+                    const pg = state.proxyGroups.find(g => g.id === editId);
+                    if (!pg?.builtin && name) payload.name = name;
+                    res = await utils.apiCall(`/groups/${editId}`, { method: 'PUT', body: JSON.stringify(payload) });
+                } else {
+                    res = await utils.apiCall('/groups', { method: 'POST', body: JSON.stringify({ name, node_filter, type, domains }) });
+                }
+                if (res) {
+                    ui.hideGroupEditor();
+                    await actions.fetchGroups();
+                }
+            },
+
+            // --- ROUTE TESTS ---
+            testRoutes: async () => {
+                const container = document.getElementById('route-test-results');
+                if (!container) return;
+
+                container.innerHTML = '<div style="text-align:center;color:#64748b;font-size:11px;padding:16px 0;">⏳ Проверка...</div>';
+
+                try {
+                const data = await utils.apiCall('/test/routes');
+                if (!data) { container.innerHTML = '<div style="font-size:10px;color:#475569;padding:8px 0;">Не удалось подключиться</div>'; return; }
+
+                const tests = data.tests || [];
+                const integrity = data.integrity || {};
+                const isOk = data.ok;
+                const warnings = data.warnings || [];
+
+                var html = '';
+
+                // Группы
+                tests.forEach(function(t, gi) {
+                    var isDirect = t.type === 'direct';
+                    var nodes = isDirect ? ['DIRECT'] : (t.actual_node_names || []).slice(0, 4);
+                    if (!nodes.length) nodes = isDirect ? ['DIRECT'] : ['auto'];
+
+                    html += '<div id="test-group-' + gi + '" style="margin-bottom:14px;opacity:0.3;transition:opacity 0.4s;">';
+                    html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">';
+                    html += '<span id="test-g-icon-' + gi + '" style="font-size:13px;width:18px;text-align:center;">○</span>';
+                    html += '<span style="font-size:13px;font-weight:800;color:#f1f5f9;">' + t.group + '</span>';
+                    html += '<span style="font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.04);color:#64748b;">' + (isDirect ? 'DIRECT' : t.type) + '</span></div>';
+
+                    html += '<div style="display:flex;align-items:stretch;gap:0;margin-left:9px;padding-left:14px;border-left:2px solid rgba(255,255,255,0.06);">';
+                    if (!isDirect) {
+                        html += '<div style="min-width:130px;display:flex;flex-direction:column;gap:2px;padding-right:10px;">';
+                        nodes.forEach(function(n) { html += '<div style="font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(96,165,250,0.06);border:1px solid rgba(96,165,250,0.12);color:#60a5fa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;" title="' + n + '">' + n + '</div>'; });
+                        if (t.actual_nodes > 4) html += '<div style="font-size:8px;color:#475569;">+' + (t.actual_nodes - 4) + '</div>';
+                        html += '</div>';
+                    } else {
+                        html += '<div style="min-width:130px;padding-right:10px;"><div style="font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.12);color:#34d399;">↗ Напрямую</div></div>';
+                    }
+                    html += '<div style="display:flex;align-items:center;padding:0 6px;color:#475569;font-size:10px;">→</div>';
+                    html += '<div style="flex:1;display:flex;flex-wrap:wrap;gap:3px;align-content:flex-start;">';
+                    (t.domains || []).forEach(function(d, di) {
+                        html += '<span id="test-d-' + gi + '-' + di + '" style="font-size:10px;padding:2px 6px;border-radius:4px;font-family:JetBrains Mono,monospace;background:rgba(255,255,255,0.03);color:#475569;border:1px solid rgba(255,255,255,0.04);transition:all 0.3s;">' + d + '</span>';
+                    });
+                    html += '</div></div></div>';
+                });
+
+                // Устройства
+                var devices = data.devices || [];
+                var devNames = {};
+                (state.devices || []).forEach(function(sd) { devNames[sd.ip] = sd.custom_name || sd.hostname || sd.ip; });
+                devices.forEach(function(d) { d.display_name = devNames[d.ip] || d.name || d.ip; });
+
+                if (devices.length > 0) {
+                    html += '<div id="test-devices" style="opacity:0.3;transition:opacity 0.4s;margin-bottom:12px;">';
+                    html += '<div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Устройства (' + devices.length + ')</div>';
+                    html += '<div style="display:flex;flex-wrap:wrap;gap:4px;">';
+                    devices.forEach(function(d, di) {
+                        var mc = {smart:'#60a5fa',global:'#a78bfa',bypass:'#34d399',block:'#ef4444'}[d.mode] || '#94a3b8';
+                        var ml = {smart:'Smart',global:'Global',bypass:'Bypass',block:'Block'}[d.mode] || d.mode;
+                        html += '<div id="test-dev-' + di + '" style="padding:4px 8px;border-radius:6px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);transition:all 0.3s;display:flex;align-items:center;gap:4px;">';
+                        html += '<span id="test-dev-icon-' + di + '" style="font-size:10px;width:12px;text-align:center;">○</span>';
+                        html += '<span style="font-size:10px;font-weight:700;color:#f1f5f9;">' + d.display_name + '</span>';
+                        html += '<span style="font-size:8px;padding:1px 4px;border-radius:3px;background:' + mc + '18;color:' + mc + ';border:1px solid ' + mc + '33;">' + ml + '</span>';
+                        html += '</div>';
+                    });
+                    html += '</div></div>';
+                }
+
+                html += '<div id="test-integrity" style="opacity:0;transition:opacity 0.5s;"></div>';
+                container.innerHTML = html;
+
+                // Анимация: группы
+                for (var gi = 0; gi < tests.length; gi++) {
+                    var t = tests[gi];
+                    var groupEl = document.getElementById('test-group-' + gi);
+                    var iconEl = document.getElementById('test-g-icon-' + gi);
+                    if (groupEl) groupEl.style.opacity = '1';
+                    var domains = t.domains || [];
+                    for (var di = 0; di < domains.length; di++) {
+                        var dEl = document.getElementById('test-d-' + gi + '-' + di);
+                        if (!dEl) continue;
+                        dEl.style.background = 'rgba(251,191,36,0.1)'; dEl.style.borderColor = 'rgba(251,191,36,0.3)'; dEl.style.color = '#fbbf24';
+                        await new Promise(function(r) { setTimeout(r, 50); });
+                        if (di < t.domains_ok) { dEl.style.background = 'rgba(52,211,153,0.08)'; dEl.style.borderColor = 'rgba(52,211,153,0.25)'; dEl.style.color = '#34d399'; }
+                        else { dEl.style.background = 'rgba(239,68,68,0.1)'; dEl.style.borderColor = 'rgba(239,68,68,0.3)'; dEl.style.color = '#ef4444'; }
+                    }
+                    if (iconEl) { iconEl.textContent = t.domains_wrong > 0 ? '✗' : '✓'; iconEl.style.color = t.domains_wrong > 0 ? '#ef4444' : '#34d399'; }
+                    if (groupEl) { var line = groupEl.querySelector('[style*="border-left"]'); if (line) line.style.borderLeftColor = t.domains_wrong > 0 ? 'rgba(239,68,68,0.3)' : 'rgba(52,211,153,0.3)'; }
+                }
+
+                // Анимация: устройства
+                var devC = document.getElementById('test-devices');
+                if (devC) devC.style.opacity = '1';
+                for (var dvi = 0; dvi < devices.length; dvi++) {
+                    var dv = devices[dvi];
+                    var dvEl = document.getElementById('test-dev-' + dvi);
+                    var dvIc = document.getElementById('test-dev-icon-' + dvi);
+                    if (dvEl) {
+                        dvEl.style.borderColor = 'rgba(251,191,36,0.3)';
+                        await new Promise(function(r) { setTimeout(r, 40); });
+                        if (dv.ok) { dvEl.style.borderColor = 'rgba(52,211,153,0.2)'; if (dvIc) { dvIc.textContent = '✓'; dvIc.style.color = '#34d399'; } }
+                        else { dvEl.style.borderColor = 'rgba(239,68,68,0.3)'; if (dvIc) { dvIc.textContent = '✗'; dvIc.style.color = '#ef4444'; } }
+                    }
+                }
+
+                // Целостность
+                var intEl = document.getElementById('test-integrity');
+                if (intEl) {
+                    var ic = integrity.config_ok;
+                    intEl.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:8px;background:' + (ic ? 'rgba(52,211,153,0.04)' : 'rgba(251,191,36,0.06)') + ';border:1px solid ' + (ic ? 'rgba(52,211,153,0.15)' : 'rgba(251,191,36,0.2)') + ';"><span style="font-size:14px;">' + (ic ? '🔒' : '⚠️') + '</span><div><div style="font-size:11px;font-weight:700;color:' + (ic ? '#34d399' : '#fbbf24') + ';">' + (ic ? 'Конфигурация целостна' : 'Проблемы с конфигурацией') + '</div></div></div>' + (warnings.length > 0 ? '<div style="margin-top:6px;">' + warnings.map(function(w){ return '<div style="font-size:9px;color:#fbbf24;padding:1px 0;">⚠️ ' + w + '</div>'; }).join('') + '</div>' : '');
+                    intEl.style.opacity = '1';
+                }
+
+                } catch(e) { container.innerHTML = '<div style="font-size:10px;color:#ef4444;">Ошибка: ' + e.message + '</div>'; }
+            },
+            _dead_start: 0, /*
+
+                // 2. Строим структуру схемы (пока все серые)
+                var html = '<div class="glass" style="padding:0;overflow:hidden;">';
+
+                // Заголовок (сворачиваемый)
+                html += '<div id="test-header" onclick="var b=document.getElementById(\'test-body\');b.style.display=b.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'.chevron\').style.transform=b.style.display===\'none\'?\'rotate(-90deg)\':\'\';" style="padding:14px 20px;background:rgba(255,255,255,0.02);cursor:pointer;display:flex;align-items:center;justify-content:space-between;">';
+                html += '<div style="display:flex;align-items:center;gap:10px;">';
+                html += '<span id="test-icon" style="font-size:20px;">⏳</span>';
+                html += '<div><div id="test-title" style="font-size:13px;font-weight:800;color:#94a3b8;">Проверка маршрутов...</div>';
+                html += '<div id="test-subtitle" style="font-size:10px;color:#64748b;margin-top:2px;">Анализ конфигурации Mihomo</div></div></div>';
+                html += '<svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" style="transition:transform 0.2s;"><polyline points="6 9 12 15 18 9"/></svg>';
+                html += '</div>';
+
+                html += '<div id="test-body" style="padding:16px 20px;">';
+
+                // Схема: строки для каждой группы
+                tests.forEach(function(t, gi) {
+                    var isDirect = t.type === 'direct';
+                    var nodes = isDirect ? ['DIRECT'] : (t.actual_node_names || []).slice(0, 4);
+                    if (!nodes.length) nodes = isDirect ? ['DIRECT'] : ['auto'];
+
+                    html += '<div id="test-group-' + gi + '" style="margin-bottom:16px;opacity:0.3;transition:opacity 0.4s;">';
+
+                    // Название группы
+                    html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">';
+                    html += '<span id="test-g-icon-' + gi + '" style="font-size:14px;width:20px;text-align:center;">○</span>';
+                    html += '<span style="font-size:13px;font-weight:800;color:#f1f5f9;">' + t.group + '</span>';
+                    html += '<span style="font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.04);color:#64748b;">' + (isDirect ? 'DIRECT' : t.type) + '</span>';
+                    html += '</div>';
+
+                    // Линии: группа → узлы → домены
+                    html += '<div style="display:flex;align-items:stretch;gap:0;margin-left:10px;padding-left:14px;border-left:2px solid rgba(255,255,255,0.06);">';
+
+                    // Узлы
+                    if (!isDirect) {
+                        html += '<div style="min-width:140px;display:flex;flex-direction:column;gap:3px;padding-right:12px;">';
+                        nodes.forEach(function(n) {
+                            html += '<div style="font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(96,165,250,0.06);border:1px solid rgba(96,165,250,0.12);color:#60a5fa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:130px;" title="' + n + '">' + n + '</div>';
+                        });
+                        if (t.actual_nodes > 4) html += '<div style="font-size:9px;color:#475569;">+' + (t.actual_nodes - 4) + '</div>';
+                        html += '</div>';
+                    } else {
+                        html += '<div style="min-width:140px;padding-right:12px;"><div style="font-size:10px;padding:2px 8px;border-radius:4px;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.12);color:#34d399;">↗ Напрямую</div></div>';
+                    }
+
+                    // Стрелка
+                    html += '<div style="display:flex;align-items:center;padding:0 8px;color:#475569;font-size:11px;">→</div>';
+
+                    // Домены (каждый будет анимирован)
+                    html += '<div style="flex:1;display:flex;flex-wrap:wrap;gap:3px;align-content:flex-start;">';
+                    (t.domains || []).forEach(function(d, di) {
+                        html += '<span id="test-d-' + gi + '-' + di + '" style="font-size:10px;padding:2px 7px;border-radius:4px;font-family:JetBrains Mono,monospace;background:rgba(255,255,255,0.03);color:#475569;border:1px solid rgba(255,255,255,0.04);transition:all 0.3s;">' + d + '</span>';
+                    });
+                    html += '</div>';
+
+                    html += '</div></div>';
+                });
+
+                // Описание процесса
+                html += '<div style="font-size:10px;color:#475569;line-height:1.5;margin-bottom:14px;padding:8px 10px;border-radius:6px;background:rgba(255,255,255,0.015);border:1px solid rgba(255,255,255,0.03);">';
+                html += '<strong style="color:#64748b;">Как проверяется:</strong> ';
+                html += '1) Запрос правил из Mihomo API → ';
+                html += '2) Для каждого домена: поиск совпадения в правилах → проверка что target = нужная группа → ';
+                html += '3) Проверка узлов в каждой proxy-group (фильтр + наличие) → ';
+                html += '4) Проверка устройств (режим, назначенный узел, sub-rules) → ';
+                html += '5) Проверка целостности конфигурации после перезагрузки';
+                html += '</div>';
+
+                // Устройства
+                var devices = data.devices || [];
+                // Обогащаем имена из state.devices (ARP/DHCP)
+                var devNames = {};
+                (state.devices || []).forEach(function(sd) { devNames[sd.ip] = sd.custom_name || sd.hostname || sd.ip; });
+                devices.forEach(function(d) { d.display_name = devNames[d.ip] || d.name || d.ip; });
+
+                if (devices.length > 0) {
+                    html += '<div id="test-devices" style="opacity:0.3;transition:opacity 0.4s;margin-bottom:14px;">';
+                    html += '<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Устройства (' + devices.length + ')</div>';
+                    html += '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
+                    devices.forEach(function(d, di) {
+                        var modeColors = {smart:'#60a5fa',global:'#a78bfa',bypass:'#34d399',block:'#ef4444'};
+                        var modeLabels = {smart:'Smart',global:'Global',bypass:'Bypass',block:'Block'};
+                        var mc = modeColors[d.mode] || '#94a3b8';
+                        html += '<div id="test-dev-' + di + '" style="padding:6px 10px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);transition:all 0.3s;display:flex;align-items:center;gap:6px;">';
+                        html += '<span id="test-dev-icon-' + di + '" style="font-size:11px;width:14px;text-align:center;">○</span>';
+                        html += '<div>';
+                        html += '<div style="font-size:11px;font-weight:700;color:#f1f5f9;">' + d.display_name + '</div>';
+                        html += '<div style="display:flex;gap:4px;align-items:center;margin-top:2px;">';
+                        html += '<span style="font-family:JetBrains Mono,monospace;font-size:9px;color:#64748b;">' + d.ip + '</span>';
+                        html += '<span style="font-size:8px;padding:1px 5px;border-radius:3px;background:' + mc + '18;color:' + mc + ';border:1px solid ' + mc + '33;font-weight:700;">' + (modeLabels[d.mode]||d.mode) + '</span>';
+                        if (d.issues && d.issues.length > 0) {
+                            d.issues.forEach(function(issue) {
+                                html += '<span style="font-size:8px;color:#fbbf24;margin-left:4px;" title="' + issue + '">⚠️</span>';
+                            });
+                        }
+                        html += '</div></div></div>';
+                    });
+                    html += '</div></div>';
+                }
+
+                // Целостность (появится после тестов)
+                html += '<div id="test-integrity" style="opacity:0;transition:opacity 0.5s;margin-top:8px;"></div>';
+
+                html += '</div></div>';
+                container.innerHTML = html;
+
+                // 3. Анимируем проверку по группам и доменам
+                for (var gi = 0; gi < tests.length; gi++) {
+                    var t = tests[gi];
+                    var groupEl = document.getElementById('test-group-' + gi);
+                    var iconEl = document.getElementById('test-g-icon-' + gi);
+                    if (groupEl) groupEl.style.opacity = '1';
+
+                    // Анимируем домены по одному
+                    var domains = t.domains || [];
+                    for (var di = 0; di < domains.length; di++) {
+                        var dEl = document.getElementById('test-d-' + gi + '-' + di);
+                        if (!dEl) continue;
+
+                        // Определяем OK/FAIL из данных (domains_details если есть, иначе по порядку)
+                        var isOkDomain = di < t.domains_ok;
+
+                        // Подсветка: проверяется
+                        dEl.style.background = 'rgba(251,191,36,0.1)';
+                        dEl.style.borderColor = 'rgba(251,191,36,0.3)';
+                        dEl.style.color = '#fbbf24';
+
+                        await new Promise(function(r) { setTimeout(r, 60); });
+
+                        // Результат
+                        if (isOkDomain) {
+                            dEl.style.background = 'rgba(52,211,153,0.08)';
+                            dEl.style.borderColor = 'rgba(52,211,153,0.25)';
+                            dEl.style.color = '#34d399';
+                        } else {
+                            dEl.style.background = 'rgba(239,68,68,0.1)';
+                            dEl.style.borderColor = 'rgba(239,68,68,0.3)';
+                            dEl.style.color = '#ef4444';
+                        }
+                    }
+
+                    // Иконка группы
+                    if (iconEl) {
+                        iconEl.textContent = t.domains_wrong > 0 ? '✗' : '✓';
+                        iconEl.style.color = t.domains_wrong > 0 ? '#ef4444' : '#34d399';
+                    }
+
+                    // Подсветка border-left
+                    if (groupEl) {
+                        var line = groupEl.querySelector('[style*="border-left"]');
+                        if (line) line.style.borderLeftColor = t.domains_wrong > 0 ? 'rgba(239,68,68,0.3)' : 'rgba(52,211,153,0.3)';
+                    }
+                }
+
+                // 4. Анимируем устройства
+                var devices = data.devices || [];
+                var devContainer = document.getElementById('test-devices');
+                if (devContainer) devContainer.style.opacity = '1';
+
+                for (var dvi = 0; dvi < devices.length; dvi++) {
+                    var dv = devices[dvi];
+                    var devEl = document.getElementById('test-dev-' + dvi);
+                    var devIcon = document.getElementById('test-dev-icon-' + dvi);
+
+                    if (devEl) {
+                        devEl.style.borderColor = 'rgba(251,191,36,0.3)';
+                        await new Promise(function(r) { setTimeout(r, 80); });
+
+                        if (dv.ok) {
+                            devEl.style.borderColor = 'rgba(52,211,153,0.25)';
+                            devEl.style.background = 'rgba(52,211,153,0.03)';
+                            if (devIcon) { devIcon.textContent = '✓'; devIcon.style.color = '#34d399'; }
+                        } else {
+                            devEl.style.borderColor = 'rgba(239,68,68,0.3)';
+                            devEl.style.background = 'rgba(239,68,68,0.04)';
+                            if (devIcon) { devIcon.textContent = '✗'; devIcon.style.color = '#ef4444'; }
+                        }
+                    }
+                }
+
+                // 6. Целостность
+                var intEl = document.getElementById('test-integrity');
+                if (intEl) {
+                    var ic = integrity.config_ok;
+                    intEl.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:8px;background:' + (ic ? 'rgba(52,211,153,0.04)' : 'rgba(251,191,36,0.06)') + ';border:1px solid ' + (ic ? 'rgba(52,211,153,0.15)' : 'rgba(251,191,36,0.2)') + ';">'
+                        + '<span style="font-size:14px;">' + (ic ? '🔒' : '⚠️') + '</span>'
+                        + '<div><div style="font-size:11px;font-weight:700;color:' + (ic ? '#34d399' : '#fbbf24') + ';">' + (ic ? 'Конфигурация целостна' : 'Проблемы с конфигурацией') + '</div>'
+                        + '<div style="font-size:10px;color:#64748b;">Группы, правила, rulesets — проверены</div></div></div>'
+                        + (warnings.length > 0 ? '<div style="margin-top:6px;">' + warnings.map(function(w){ return '<div style="font-size:10px;color:#fbbf24;padding:2px 0;">⚠️ ' + w + '</div>'; }).join('') + '</div>' : '');
+                    intEl.style.opacity = '1';
+                }
+
+                // 7. Auto-fix сообщение
+                if (data.auto_fix) {
+                    var fixEl = document.createElement('div');
+                    fixEl.style.cssText = 'margin-top:10px;padding:10px 14px;border-radius:8px;background:rgba(96,165,250,0.06);border:1px solid rgba(96,165,250,0.2);font-size:11px;color:#60a5fa;display:flex;align-items:center;gap:8px;';
+                    fixEl.innerHTML = '<span style="font-size:14px;">🔄</span>' + data.auto_fix;
+                    var intEl2 = document.getElementById('test-integrity');
+                    if (intEl2) intEl2.parentElement.appendChild(fixEl);
+                }
+
+                // 8. Заголовок — итог
+                var titleEl = document.getElementById('test-title');
+                var iconHd = document.getElementById('test-icon');
+                var subEl = document.getElementById('test-subtitle');
+                var headerEl = document.getElementById('test-header');
+                var totalD = tests.reduce(function(s,t){return s+t.domains_tested;},0);
+                if (titleEl) { titleEl.textContent = isOk ? 'Все маршруты корректны' : 'Обнаружены проблемы'; titleEl.style.color = isOk ? '#34d399' : '#ef4444'; }
+                if (iconHd) iconHd.textContent = isOk ? '✅' : '❌';
+                if (subEl) subEl.textContent = totalD + ' доменов · ' + tests.length + ' групп · ' + (integrity.config_ok ? 'конфиг целостен' : 'конфиг повреждён');
+                if (headerEl) headerEl.style.background = isOk ? 'rgba(52,211,153,0.06)' : 'rgba(239,68,68,0.06)';
+
+*/ _dead_end: 0,
+
+            // --- RULESETS ---
+            fetchRulesets: async () => {
+                const data = await utils.apiCall('/rulesets', { _silent: true });
+                if (data) {
+                    const rkn = document.getElementById('rulesetRkn');
+                    const ru = document.getElementById('rulesetRuDirect');
+                    if (rkn) rkn.checked = data.rkn_bypass !== false;
+                    if (ru) ru.checked = data.ru_direct !== false;
+                }
+            },
+            saveRulesets: async () => {
+                const rkn = document.getElementById('rulesetRkn')?.checked ?? true;
+                const ru = document.getElementById('rulesetRuDirect')?.checked ?? true;
+                await utils.apiCall('/rulesets', { method: 'PUT', body: JSON.stringify({ rkn_bypass: rkn, ru_direct: ru }) });
+            },
+
+            // --- DOMAIN OPERATIONS ---
+            moveDomain: async (fromGroupId, toGroupId, domain) => {
+                // Удаляем из исходной группы
+                const fromPg = state.proxyGroups.find(g => g.id === fromGroupId);
+                if (fromPg) {
+                    const newFromDomains = (fromPg.domains || []).filter(d => d.trim() !== domain.trim());
+                    await utils.apiCall('/groups/' + fromGroupId, { method: 'PUT', body: JSON.stringify({ domains: newFromDomains }) });
+                }
+                // Добавляем в целевую группу
+                const toPg = state.proxyGroups.find(g => g.id === toGroupId);
+                if (toPg) {
+                    const newToDomains = [...(toPg.domains || []), domain.trim()];
+                    await utils.apiCall('/groups/' + toGroupId, { method: 'PUT', body: JSON.stringify({ domains: newToDomains }) });
+                }
+                await actions.fetchGroups();
+            },
+
+            removeDomain: async (groupId, domain) => {
+                const pg = state.proxyGroups.find(g => g.id === groupId);
+                if (!pg) return;
+                const newDomains = (pg.domains || []).filter(d => d.trim() !== domain.trim());
+                const res = await utils.apiCall('/groups/' + groupId, { method: 'PUT', body: JSON.stringify({ domains: newDomains }) });
+                if (res) await actions.fetchGroups();
+            },
+
+            deleteGroup: async (groupId) => {
+                if (!confirm('Удалить группу? Домены из неё перестанут маршрутизироваться.')) return;
+                await utils.apiCall(`/groups/${groupId}`, { method: 'DELETE' });
+                await actions.fetchGroups();
             },
 
             changePassword: async () => {
@@ -4843,7 +5770,8 @@
                 btn.disabled = true;
                 const direct = (document.getElementById('rulesDirectInput').value || '').split('\n').filter(l => l.trim());
                 const proxy = (document.getElementById('rulesProxyInput').value || '').split('\n').filter(l => l.trim());
-                await utils.apiCall('/rules', { method: 'PUT', body: JSON.stringify({ direct, proxy }) });
+                const proxy_node = document.getElementById('proxyNodeSelect')?.value || 'auto';
+                await utils.apiCall('/rules', { method: 'PUT', body: JSON.stringify({ direct, proxy, proxy_node }) });
                 btn.textContent = 'Сохранено!';
                 setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2000);
             });
@@ -4987,6 +5915,14 @@
         if (savedSidebarW) document.documentElement.style.setProperty('--sidebar-w', savedSidebarW);
 
         const savedSplit = parseFloat(localStorage.getItem('gsg_panel_split') || '0.62');
+
+        // Routes split — use same split as main panels
+        const rl = document.getElementById('routesLeft');
+        const rr2 = document.getElementById('routesRight');
+        if (rl && rr2) {
+            rl.style.flex = '0 0 ' + (savedSplit * 100).toFixed(1) + '%';
+            rr2.style.flex = '0 0 ' + ((1 - savedSplit) * 100).toFixed(1) + '%';
+        }
         const panelStatus = document.getElementById('panelStatus');
         const panelSub    = document.getElementById('panelSub');
         if (panelStatus && panelSub) {

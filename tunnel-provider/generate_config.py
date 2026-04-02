@@ -114,28 +114,64 @@ def main():
 
     existing_group_names = [g["name"] for g in server_config["proxy-groups"]]
 
-    if "auto" not in existing_group_names:
-        auto_proxies = node_names if node_names else ["GSG-FALLBACK"]
-        server_config["proxy-groups"].insert(0, {
-            "name": "auto", "type": "url-test",
-            "proxies": auto_proxies,
-            "url": "http://www.gstatic.com/generate_204", "interval": 300,
-            "lazy": False, "tolerance": 50
+    # --- PROXY GROUPS ---
+    # Миграция: если proxy_groups нет, строим из старого формата
+    proxy_groups = user_rules.get("proxy_groups")
+    if not proxy_groups:
+        proxy_groups = [
+            {"id": "auto", "name": "Auto", "node_filter": "", "type": "url-test", "builtin": True, "domains": []},
+        ]
+        # Миграция AI
+        ai_s = user_rules.get("ai_settings", {})
+        ai_domains = ai_s.get("domains") or ["gemini", "openai", "chatgpt", "anthropic", "claude", "aistudio.google.com"]
+        proxy_groups.append({
+            "id": "ai", "name": "AI", "node_filter": ai_s.get("node_filter", "NY"),
+            "type": "fallback", "builtin": True, "domains": ai_domains
         })
+        # Bypass (direct) — встроенная группа
+        direct_list = user_rules.get("direct", [])
+        proxy_groups.append({
+            "id": "bypass", "name": "Bypass", "node_filter": "",
+            "type": "direct", "builtin": True, "domains": direct_list
+        })
+        # Миграция proxy-доменов → в Auto
+        proxy_list = user_rules.get("proxy", [])
+        if proxy_list:
+            proxy_groups[0]["domains"] = proxy_list  # Auto — первый элемент
+
+    # Создаём Mihomo proxy-groups
+    print(f"\n[GSG] === PROXY GROUPS ({len(proxy_groups)}) ===", flush=True)
+    for pg in proxy_groups:
+        g_id = pg.get("id", "unknown")
+        g_type = pg.get("type", "url-test")
+
+        # Bypass — не создаёт proxy-group, домены идут DIRECT
+        if g_type == "direct" or g_id == "bypass":
+            print(f"  {pg.get('name',g_id)} [{g_id}] — DIRECT, {len(pg.get('domains',[]))} доменов", flush=True)
+            continue
+
+        filter_str = pg.get("node_filter", "").lower().strip()
+
+        if filter_str:
+            filters = [f.strip() for f in filter_str.split(',') if f.strip()]
+            matched = [n for n in node_names if any(f in n.lower() for f in filters)]
+        else:
+            matched = list(node_names)
+
+        proxies = matched if matched else (node_names if node_names else ["GSG-FALLBACK"])
+
+        if g_id not in existing_group_names:
+            group_cfg = {
+                "name": g_id, "type": g_type, "proxies": proxies,
+                "url": "http://www.gstatic.com/generate_204", "interval": 300, "lazy": False
+            }
+            if g_type == "url-test":
+                group_cfg["tolerance"] = 50
+            server_config["proxy-groups"].append(group_cfg)
+            existing_group_names.append(g_id)
+            print(f"  {pg.get('name',g_id)} [{g_id}] — {g_type}, {len(proxies)} узлов, {len(pg.get('domains',[]))} доменов", flush=True)
 
     custom_groups = user_rules.get("custom_groups", [])
-    for group in custom_groups:
-        if not group.get("enabled", True): continue
-        g_name = f"CUSTOM-{group.get('id', 'unknown')}"
-        filter_str = group.get("node_filter", "").lower()
-        matched_nodes = [n for n in node_names if filter_str in n.lower()]
-        if matched_nodes and g_name not in existing_group_names:
-            server_config["proxy-groups"].append({
-                "name": g_name, "type": "url-test", "proxies": matched_nodes,
-                "url": "http://www.gstatic.com/generate_204", "interval": 300,
-                "lazy": False, "tolerance": 50
-            })
-            existing_group_names.append(g_name)
 
     # --- ROUTE OVERRIDES ---
     # Санитизация имени узла для использования в имени proxy-group.
@@ -240,46 +276,37 @@ def main():
                 clean_d = domain.strip().split('://')[-1].split('/')[0]
                 custom_routing_rules.append(f"DOMAIN-SUFFIX,{clean_d},{target}")
 
-    # --- 1. AI КОНТУР ---
-    ai_settings = user_rules.get('ai_settings', {})
-    node_filter = ai_settings.get("node_filter", "").lower()
+    # --- 1. ДОМЕНЫ ИЗ PROXY GROUPS ---
+    for pg in proxy_groups:
+        g_id = pg.get("id", "unknown")
+        g_type = pg.get("type", "url-test")
+        domains = pg.get("domains", [])
+        if not domains:
+            continue
 
-    ai_nodes = []
-    if node_filter:
-        filters = [f.strip() for f in node_filter.split(',') if f.strip()]
-        ai_nodes = [n for n in node_names if any(f in n.lower() for f in filters)]
+        # Bypass/direct → DIRECT, остальные → через proxy-group
+        if g_type == "direct" or g_id == "bypass":
+            target = "DIRECT"
+        elif g_id in existing_group_names:
+            target = g_id
+        else:
+            target = global_node
 
-    ai_target = "GSG-AI" if ai_nodes else global_node
-
-    if ai_nodes:
-        server_config['proxy-groups'].insert(0, {
-            "name": "GSG-AI", "type": "fallback", "proxies": ai_nodes,
-            "url": "http://www.gstatic.com/generate_204", "interval": 300, "lazy": False
-        })
-
-    # Парсим домены из интерфейса.
-    # Умная логика: есть точка -> SUFFIX, нет точки -> KEYWORD
-    ai_domains = ai_settings.get("domains")
-
-    # Если список пуст (например, при первом запуске), используем эти слова по умолчанию
-    if not ai_domains:
-        ai_domains = [
-            "gemini", "openai", "chatgpt", "anthropic", "claude", "aistudio.google.com"
-        ]
-
-    for d in ai_domains:
-        d = d.strip()
-        if d:
+        for d in domains:
+            d = d.strip()
+            if not d:
+                continue
             clean_d = d.split('://')[-1].split('/')[0]
             if '.' in clean_d:
-                domain_rules.append(f"DOMAIN-SUFFIX,{clean_d},{ai_target}")
+                domain_rules.append(f"DOMAIN-SUFFIX,{clean_d},{target}")
             else:
-                domain_rules.append(f"DOMAIN-KEYWORD,{clean_d},{ai_target}")
+                domain_rules.append(f"DOMAIN-KEYWORD,{clean_d},{target}")
 
-    # --- 2. ПОЛЬЗОВАТЕЛЬСКИЕ ДОМЕНЫ ---
-    for d in user_rules.get('proxy', []):
-        clean_d = d.strip().split('://')[-1].split('/')[0]
-        domain_rules.append(f"DOMAIN-SUFFIX,{clean_d},{global_node}")
+    # --- 2. ПОЛЬЗОВАТЕЛЬСКИЕ ДОМЕНЫ (legacy: proxy без группы) ---
+    if not user_rules.get("proxy_groups"):
+        # Только если не мигрировали — иначе proxy уже в группе proxy_default
+        pass
+
 
     for d in user_rules.get('direct', []):
         clean_d = d.strip().split('://')[-1].split('/')[0]
@@ -332,13 +359,32 @@ def main():
     if sub_rules:
         server_config["sub-rules"] = sub_rules
 
-    server_config["rules"] = override_rules + domain_rules + ip_rules + custom_routing_rules + [f"MATCH,{global_node}"]
+    # --- 4. WHITELIST BYPASS MODE ---
+    # Когда провайдер включает "белые списки", весь трафик должен идти через VPN.
+    # Активируется через rulesets.json: {"whitelist_bypass": true}
+    if rulesets.get('whitelist_bypass', False):
+        print("\n[GSG] === WHITELIST BYPASS MODE: ON ===", flush=True)
+        print("  Весь трафик всех устройств идёт через VPN (обход белых списков провайдера)", flush=True)
+        # В этом режиме очищаем sub-rules и ip_rules устройств,
+        # заменяя их на глобальный проксирующий MATCH
+        sub_rules = {}
+        device_ip_rules = []
+        for ip, info in devices.items():
+            mode = info.get('mode', 'smart')
+            if mode == 'block':
+                device_ip_rules.append(f"SRC-IP-CIDR,{ip}/32,REJECT")
+            else:
+                # Все устройства (кроме заблокированных) идут через VPN
+                assign = info.get('assigned_node', 'auto')
+                target = global_node
+                if assign != 'auto':
+                    for name in node_names:
+                        if assign.lower() in name.lower():
+                            target = name; break
+                device_ip_rules.append(f"SRC-IP-CIDR,{ip}/32,{target}")
+        ip_rules = device_ip_rules
 
-    print("\n[GSG] === ГРУППА GSG-AI ===", flush=True)
-    if ai_nodes:
-        print(f"  --> Найдено узлов: {len(ai_nodes)}", flush=True)
-    else:
-        print(f"  --> Узлы НЕ НАЙДЕНЫ! Трафик идет через: {global_node}", flush=True)
+    server_config["rules"] = override_rules + domain_rules + ip_rules + custom_routing_rules + [f"MATCH,{global_node}"]
 
     MIHOMO_CONFIG.parent.mkdir(parents=True, exist_ok=True)
     with open(MIHOMO_CONFIG, 'w') as f:

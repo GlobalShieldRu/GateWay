@@ -29,6 +29,7 @@ GSG_DEVICES_FILE = GSG_CONFIG_DIR / "devices.json"
 GSG_NODES_FILE = GSG_CONFIG_DIR / "nodes.json"
 GSG_SUBSCRIPTION_FILE = GSG_CONFIG_DIR / "subscription.json"
 GSG_RULES_FILE = GSG_CONFIG_DIR / "rules.json"
+GSG_RULESETS_FILE = GSG_CONFIG_DIR / "rulesets.json"
 GSG_DHCP_FILE = GSG_CONFIG_DIR / "dhcp.json"
 GSG_LOG_FILE = GSG_CONFIG_DIR / "sing-box.log"
 GSG_TRAFFIC_HISTORY_FILE = GSG_CONFIG_DIR / "traffic_history.json"
@@ -740,6 +741,7 @@ class DeviceUpdate(BaseModel):
 class RulesUpdate(BaseModel):
     direct: List[str]
     proxy: List[str]
+    proxy_node: Optional[str] = None
 
 class DHCPUpdate(BaseModel):
     gateway: str
@@ -1114,6 +1116,8 @@ async def update_rules(data: RulesUpdate):
     # ОБНОВЛЯЕМ только нужные ключи
     rules["direct"] = [r.strip() for r in data.direct if r.strip()]
     rules["proxy"] = [r.strip() for r in data.proxy if r.strip()]
+    if data.proxy_node is not None:
+        rules["proxy_node"] = data.proxy_node
 
     # Записываем обратно всё вместе
     await _backup_rules()
@@ -1131,25 +1135,467 @@ class AiSettingsRequest(BaseModel):
 
 @app.post("/api/rules/ai")
 async def save_ai_rules(req: AiSettingsRequest):
+    """Обратная совместимость: обновляет AI-группу в proxy_groups."""
     try:
         async with aiofiles.open(GSG_RULES_FILE, 'r') as f:
             rules = json.loads(await f.read())
     except:
-        rules = {"direct": [], "proxy": []}
+        rules = {}
 
-    rules["ai_settings"] = {
-        "node_filter": req.node_filter,
-        "domains": [d.strip() for d in req.domains if d.strip()]
-    }
+    # Миграция в proxy_groups
+    rules = _ensure_proxy_groups(rules)
+    for pg in rules["proxy_groups"]:
+        if pg["id"] == "ai":
+            pg["node_filter"] = req.node_filter
+            pg["domains"] = [d.strip() for d in req.domains if d.strip()]
+            break
 
     await _backup_rules()
     async with aiofiles.open(GSG_RULES_FILE, 'w') as f:
         await f.write(json.dumps(rules, indent=4))
-
-    # ПРАВИЛЬНЫЙ триггер перезагрузки ядра (записываем 1)
     async with aiofiles.open(GSG_CONFIG_DIR / ".reload_singbox", 'w') as f:
         await f.write("1")
-        
+    return {"ok": True}
+
+
+def _ensure_proxy_groups(rules: dict) -> dict:
+    """Миграция: если proxy_groups нет, строим из старого формата."""
+    if "proxy_groups" in rules and rules["proxy_groups"]:
+        return rules
+
+    groups = [
+        {"id": "auto", "name": "Auto", "node_filter": "", "type": "url-test", "builtin": True, "domains": []},
+    ]
+    # AI
+    ai_s = rules.get("ai_settings", {})
+    ai_domains = ai_s.get("domains") or ["gemini", "openai", "chatgpt", "anthropic", "claude", "aistudio.google.com"]
+    groups.append({
+        "id": "ai", "name": "AI", "node_filter": ai_s.get("node_filter", "NY"),
+        "type": "fallback", "builtin": True, "domains": ai_domains
+    })
+    # Bypass (direct)
+    direct_list = rules.get("direct", [])
+    groups.append({
+        "id": "bypass", "name": "Bypass", "node_filter": "",
+        "type": "direct", "builtin": True, "domains": direct_list
+    })
+    # Proxy-домены → в Auto
+    proxy_list = rules.get("proxy", [])
+    if proxy_list:
+        groups[0]["domains"] = proxy_list  # Auto — первый
+
+    rules["proxy_groups"] = groups
+    return rules
+
+
+# --- PROXY GROUPS API ---
+
+class ProxyGroupCreate(BaseModel):
+    name: str
+    node_filter: str = ""
+    type: str = "url-test"
+    domains: List[str] = []
+
+class ProxyGroupUpdate(BaseModel):
+    name: Optional[str] = None
+    node_filter: Optional[str] = None
+    type: Optional[str] = None
+    domains: Optional[List[str]] = None
+
+# --- ROUTE TESTS API ---
+
+@app.get("/api/test/routes")
+async def test_routes():
+    """
+    Проверяет корректность маршрутов: для каждого домена из каждой группы
+    проверяет что Mihomo направит его через правильную proxy-group с правильными узлами.
+    """
+    results = {"ok": True, "tests": [], "errors": [], "warnings": []}
+
+    # 1. Загружаем proxy_groups
+    try:
+        async with aiofiles.open(GSG_RULES_FILE, 'r') as f:
+            rules = json.loads(await f.read())
+    except:
+        rules = {}
+    rules = _ensure_proxy_groups(rules)
+    proxy_groups = rules.get("proxy_groups", [])
+
+    # 2. Загружаем узлы
+    try:
+        async with aiofiles.open(GSG_NODES_FILE, 'r') as f:
+            nodes_data = json.loads(await f.read())
+        all_node_tags = [n["tag"] for n in nodes_data.get("nodes", [])]
+    except:
+        all_node_tags = []
+
+    # 3. Получаем правила Mihomo и proxy-groups
+    mihomo_rules = []
+    mihomo_proxies = {}
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            rules_resp = await client.get("http://127.0.0.1:9090/rules")
+            mihomo_rules = rules_resp.json().get("rules", [])
+
+            proxies_resp = await client.get("http://127.0.0.1:9090/proxies")
+            mihomo_proxies = proxies_resp.json().get("proxies", {})
+    except Exception as e:
+        results["errors"].append(f"Не удалось подключиться к Mihomo API: {e}")
+        results["ok"] = False
+        return results
+
+    # 4. Строим карту домен → proxy_target из Mihomo rules
+    def find_mihomo_target(domain: str) -> str:
+        domain = domain.lower()
+        for rule in mihomo_rules:
+            rtype = rule.get("type", "")
+            payload = (rule.get("payload", "") or "").lower()
+            proxy = rule.get("proxy", "")
+            if rtype == "DomainSuffix" and (domain == payload or domain.endswith("." + payload)):
+                return proxy
+            if rtype == "DomainKeyword" and payload in domain:
+                return proxy
+        return "MATCH"
+
+    # 5. Получаем узлы внутри proxy-group из Mihomo
+    # Реальные узлы имеют тип протокола (Vless, Vmess, Trojan, Shadowsocks и т.д.)
+    # Группы и служебные — URLTest, Fallback, Selector, Direct, Reject и т.д.
+    group_types = {"URLTest", "Fallback", "Selector", "Direct", "Reject", "RejectDrop", "Pass", "Compatible", "Relay"}
+
+    def get_group_nodes(group_name: str) -> list:
+        pg = mihomo_proxies.get(group_name, {})
+        if not pg:
+            return []
+        all_nodes = pg.get("all", [])
+        # Оставляем только реальные узлы (не группы/служебные)
+        return [n for n in all_nodes if mihomo_proxies.get(n, {}).get("type", "") not in group_types]
+
+    # 6. Строим ожидаемые узлы для каждой нашей группы
+    for pg in proxy_groups:
+        g_id = pg.get("id")
+        g_type = pg.get("type", "url-test")
+        g_name = pg.get("name")
+        domains = pg.get("domains", [])
+        node_filter = pg.get("node_filter", "").lower().strip()
+
+        if not domains:
+            continue
+
+        # Ожидаемые узлы для группы
+        if g_type == "direct" or g_id == "bypass":
+            expected_target = "DIRECT"
+            expected_nodes = []
+        else:
+            expected_target = g_id  # имя proxy-group в Mihomo
+            if node_filter:
+                filters = [f.strip() for f in node_filter.split(',') if f.strip()]
+                expected_nodes = [n for n in all_node_tags if any(f in n.lower() for f in filters)]
+            else:
+                expected_nodes = list(all_node_tags)
+
+        # Реальные узлы в Mihomo proxy-group
+        actual_nodes = get_group_nodes(g_id) if g_type != "direct" else []
+
+        group_result = {
+            "group": g_name,
+            "group_id": g_id,
+            "type": g_type,
+            "expected_target": expected_target,
+            "expected_nodes": len(expected_nodes),
+            "actual_nodes": len(actual_nodes),
+            "actual_node_names": actual_nodes[:6],
+            "domains": [d.strip() for d in domains if d.strip()],
+            "domains_tested": 0,
+            "domains_ok": 0,
+            "domains_wrong": 0,
+            "issues": []
+        }
+
+        # Проверяем узлы группы
+        if g_type != "direct" and expected_nodes:
+            unexpected = set(actual_nodes) - set(expected_nodes) - {"REJECT", "DIRECT"}
+            if unexpected:
+                issue = f"Группа {g_name} содержит лишние узлы: {list(unexpected)}"
+                group_result["issues"].append(issue)
+                results["warnings"].append(issue)
+
+            missing = set(expected_nodes) - set(actual_nodes)
+            if missing:
+                issue = f"Группа {g_name} не содержит ожидаемых узлов: {list(missing)}"
+                group_result["issues"].append(issue)
+                results["warnings"].append(issue)
+
+        # Проверяем каждый домен
+        for d in domains:
+            d = d.strip()
+            if not d:
+                continue
+            test_domain = d if "." in d else f"test.{d}.com"
+            actual_target = find_mihomo_target(test_domain)
+            group_result["domains_tested"] += 1
+
+            if expected_target == "DIRECT":
+                if actual_target == "DIRECT":
+                    group_result["domains_ok"] += 1
+                else:
+                    group_result["domains_wrong"] += 1
+                    issue = f"Домен '{d}' должен идти DIRECT (Bypass), но идёт через '{actual_target}'"
+                    group_result["issues"].append(issue)
+                    results["errors"].append(issue)
+            else:
+                if actual_target == expected_target:
+                    group_result["domains_ok"] += 1
+                else:
+                    group_result["domains_wrong"] += 1
+                    issue = f"Домен '{d}' должен идти через '{expected_target}' ({g_name}), но идёт через '{actual_target}'"
+                    group_result["issues"].append(issue)
+                    results["errors"].append(issue)
+
+        results["tests"].append(group_result)
+
+    # 7. Проверка устройств
+    try:
+        async with aiofiles.open(GSG_DEVICES_FILE, 'r') as f:
+            devices = json.loads(await f.read())
+    except:
+        devices = {}
+
+    device_tests = []
+    for ip, dev in devices.items():
+        mode = dev.get("mode", "smart")
+        name = dev.get("custom_name") or dev.get("hostname") or ip
+        assigned = dev.get("assigned_node", "auto")
+        dev_result = {
+            "ip": ip,
+            "name": name,
+            "mode": mode,
+            "assigned_node": assigned,
+            "issues": [],
+            "ok": True
+        }
+
+        # Проверяем что assigned_node существует
+        if assigned and assigned != "auto":
+            found = any(assigned.lower() in n.lower() for n in all_node_tags)
+            if not found:
+                issue = f"Назначенный узел '{assigned}' не найден"
+                dev_result["issues"].append(issue)
+                dev_result["ok"] = False
+                results["errors"].append(f"Устройство {name} ({ip}): {issue}")
+
+        # Проверяем что blocked-устройства не обходят блокировку через доменные правила
+        if mode == "block":
+            # В текущей архитектуре доменные правила (группы) приоритетнее SRC-IP-CIDR.
+            # Это значит заблокированное устройство может пустить трафик через VPN для доменов из групп.
+            has_group_domains = any(len(pg.get("domains", [])) > 0 for pg in proxy_groups if pg.get("type") != "direct")
+            if has_group_domains:
+                issue = "Режим Block: доменные правила групп имеют приоритет — трафик к доменам из Auto/AI может пройти через VPN"
+                dev_result["issues"].append(issue)
+                dev_result["ok"] = False
+                results["warnings"].append(f"Устройство {name} ({ip}): {issue}")
+
+        # Проверяем что для smart-устройства sub-rules существуют в Mihomo
+        if mode == "smart":
+            has_sub = any(
+                r.get("type") == "SubRules" and ip in (r.get("payload", "") or "")
+                for r in mihomo_rules
+            )
+            if not has_sub:
+                issue = "Sub-rules не найдены в Mihomo — конфиг мог не примениться"
+                dev_result["issues"].append(issue)
+                dev_result["ok"] = False
+                results["warnings"].append(f"Устройство {name} ({ip}): {issue}")
+
+        device_tests.append(dev_result)
+
+    results["devices"] = device_tests
+
+    # 8. Проверка целостности конфигурации
+    # Сравниваем количество proxy-groups и правил в rules.json с тем что Mihomo реально применил
+    integrity = {"config_ok": True, "issues": []}
+
+    # Проверяем что все наши группы существуют в Mihomo
+    for pg in proxy_groups:
+        g_id = pg.get("id")
+        g_type = pg.get("type", "url-test")
+        if g_type == "direct" or g_id == "bypass":
+            continue
+        if g_id not in mihomo_proxies:
+            issue = f"Группа '{pg.get('name')}' [{g_id}] не найдена в Mihomo — конфиг мог сброситься после перезагрузки"
+            integrity["issues"].append(issue)
+            integrity["config_ok"] = False
+
+    # Проверяем что количество доменных правил совпадает
+    expected_domain_rules = 0
+    for pg in proxy_groups:
+        for d in pg.get("domains", []):
+            if d.strip():
+                expected_domain_rules += 1
+    # Считаем DomainSuffix и DomainKeyword правила в Mihomo (без системных)
+    system_suffixes = {"local"}
+    actual_domain_rules = sum(
+        1 for r in mihomo_rules
+        if r.get("type") in ("DomainSuffix", "DomainKeyword")
+        and (r.get("payload", "") or "").lower() not in system_suffixes
+    )
+    # Route overrides тоже добавляют доменные правила
+    route_overrides_count = len(rules.get("route_overrides", []))
+    expected_total = expected_domain_rules + route_overrides_count
+
+    if actual_domain_rules < expected_total * 0.5:
+        issue = f"Mihomo содержит {actual_domain_rules} доменных правил, ожидалось ~{expected_total}. Конфиг мог не примениться."
+        integrity["issues"].append(issue)
+        integrity["config_ok"] = False
+
+    # Проверяем rulesets.json — RKN list разворачивается Mihomo в отдельные правила,
+    # поэтому проверяем что доменных правил достаточно много (RKN добавляет сотни)
+    try:
+        async with aiofiles.open(GSG_RULESETS_FILE, 'r') as f:
+            rulesets = json.loads(await f.read())
+    except:
+        rulesets = {"rkn_bypass": True, "ru_direct": True}
+
+    results["integrity"] = integrity
+    if integrity["issues"]:
+        results["warnings"].extend(integrity["issues"])
+
+    if results["errors"]:
+        results["ok"] = False
+
+    return results
+
+# --- RULESETS API ---
+@app.get("/api/rulesets")
+async def get_rulesets():
+    return await read_json(GSG_RULESETS_FILE, {"rkn_bypass": True, "ru_direct": True})
+
+class RulesetsUpdate(BaseModel):
+    rkn_bypass: bool = True
+    ru_direct: bool = True
+
+@app.put("/api/rulesets")
+async def update_rulesets(data: RulesetsUpdate):
+    async with aiofiles.open(GSG_RULESETS_FILE, 'w') as f:
+        await f.write(json.dumps({"rkn_bypass": data.rkn_bypass, "ru_direct": data.ru_direct}, indent=2))
+    async with aiofiles.open(GSG_CONFIG_DIR / ".reload_singbox", 'w') as f:
+        await f.write("1")
+    return {"ok": True}
+
+@app.get("/api/groups")
+async def get_groups():
+    try:
+        async with aiofiles.open(GSG_RULES_FILE, 'r') as f:
+            rules = json.loads(await f.read())
+    except:
+        rules = {}
+    rules = _ensure_proxy_groups(rules)
+
+    # Обогащаем matched_nodes_count
+    try:
+        async with aiofiles.open(GSG_NODES_FILE, 'r') as f:
+            nodes_data = json.loads(await f.read())
+        node_names = [n["tag"] for n in nodes_data.get("nodes", [])]
+    except:
+        node_names = []
+
+    for pg in rules["proxy_groups"]:
+        filt = pg.get("node_filter", "").lower().strip()
+        if filt:
+            filters = [f.strip() for f in filt.split(',') if f.strip()]
+            matched = [n for n in node_names if any(f in n.lower() for f in filters)]
+        else:
+            matched = list(node_names)
+        pg["matched_nodes"] = len(matched)
+
+    return rules["proxy_groups"]
+
+@app.post("/api/groups")
+async def create_group(req: ProxyGroupCreate):
+    try:
+        async with aiofiles.open(GSG_RULES_FILE, 'r') as f:
+            rules = json.loads(await f.read())
+    except:
+        rules = {}
+    rules = _ensure_proxy_groups(rules)
+
+    new_id = f"user_{int(time.time())}"
+    new_group = {
+        "id": new_id, "name": req.name, "node_filter": req.node_filter,
+        "type": req.type, "builtin": False,
+        "domains": [d.strip() for d in req.domains if d.strip()]
+    }
+    rules["proxy_groups"].append(new_group)
+
+    await _backup_rules()
+    async with aiofiles.open(GSG_RULES_FILE, 'w') as f:
+        await f.write(json.dumps(rules, indent=4))
+    async with aiofiles.open(GSG_CONFIG_DIR / ".reload_singbox", 'w') as f:
+        await f.write("1")
+    return new_group
+
+@app.put("/api/groups/{group_id}")
+async def update_group(group_id: str, req: ProxyGroupUpdate):
+    try:
+        async with aiofiles.open(GSG_RULES_FILE, 'r') as f:
+            rules = json.loads(await f.read())
+    except:
+        rules = {}
+    rules = _ensure_proxy_groups(rules)
+
+    found = None
+    for pg in rules["proxy_groups"]:
+        if pg["id"] == group_id:
+            found = pg
+            break
+    if not found:
+        raise HTTPException(404, "Group not found")
+
+    if req.name is not None and not found.get("builtin"):
+        found["name"] = req.name
+    if req.node_filter is not None:
+        found["node_filter"] = req.node_filter
+    if req.type is not None:
+        found["type"] = req.type
+    if req.domains is not None:
+        found["domains"] = [d.strip() for d in req.domains if d.strip()]
+
+    await _backup_rules()
+    async with aiofiles.open(GSG_RULES_FILE, 'w') as f:
+        await f.write(json.dumps(rules, indent=4))
+    async with aiofiles.open(GSG_CONFIG_DIR / ".reload_singbox", 'w') as f:
+        await f.write("1")
+    return found
+
+@app.delete("/api/groups/{group_id}")
+async def delete_group(group_id: str):
+    try:
+        async with aiofiles.open(GSG_RULES_FILE, 'r') as f:
+            rules = json.loads(await f.read())
+    except:
+        rules = {}
+    rules = _ensure_proxy_groups(rules)
+
+    idx = None
+    for i, pg in enumerate(rules["proxy_groups"]):
+        if pg["id"] == group_id:
+            if pg.get("builtin"):
+                raise HTTPException(400, "Cannot delete built-in group")
+            idx = i
+            break
+    if idx is None:
+        raise HTTPException(404, "Group not found")
+
+    rules["proxy_groups"].pop(idx)
+
+    # Очищаем route_overrides с group:{id}
+    overrides = rules.get("route_overrides", [])
+    rules["route_overrides"] = [o for o in overrides if o.get("target") != f"group:{group_id}"]
+
+    await _backup_rules()
+    async with aiofiles.open(GSG_RULES_FILE, 'w') as f:
+        await f.write(json.dumps(rules, indent=4))
+    async with aiofiles.open(GSG_CONFIG_DIR / ".reload_singbox", 'w') as f:
+        await f.write("1")
     return {"ok": True}
 
 @app.get("/api/dhcp")
