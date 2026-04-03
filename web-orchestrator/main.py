@@ -1179,6 +1179,46 @@ def _ensure_proxy_groups(rules: dict) -> dict:
         "id": "bypass", "name": "Bypass", "node_filter": "",
         "type": "direct", "builtin": True, "domains": direct_list
     })
+    # Предустановленные группы
+    groups.append({
+        "id": "exchanges", "name": "Биржи", "node_filter": "", "type": "url-test", "builtin": False,
+        "domains": [
+            "mexc.com","mexc.co","mexc.fm","mexc.la","mocortech.com","mexcsensors.com",
+            "binance.com","binance.cloud","binance.me","bnbstatic.com","binance.vision",
+            "bybit.com","bybit.cloud","bycsi.com",
+            "okx.com","okx.cab","okex.com","ouxyi.com","okbn.com",
+            "coinbase.com","kraken.com","kucoin.com","kcs.top",
+            "gate.io","gateio.live","gatedata.org",
+            "htx.com","huobi.com","hbfile.net",
+            "bitget.com","crypto.com","deribit.com","phemex.com","bingx.com",
+            "tangem.com","tangem.org",
+            "coingecko.com","coinmarketcap.com","tradingview.com",
+        ]
+    })
+    groups.append({
+        "id": "social", "name": "Соцсети", "node_filter": "", "type": "url-test", "builtin": False,
+        "domains": [
+            "instagram.com","cdninstagram.com","facebook.com","fbcdn.net","fb.com",
+            "twitter.com","x.com","twimg.com",
+            "linkedin.com","licdn.com",
+            "pinterest.com","pinimg.com",
+            "reddit.com","redd.it","redditstatic.com",
+            "threads.net","threads.com",
+            "discord.com","discord.gg","discordapp.com",
+        ]
+    })
+    groups.append({
+        "id": "streaming", "name": "Стриминг", "node_filter": "", "type": "url-test", "builtin": False,
+        "domains": [
+            "netflix.com","nflxvideo.net","nflximg.net","nflxso.net",
+            "spotify.com","scdn.co","spotifycdn.com",
+            "disneyplus.com","disney-plus.net","bamgrid.com",
+            "hbomax.com","max.com",
+            "twitch.tv","twitchcdn.net","twitchsvc.net",
+            "deezer.com",
+            "soundcloud.com","sndcdn.com",
+        ]
+    })
     # Proxy-домены → в Auto
     proxy_list = rules.get("proxy", [])
     if proxy_list:
