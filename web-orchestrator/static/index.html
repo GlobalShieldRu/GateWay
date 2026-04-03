@@ -212,6 +212,12 @@
             100% { filter: brightness(1) saturate(1); }
         }
         .app-flash { animation: app-flash 0.55s ease-out; }
+        .pill-flash {
+            background: rgba(59,130,246,0.4) !important;
+            border-color: rgba(59,130,246,0.9) !important;
+            box-shadow: 0 0 8px rgba(59,130,246,0.6);
+            transition: none;
+        }
 
         /* Route line animation */
         .route-line { position: relative; height: 2px; background: rgba(255,255,255,0.06); border-radius: 1px; overflow: visible; }
@@ -2341,12 +2347,12 @@
                     return '<span style="font-size:10px;padding:2px 7px;border-radius:4px;background:' + bg + ';color:' + clr + ';border:1px solid ' + bdr + ';">' + n.tag + '</span>';
                 };
                 const _renderDomainPill = (d, isConflict, groupId) => {
-                    const bg = isConflict ? 'rgba(251,191,36,0.1)' : 'rgba(255,255,255,0.04)';
-                    const clr = isConflict ? '#fbbf24' : '#94a3b8';
-                    const bdr = isConflict ? 'border:1px solid rgba(251,191,36,0.2);' : '';
+                    const bg = isConflict ? 'rgba(251,191,36,0.15)' : 'rgba(59,130,246,0.15)';
+                    const clr = isConflict ? '#fbbf24' : '#fff';
+                    const bdr = isConflict ? 'border:1px solid rgba(251,191,36,0.4);' : 'border:1px solid rgba(59,130,246,0.4);';
                     const esc = d.replace(/'/g, "\\'");
                     const x = '<span onclick="event.stopPropagation();GatewayApp.actions.removeDomain(\'' + groupId + '\',\'' + esc + '\')" style="margin-left:3px;cursor:pointer;opacity:0.4;font-size:9px;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.4">✕</span>';
-                    return '<span draggable="true" ondragstart="event.dataTransfer.setData(\'text/plain\',\'' + groupId + '|' + esc + '\')" style="font-size:10px;padding:2px 7px;border-radius:4px;background:' + bg + ';color:' + clr + ';' + bdr + 'font-family:JetBrains Mono,monospace;display:inline-flex;align-items:center;gap:2px;cursor:grab;">' + d + x + '</span>';
+                    return '<span draggable="true" ondragstart="event.dataTransfer.setData(\'text/plain\',\'' + groupId + '|' + esc + '\')" style="font-size:12px;padding:3px 8px;border-radius:6px;background:' + bg + ';color:' + clr + ';' + bdr + 'font-family:JetBrains Mono,monospace;display:inline-flex;align-items:center;gap:2px;cursor:grab;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + d + x + '</span>';
                 };
 
                 container.innerHTML = conflictsHtml + state.proxyGroups.map(pg => {
@@ -2701,11 +2707,12 @@
                 // Use real per-node traffic from Mihomo (state.nodeTraffic)
                 // Tags are actual node names (e.g. "🇺🇸 NY | Kinopoisk") — classify by regex, not exact match
                 const _isNyTag = (t) => /ny|new[\s\-]?york/i.test(t);
-                let spAuto = 0, spNy = 0;
+                let spAutoDown = 0, spAutoUp = 0, spNyDown = 0, spNyUp = 0;
                 Object.entries(state.nodeTraffic || {}).forEach(([tag, nt]) => {
-                    const spd = (nt.speed_down||0) + (nt.speed_up||0);
-                    if (_isNyTag(tag)) spNy += spd; else spAuto += spd;
+                    if (_isNyTag(tag)) { spNyDown += (nt.speed_down||0); spNyUp += (nt.speed_up||0); }
+                    else { spAutoDown += (nt.speed_down||0); spAutoUp += (nt.speed_up||0); }
                 });
+                const spAuto = spAutoDown + spAutoUp, spNy = spNyDown + spNyUp;
                 const spAll = spAuto + spNy;
 
                 // Stable clock reference: prevents dot-jump on DOM rebuild
@@ -2718,15 +2725,29 @@
 
                 // Direct traffic = total device speed minus VPN node traffic
                 const totalDeviceSpeed = Object.values(state.traffic||{}).reduce((s,v)=>s+(v.speed_down||0)+(v.speed_up||0),0);
+                const totalDeviceDown = Object.values(state.traffic||{}).reduce((s,v)=>s+(v.speed_down||0),0);
+                const totalDeviceUp   = Object.values(state.traffic||{}).reduce((s,v)=>s+(v.speed_up||0),0);
+                const spDirectDown = Math.max(0, totalDeviceDown - spAutoDown - spNyDown);
+                const spDirectUp   = Math.max(0, totalDeviceUp   - spAutoUp   - spNyUp);
                 const spDirect = Math.max(0, totalDeviceSpeed - spAuto - spNy);
 
                 // EMA smoothing: prevents abrupt speed jumps (alpha=0.25 → ~4 ticks to settle)
                 if (!state._smSp) state._smSp = { auto: 0, ny: 0, direct: 0 };
+                if (!state._smSpDown) state._smSpDown = { auto: 0, ny: 0, direct: 0 };
+                if (!state._smSpUp)   state._smSpUp   = { auto: 0, ny: 0, direct: 0 };
                 const alpha = 0.25;
                 state._smSp.auto   = state._smSp.auto   * (1 - alpha) + spAuto   * alpha;
                 state._smSp.ny     = state._smSp.ny     * (1 - alpha) + spNy     * alpha;
                 state._smSp.direct = state._smSp.direct * (1 - alpha) + spDirect * alpha;
+                state._smSpDown.auto   = state._smSpDown.auto   * (1 - alpha) + spAutoDown   * alpha;
+                state._smSpDown.ny     = state._smSpDown.ny     * (1 - alpha) + spNyDown     * alpha;
+                state._smSpDown.direct = state._smSpDown.direct * (1 - alpha) + spDirectDown * alpha;
+                state._smSpUp.auto   = state._smSpUp.auto   * (1 - alpha) + spAutoUp   * alpha;
+                state._smSpUp.ny     = state._smSpUp.ny     * (1 - alpha) + spNyUp     * alpha;
+                state._smSpUp.direct = state._smSpUp.direct * (1 - alpha) + spDirectUp * alpha;
                 const smAuto = state._smSp.auto, smNy = state._smSp.ny, smDirect = state._smSp.direct;
+                const smAutoDown = state._smSpDown.auto, smNyDown = state._smSpDown.ny, smDirectDown = state._smSpDown.direct;
+                const smAutoUp = state._smSpUp.auto, smNyUp = state._smSpUp.ny, smDirectUp = state._smSpUp.direct;
 
                 // Normalize dot count proportionally between nodes
                 const nodeSpeedMax = Math.max(smAuto, smNy, smDirect, 1024);
@@ -2736,27 +2757,28 @@
 
                 const n_auto = toCount(smAuto), n_ny = toCount(smNy), n_direct = toCount(smDirect);
 
-                // ONE speed for all dots — GSG is not an accelerator
-                const busiest = Math.max(smAuto, smNy, smDirect);
-                const durAll  = +(5.0 - toStep(busiest) * 0.25).toFixed(2);
+                // Per-branch speed: each branch animates at its own traffic rate
+                const durAuto   = +(5.0 - toStep(smAuto)   * 0.25).toFixed(2);
+                const durNy     = +(5.0 - toStep(smNy)     * 0.25).toFixed(2);
+                const durDirect = +(5.0 - toStep(smDirect) * 0.25).toFixed(2);
 
                 // All segments use same dot size — no size difference before/after pill
                 // Right segments lag 0.2s so dots appear to exit the node sequentially after entering
                 const lag = 0.2;
 
-                const pkt2auto_l   = mkPkts(n_auto,   durAll, toSize(smAuto),   0);
-                const pkt2ny_l     = mkPkts(n_ny,     durAll, toSize(smNy),     durAll / 3);
-                const pkt2direct_l = mkPkts(n_direct, durAll, toSize(smDirect), durAll * 2 / 3);
+                const pkt2auto_l   = mkPkts(n_auto,   durAuto,   toSize(smAuto),   0);
+                const pkt2ny_l     = mkPkts(n_ny,     durNy,     toSize(smNy),     durNy / 3);
+                const pkt2direct_l = mkPkts(n_direct, durDirect, toSize(smDirect), durDirect * 2 / 3);
 
-                const pkt2auto_r   = mkPkts(n_auto,   durAll, toSize(smAuto),   lag);
-                const pkt2ny_r     = mkPkts(n_ny,     durAll, toSize(smNy),     durAll / 3 + lag);
-                const pkt2direct_r = mkPkts(n_direct, durAll, toSize(smDirect), durAll * 2 / 3 + lag);
+                const pkt2auto_r   = mkPkts(n_auto,   durAuto,   toSize(smAuto),   lag);
+                const pkt2ny_r     = mkPkts(n_ny,     durNy,     toSize(smNy),     durNy / 3 + lag);
+                const pkt2direct_r = mkPkts(n_direct, durDirect, toSize(smDirect), durDirect * 2 / 3 + lag);
 
-                // Incoming (devices → GSG): same size and timing as left segments, cyan
+                // Incoming (devices → GSG): per-branch timing, cyan
                 const _gGlow = '0 0 7px rgba(34,211,238,0.35)';
-                const pktGsg = mkPkts(n_auto,   durAll, toSize(smAuto),   0,          '#22d3ee', _gGlow)
-                             + mkPkts(n_ny,     durAll, toSize(smNy),     durAll/3,   '#22d3ee', _gGlow)
-                             + mkPkts(n_direct, durAll, toSize(smDirect), durAll*2/3, '#22d3ee', _gGlow);
+                const pktGsg = mkPkts(n_auto,   durAuto,   toSize(smAuto),   0,            '#22d3ee', _gGlow)
+                             + mkPkts(n_ny,     durNy,     toSize(smNy),     durNy/3,      '#22d3ee', _gGlow)
+                             + mkPkts(n_direct, durDirect, toSize(smDirect), durDirect*2/3, '#22d3ee', _gGlow);
 
                 // Aggregate active apps across all devices
                 const activeAppIds = new Set();
@@ -2837,25 +2859,52 @@
                     };
 
                     const gTier     = getTier(totalDeviceSpeed);
-                    const globalDur = gTier.dur;
                     const globalSz  = gTier.sz;
 
+                    // Per-branch duration: each branch moves at its own speed
+                    const branchDur = {
+                        auto:   getTier(smAuto).dur,
+                        ny:     getTier(smNy).dur,
+                        direct: getTier(smDirect).dur,
+                    };
+                    // globalDur kept as fallback for shared elements (incoming line)
+                    const globalDur = gTier.dur;
+
                     // Traffic-proportional spawn rate: more traffic = more dots
+                    // Separate rates for download (inbound, dir=-1) and upload (outbound, dir=1)
                     const peakBps  = Math.max(smAuto, smNy, smDirect, 1);
+                    const peakDown = Math.max(smAutoDown, smNyDown, smDirectDown, 1);
+                    const peakUp   = Math.max(smAutoUp, smNyUp, smDirectUp, 10 * 1024); // min 10KB/s so tiny upload doesn't get amplified
                     const MAX_RATE = 2.0;
                     const MIN_RATE = 0.4;
-                    const toRate   = (bps) => {
+                    const toRate   = (bps, peak) => {
                         if (bps < 200) return 0;
-                        return MIN_RATE + Math.min(bps / peakBps, 1) * (MAX_RATE - MIN_RATE);
+                        return MIN_RATE + Math.min(bps / (peak || 1), 1) * (MAX_RATE - MIN_RATE);
                     };
-                    const rate_auto   = toRate(smAuto);
-                    const rate_ny     = toRate(smNy);
-                    const rate_direct = toRate(smDirect);
+                    // Combined rates (kept for sizing/duration which use total speed)
+                    const rate_auto   = toRate(smAuto, peakBps);
+                    const rate_ny     = toRate(smNy, peakBps);
+                    const rate_direct = toRate(smDirect, peakBps);
+                    // Download rates → inbound particles (dir=-1, right-to-left)
+                    const rate_auto_down   = toRate(smAutoDown, peakDown);
+                    const rate_ny_down     = toRate(smNyDown, peakDown);
+                    const rate_direct_down = toRate(smDirectDown, peakDown);
+                    // Upload rates → outbound particles (dir=1, left-to-right)
+                    const rate_auto_up   = toRate(smAutoUp, peakUp);
+                    const rate_ny_up     = toRate(smNyUp, peakUp);
+                    const rate_direct_up = toRate(smDirectUp, peakUp);
 
-                    // rn_* needed for pre-seeding
-                    const rn_auto   = Math.max(0, Math.round(rate_auto   * globalDur));
-                    const rn_ny     = Math.max(0, Math.round(rate_ny     * globalDur));
-                    const rn_direct = Math.max(0, Math.round(rate_direct * globalDur));
+                    // rn_* needed for pre-seeding (use per-branch duration)
+                    const rn_auto   = Math.max(0, Math.round(rate_auto   * branchDur.auto));
+                    const rn_ny     = Math.max(0, Math.round(rate_ny     * branchDur.ny));
+                    const rn_direct = Math.max(0, Math.round(rate_direct * branchDur.direct));
+                    // Pre-seed counts split by direction
+                    const rn_auto_down   = Math.max(0, Math.round(rate_auto_down   * branchDur.auto));
+                    const rn_ny_down     = Math.max(0, Math.round(rate_ny_down     * branchDur.ny));
+                    const rn_direct_down = Math.max(0, Math.round(rate_direct_down * branchDur.direct));
+                    const rn_auto_up   = Math.max(0, Math.round(rate_auto_up   * branchDur.auto));
+                    const rn_ny_up     = Math.max(0, Math.round(rate_ny_up     * branchDur.ny));
+                    const rn_direct_up = Math.max(0, Math.round(rate_direct_up * branchDur.direct));
 
                     // Per-branch dot size: busier branch = bigger dot
                     const branchSz = {
@@ -2916,7 +2965,7 @@
                         for (const br of ['auto', 'ny', 'direct']) {
                             _topDomains[br] = Object.entries(_domCount[br])
                                 .sort((a, b) => b[1] - a[1])
-                                .slice(0, 5)
+                                .slice(0, 12)
                                 .map(([d, n]) => ({ domain: d, count: n }));
                         }
                     }
@@ -2929,15 +2978,27 @@
                         [/netflix\.com|nflxvideo\.net/i, 'netflix', '#E50914', 'Netflix'],
                         [/openai|chatgpt/i, 'chatgpt', '#10a37f', 'ChatGPT'],
                         [/claude|anthropic/i, 'claude', '#d97706', 'Claude'],
-                        [/google|gemini|generativelanguage/i, 'gemini', '#8ab4f8', 'Gemini'],
+                        [/gemini|generativelanguage/i, 'gemini', '#8ab4f8', 'Gemini'],
+                        // Favicon-based icons (no SVG in APP_ICONS — rendered via <img>)
+                        [/yandex|ya\.ru/i, 'yandex', '#ff0000', 'Yandex', 'https://yandex.ru/favicon.ico'],
+                        [/apple\.|icloud\.|apple-cloudkit\./i, 'apple', '#a3a3a3', 'Apple', 'https://apple.com/favicon.ico'],
+                        [/megogo\./i, 'megogo', '#1db954', 'Megogo', 'https://megogo.net/favicon.ico'],
+                        [/vk\.|userapi\.com|vkuseraudio\./i, 'vk', '#0077ff', 'VK', 'https://vk.com/favicon.ico'],
+                        [/ok\.ru|odnoklassniki\./i, 'ok', '#ee8208', 'OK', 'https://ok.ru/favicon.ico'],
+                        [/spotify\.|scdn\.co/i, 'spotify', '#1db954', 'Spotify', 'https://open.spotify.com/favicon.ico'],
+                        [/twitch\.|twitchsvc\./i, 'twitch', '#9146ff', 'Twitch', 'https://twitch.tv/favicon.ico'],
+                        [/discord\./i, 'discord', '#5865f2', 'Discord', 'https://discord.com/favicon.ico'],
+                        [/globalshield\.ru/i, 'globalshield', '#fbbf24', 'GlobalShield', null],
+                        [/google\.|googleapis\.|gstatic\./i, 'google', '#4285f4', 'Google', 'https://google.com/favicon.ico'],
                     ];
                     const _domIcon = (domain) => {
-                        for (const [re, key, color, label] of _domainIconMap) {
-                            if (re.test(domain)) return { key, color, label };
+                        for (const entry of _domainIconMap) {
+                            const [re, key, color, label, favicon] = entry;
+                            if (re.test(domain)) return { key, color, label, favicon: favicon || null };
                         }
                         return null;
                     };
-                    // Build domain items: icon for known apps, pill for unknown
+                    // Build domain items: icon+label for known apps, pill for unknown
                     const _domItems = (br, fallbackColor) => {
                         const seen = new Set();
                         const items = [];
@@ -2949,16 +3010,38 @@
                                 seen.add(ic.key);
                                 const svg = APP_ICONS[ic.key];
                                 if (svg) {
-                                    items.push(`<div title="${ic.label} (${d.count} соед.)" data-dom-key="${ic.key}" style="width:34px;height:34px;border-radius:8px;background:${ic.color}1a;border:1px solid ${ic.color}44;display:flex;align-items:center;justify-content:center;color:${ic.color};flex-shrink:0;transition:opacity 0.4s ease,transform 0.3s ease;"><div style="transform:scale(0.9);display:flex;">${svg}</div></div>`);
+                                    // SVG icon (YouTube, Telegram, etc.)
+                                    items.push(`<div title="${ic.label} (${d.count} соед.)" data-dom-key="${ic.key}" style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:6px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.4);flex-shrink:0;transition:opacity 0.2s ease,transform 0.2s ease;"><div style="width:16px;height:16px;display:flex;align-items:center;justify-content:center;color:${ic.color};flex-shrink:0;">${svg}</div><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#fff;white-space:nowrap;line-height:1.2;">${ic.label}</span></div>`);
+                                    continue;
+                                }
+                                // Special: GlobalShield — gold pill with "GS" text
+                                if (ic.key === 'globalshield') {
+                                    items.push(`<div title="${ic.label} (${d.count} соед.)" data-dom-key="${ic.key}" style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:6px;background:rgba(251,191,36,0.2);border:1px solid rgba(251,191,36,0.5);flex-shrink:0;transition:opacity 0.2s ease,transform 0.2s ease;"><span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:800;color:#fbbf24;line-height:1;">GS</span><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#fff;white-space:nowrap;line-height:1.2;">${ic.label}</span></div>`);
+                                    continue;
+                                }
+                                // Favicon-based icon (Yandex, Apple, VK, etc.)
+                                if (ic.favicon) {
+                                    items.push(`<div title="${ic.label} (${d.count} соед.)" data-dom-key="${ic.key}" style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:6px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.4);flex-shrink:0;transition:opacity 0.2s ease,transform 0.2s ease;"><img src="${ic.favicon}" width="14" height="14" style="border-radius:2px;vertical-align:middle;flex-shrink:0;" onerror="this.style.display='none'"><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#fff;white-space:nowrap;line-height:1.2;">${ic.label}</span></div>`);
                                     continue;
                                 }
                             }
                             if (!ic) {
-                                items.push(`<div data-dom-key="${d.domain}" title="${d.count} соед." style="font-family:'JetBrains Mono',monospace;font-size:11px;padding:3px 8px;border-radius:6px;background:${fallbackColor}12;border:1px solid ${fallbackColor}30;color:${fallbackColor};white-space:nowrap;line-height:1.3;transition:opacity 0.4s ease,transform 0.3s ease;">${d.domain}</div>`);
+                                items.push(`<div data-dom-key="${d.domain}" title="${d.count} соед." style="font-family:'JetBrains Mono',monospace;font-size:12px;padding:3px 8px;border-radius:6px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.4);color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px;line-height:1.3;transition:opacity 0.2s ease,transform 0.2s ease;">${d.domain}</div>`);
                             }
                         }
                         return items.join('');
                     };
+
+                    // Persist resolved dom-keys per branch for tick() to assign to dots
+                    box._branchDomKeys = {};
+                    for (const br of ['auto', 'ny', 'direct']) {
+                        const keys = [];
+                        for (const d of _topDomains[br]) {
+                            const ic = _domIcon(d.domain);
+                            keys.push(ic ? ic.key : d.domain);
+                        }
+                        box._branchDomKeys[br] = keys;
+                    }
 
                     if (topoChanged) {
                         box.dataset.structKey = structKey;
@@ -2968,7 +3051,6 @@
                             box._vizPackets = [];
                         }
                         box._vizSpawn    = { auto: 0, ny: 0, direct: 0 };
-                        box._appFlashIdx = { auto: 0, ny: 0, direct: 0 };
                         box._vizSeeded   = false;
 
                         const lc = 'rgba(52,211,153,0.2)', lo = 'rgba(52,211,153,0.06)';
@@ -2976,7 +3058,7 @@
 
                         const pillBase = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10;display:flex;align-items:center;border-radius:9px;padding:5px 10px;width:180px;box-sizing:border-box;';
                         const nameStyle = 'font-size:10px;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;min-width:0;';
-                        box.innerHTML = `<div style="display:grid;grid-template-columns:90px 172px 56px 1fr;grid-template-rows:58px 58px 58px;row-gap:10px;align-items:center;margin-bottom:18px;">
+                        box.innerHTML = `<div style="display:grid;grid-template-columns:90px 172px 56px 1fr;grid-template-rows:auto auto auto;row-gap:10px;align-items:center;margin-bottom:18px;">
   <div style="grid-row:1/4;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;text-align:center;width:90px;min-width:0;">
     <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);">Устройства</div>
     <div id="rl-dev-preview" style="display:flex;gap:2px;flex-wrap:wrap;justify-content:center;max-width:90px;">${devPreview || '<div style="width:18px;height:18px;border-radius:6px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);display:flex;align-items:center;justify-content:center;font-size:9px;">💻</div>'}</div>
@@ -2992,7 +3074,7 @@
       <div style="position:absolute;left:50%;transform:translateX(-50%);bottom:-16px;font-size:9px;font-weight:800;color:#c9a84c;letter-spacing:0.09em;text-shadow:0 0 10px rgba(201,168,76,0.5);white-space:nowrap;">GSG</div>
     </div>
   </div>
-  <div id="rl-auto-row" style="display:grid;grid-template-columns:1fr minmax(0,1fr);align-items:center;gap:6px;height:58px;transition:opacity 0.5s ease;">
+  <div id="rl-auto-row" style="display:grid;grid-template-columns:1fr minmax(0,1fr);align-items:center;gap:6px;min-height:58px;transition:opacity 0.5s ease;">
     <div style="position:relative;height:100%;overflow:visible;">
       <div id="rl-auto-track" style="position:absolute;left:0;right:0;top:50%;height:2px;background:${alBg};transform:translateY(-50%);border-radius:1px;transition:height 0.4s ease;"></div>
       <div id="rl-auto" style="position:absolute;left:0;right:0;top:50%;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
@@ -3004,11 +3086,11 @@
         </div>
       </div>
     </div>
-    <div id="rl-auto-apps" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;max-height:58px;overflow:hidden;">
+    <div id="rl-auto-apps" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;max-height:120px;overflow:hidden;">
       ${_domItems('auto', 'rgba(201,168,76,')}
     </div>
   </div>
-  <div id="rl-ny-row" style="display:grid;grid-template-columns:1fr minmax(0,1fr);align-items:center;gap:6px;height:58px;transition:opacity 0.5s ease;">
+  <div id="rl-ny-row" style="display:grid;grid-template-columns:1fr minmax(0,1fr);align-items:center;gap:6px;min-height:58px;transition:opacity 0.5s ease;">
     <div style="position:relative;height:100%;overflow:visible;">
       <div id="rl-ny-track" style="position:absolute;left:0;right:0;top:50%;height:2px;background:${nlBg};transform:translateY(-50%);border-radius:1px;transition:height 0.4s ease;"></div>
       <div id="rl-ny" style="position:absolute;left:0;right:0;top:50%;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
@@ -3020,11 +3102,11 @@
         </div>
       </div>
     </div>
-    <div id="rl-ny-apps" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;max-height:58px;overflow:hidden;">
+    <div id="rl-ny-apps" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;max-height:120px;overflow:hidden;">
       ${_domItems('ny', 'rgba(96,165,250,')}
     </div>
   </div>
-  <div id="rl-dir-row" style="display:grid;grid-template-columns:1fr minmax(0,1fr);align-items:center;gap:6px;height:58px;transition:opacity 0.5s ease;">
+  <div id="rl-dir-row" style="display:grid;grid-template-columns:1fr minmax(0,1fr);align-items:center;gap:6px;min-height:58px;transition:opacity 0.5s ease;">
     <div style="position:relative;height:100%;overflow:visible;">
       <div id="rl-dir-track" style="position:absolute;left:0;right:0;top:50%;height:2px;background:rgba(52,211,153,0.15);transform:translateY(-50%);border-radius:1px;transition:height 0.4s ease;"></div>
       <div id="rl-dir" style="position:absolute;left:0;right:0;top:50%;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
@@ -3037,7 +3119,7 @@
         </div>
       </div>
     </div>
-    <div id="rl-dir-apps" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;max-height:58px;overflow:hidden;">
+    <div id="rl-dir-apps" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;max-height:120px;overflow:hidden;">
       ${_domItems('direct', 'rgba(148,163,184,') || '<div title="Интернет напрямую" style="width:34px;height:34px;border-radius:8px;background:rgba(148,163,184,0.07);border:1px solid rgba(148,163,184,0.2);display:flex;align-items:center;justify-content:center;font-size:18px;">🌐</div>'}
     </div>
   </div>
@@ -3072,7 +3154,7 @@
                         if (inTrack) inTrack.style.height = lineH(totalDeviceSpeed) + 'px';
                     }
 
-                    // ── Update domain icons/pills with fade transitions ──
+                    // ── Update domain icons/pills with per-item diff transitions ──
                     {
                         const _aEl = {
                             auto: document.getElementById('rl-auto-apps'),
@@ -3082,25 +3164,48 @@
                         const _dColor = { auto: 'rgba(201,168,76,', ny: 'rgba(96,165,250,', direct: 'rgba(148,163,184,' };
                         for (const br of ['auto', 'ny', 'direct']) {
                             if (!_aEl[br]) continue;
+                            const container = _aEl[br];
                             const newHtml = _domItems(br, _dColor[br]);
-                            const fallback = br === 'direct' ? '<div title="Интернет напрямую" style="width:34px;height:34px;border-radius:8px;background:rgba(148,163,184,0.07);border:1px solid rgba(148,163,184,0.2);display:flex;align-items:center;justify-content:center;font-size:18px;">🌐</div>' : '';
+                            const fallback = br === 'direct' ? '<div data-dom-key="__globe__" title="Интернет напрямую" style="width:34px;height:34px;border-radius:8px;background:rgba(148,163,184,0.07);border:1px solid rgba(148,163,184,0.2);display:flex;align-items:center;justify-content:center;font-size:18px;">🌐</div>' : '';
                             const desired = newHtml || fallback;
-                            // Compare current keys to avoid full rebuild
-                            const curKeys = [..._aEl[br].children].map(c => c.dataset.domKey || '').join(',');
+
+                            // Parse desired items into a map by key
                             const tmp = document.createElement('div');
                             tmp.innerHTML = desired;
-                            const newKeys = [...tmp.children].map(c => c.dataset.domKey || '').join(',');
-                            if (curKeys !== newKeys) {
-                                // Fade out old items, then replace
-                                [..._aEl[br].children].forEach(c => { c.style.opacity = '0'; c.style.transform = 'scale(0.8)'; });
-                                setTimeout(() => {
-                                    if (_aEl[br]) _aEl[br].innerHTML = desired;
-                                    // Fade in new items
-                                    [...(_aEl[br]?.children || [])].forEach((c, i) => {
-                                        c.style.opacity = '0'; c.style.transform = 'scale(0.8)';
-                                        setTimeout(() => { c.style.opacity = '1'; c.style.transform = 'scale(1)'; }, 50 * i);
+                            const newItems = new Map();
+                            [...tmp.children].forEach(c => {
+                                const key = c.dataset.domKey || c.textContent.trim();
+                                newItems.set(key, c);
+                            });
+
+                            // Current items by key
+                            const curItems = new Map();
+                            [...container.children].forEach(c => {
+                                const key = c.dataset.domKey || c.textContent.trim();
+                                curItems.set(key, c);
+                            });
+
+                            // Remove items no longer present (fade out individually)
+                            for (const [key, el] of curItems) {
+                                if (!newItems.has(key)) {
+                                    el.style.opacity = '0';
+                                    el.style.transform = 'scale(0.85)';
+                                    setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 300);
+                                }
+                            }
+
+                            // Add new items that don't exist yet (fade in individually)
+                            for (const [key, newEl] of newItems) {
+                                if (!curItems.has(key)) {
+                                    newEl.style.opacity = '0';
+                                    newEl.style.transform = 'scale(0.85)';
+                                    container.appendChild(newEl);
+                                    // Force reflow then animate in
+                                    requestAnimationFrame(() => {
+                                        newEl.style.opacity = '1';
+                                        newEl.style.transform = 'scale(1)';
                                     });
-                                }, 300);
+                                }
                             }
                         }
                     }
@@ -3113,7 +3218,7 @@
 
                     // Push current traffic params — RAF loop reads this every frame
                     box._activeDots = box._activeDots || { auto: 0, ny: 0, direct: 0 };
-                    box._vizParams = { rn_auto, rn_ny, rn_direct, rate_auto, rate_ny, rate_direct, branchSz, globalDur, globalSz, inW, outW, _activeTrafficIps };
+                    box._vizParams = { rn_auto, rn_ny, rn_direct, rn_auto_down, rn_ny_down, rn_direct_down, rn_auto_up, rn_ny_up, rn_direct_up, rate_auto, rate_ny, rate_direct, rate_auto_down, rate_ny_down, rate_direct_down, rate_auto_up, rate_ny_up, rate_direct_up, branchSz, branchDur, globalDur, globalSz, inW, outW, _activeTrafficIps };
 
                     // Start RAF loop once; it self-stops when mode changes or box leaves DOM
                     if (!box._vizRaf) {
@@ -3163,23 +3268,34 @@
                             const vp = box._vizParams;
                             if (!vp || vp.inW <= 0 || vp.outW <= 0) return;
 
-                            const pixPerSec = vp.outW / vp.globalDur;
+                            // Per-branch pixel speed (used only for pre-seeded dots that lack pk.speed)
+                            const _brDur = vp.branchDur || { auto: vp.globalDur, ny: vp.globalDur, direct: vp.globalDur };
+                            const pixPerSecBranch = {
+                                auto:   vp.outW / _brDur.auto,
+                                ny:     vp.outW / _brDur.ny,
+                                direct: vp.outW / _brDur.direct,
+                            };
                             const pkts = box._vizPackets;
 
                             // Pre-seed on first tick so there's no startup blank period
                             if (!box._vizSeeded && (vp.rn_auto + vp.rn_ny + vp.rn_direct) > 0) {
                                 box._vizSeeded = true;
                                 const totalLen = vp.inW + vp.outW;
-                                const branches = [
-                                    ...Array(vp.rn_auto).fill('auto'),
-                                    ...Array(vp.rn_ny).fill('ny'),
-                                    ...Array(vp.rn_direct).fill('direct')
-                                ];
                                 const bidir = state.dotsMode === 'bidirectional';
-                                branches.forEach((branch, i) => {
-                                    // In bidirectional mode, 40% of dots are inbound (direction -1)
-                                    const dir = (bidir && Math.random() < 0.4) ? -1 : 1;
+                                // Build pre-seed list with proper direction based on download/upload rates
+                                const branches = [];
+                                for (const br of ['auto', 'ny', 'direct']) {
+                                    const rnUp   = vp[`rn_${br}_up`]   || 0;
+                                    const rnDown = vp[`rn_${br}_down`] || 0;
+                                    // Outbound (upload, dir=1) dots
+                                    for (let j = 0; j < rnUp; j++) branches.push({ branch: br, dir: 1 });
+                                    // Inbound (download, dir=-1) dots — only in bidirectional mode
+                                    if (bidir) for (let j = 0; j < rnDown; j++) branches.push({ branch: br, dir: -1 });
+                                }
+                                branches.forEach(({ branch, dir }, i) => {
                                     const x = (i / branches.length) * totalLen;
+                                    // Capture per-particle speed at seed time
+                                    const seedSpeed = pixPerSecBranch[branch] || pixPerSecBranch.auto;
                                     if (dir === 1) {
                                         // Outbound dot — same as before
                                         if (x < vp.inW) {
@@ -3188,7 +3304,7 @@
                                             const dot = mkDot('#34d399', '0 0 8px rgba(52,211,153,0.6)', vp.globalSz);
                                             dot.style.left = x + 'px';
                                             el.appendChild(dot);
-                                            pkts.push({ el: dot, phase: 'in', x, branch, dir: 1 });
+                                            pkts.push({ el: dot, phase: 'in', x, branch, dir: 1, speed: seedSpeed });
                                         } else {
                                             const el = document.getElementById(B_ID[branch]);
                                             if (!el) return;
@@ -3196,7 +3312,7 @@
                                             const dot = mkDot(B_COLOR[branch], B_GLOW[branch], vp.globalSz);
                                             dot.style.left = bx + 'px';
                                             el.appendChild(dot);
-                                            pkts.push({ el: dot, phase: 'out', x: bx, branch, dir: 1 });
+                                            pkts.push({ el: dot, phase: 'out', x: bx, branch, dir: 1, speed: seedSpeed });
                                         }
                                     } else {
                                         // Inbound dot — starts on branch line, moves toward devices
@@ -3207,7 +3323,7 @@
                                             const dot = mkDot(B_COLOR_RX[branch], B_GLOW_RX[branch], vp.globalSz * 0.85, 0.7);
                                             dot.style.left = bx + 'px';
                                             el.appendChild(dot);
-                                            pkts.push({ el: dot, phase: 'out', x: bx, branch, dir: -1 });
+                                            pkts.push({ el: dot, phase: 'out', x: bx, branch, dir: -1, speed: seedSpeed });
                                         } else {
                                             const el = document.getElementById('rl-in');
                                             if (!el) return;
@@ -3215,7 +3331,7 @@
                                             const dot = mkDot(B_COLOR_RX[branch], B_GLOW_RX[branch], vp.globalSz * 0.85, 0.7);
                                             dot.style.left = Math.max(0, ix) + 'px';
                                             el.appendChild(dot);
-                                            pkts.push({ el: dot, phase: 'in', x: Math.max(0, ix), branch, dir: -1 });
+                                            pkts.push({ el: dot, phase: 'in', x: Math.max(0, ix), branch, dir: -1, speed: seedSpeed });
                                         }
                                     }
                                 });
@@ -3226,7 +3342,9 @@
                             for (let i = pkts.length - 1; i >= 0; i--) {
                                 const pk = pkts[i];
                                 if (!pk.dir) pk.dir = 1; // default outbound for legacy packets
-                                const speed = pk.dir === -1 ? pixPerSec * rxSpeedMul : pixPerSec;
+                                // Use per-particle speed if available, else fall back to branch speed
+                                const branchPxS = pk.speed || pixPerSecBranch[pk.branch] || pixPerSecBranch.auto;
+                                const speed = pk.dir === -1 ? branchPxS * rxSpeedMul : branchPxS;
 
                                 if (pk.dir === 1) {
                                     // ── OUTBOUND (client → apps) ──
@@ -3249,20 +3367,16 @@
                                         if (pk.x >= vp.outW) {
                                             try { pk.el.parentNode?.removeChild(pk.el); } catch(e){}
                                             if (box._activeDots) box._activeDots[pk.branch] = Math.max(0, (box._activeDots[pk.branch] || 1) - 1);
-                                            const _appsId = pk.branch === 'direct' ? 'rl-dir-apps' : pk.branch === 'ny' ? 'rl-ny-apps' : 'rl-auto-apps';
-                                            const _appsEl = document.getElementById(_appsId);
-                                            if (_appsEl?.children.length) {
-                                                // Smart flash: cycle through domain icons/pills on this branch
-                                                const _kids = [..._appsEl.children];
-                                                if (!box._appFlashIdx) box._appFlashIdx = { auto: 0, ny: 0, direct: 0 };
-                                                const idx = (box._appFlashIdx[pk.branch] || 0) % _kids.length;
-                                                box._appFlashIdx[pk.branch] = idx + 1;
-                                                const _icon = _kids[idx];
-                                                if (_icon) {
-                                                    _icon.classList.remove('app-flash');
-                                                    void _icon.offsetWidth;
-                                                    _icon.classList.add('app-flash');
-                                                    setTimeout(() => _icon.classList.remove('app-flash'), 600);
+                                            // Flash the specific domain pill that this dot was carrying
+                                            const _appContId = { auto: 'rl-auto-apps', ny: 'rl-ny-apps', direct: 'rl-dir-apps' };
+                                            const _ac = document.getElementById(_appContId[pk.branch]);
+                                            if (_ac && pk.domain) {
+                                                const _p = _ac.querySelector('[data-dom-key="' + pk.domain + '"]');
+                                                if (_p) {
+                                                    _p.classList.remove('pill-flash');
+                                                    void _p.offsetWidth;
+                                                    _p.classList.add('pill-flash');
+                                                    setTimeout(() => _p.classList.remove('pill-flash'), 200);
                                                 }
                                             }
                                             pkts.splice(i, 1);
@@ -3320,7 +3434,13 @@
                             const bidir = state.dotsMode === 'bidirectional';
 
                             // Helper: spawn a single dot on a branch
+                            // Each dot captures its own speed at spawn time (per-particle speed)
+                            const _branchPxS = (br) => {
+                                const _bd = vp.branchDur || { auto: vp.globalDur, ny: vp.globalDur, direct: vp.globalDur };
+                                return vp.outW / (_bd[br] || vp.globalDur);
+                            };
                             const _spawnDot = (br, dir) => {
+                                const spawnSpeed = _branchPxS(br);
                                 if (dir === 1) {
                                     const el = document.getElementById('rl-in');
                                     if (!el) return;
@@ -3330,7 +3450,9 @@
                                     dot._sz = sz;
                                     el.appendChild(dot);
                                     if (box._activeDots) box._activeDots[br] = (box._activeDots[br] || 0) + 1;
-                                    pkts.push({ el: dot, phase: 'in', x: 0, branch: br, dir: 1 });
+                                    const _domKeys = box._branchDomKeys && box._branchDomKeys[br];
+                                    const _assignedDom = (_domKeys && _domKeys.length > 0) ? _domKeys[Math.floor(Math.random() * _domKeys.length)] : null;
+                                    pkts.push({ el: dot, phase: 'in', x: 0, branch: br, dir: 1, speed: spawnSpeed, domain: _assignedDom });
                                     const _dc = document.getElementById('rl-dev-preview');
                                     if (_dc) {
                                         const _dd = _dc.querySelectorAll('[data-ip]');
@@ -3353,30 +3475,49 @@
                                     dot._sz = sz;
                                     el.appendChild(dot);
                                     if (box._activeDots) box._activeDots[br] = (box._activeDots[br] || 0) + 1;
-                                    pkts.push({ el: dot, phase: 'out', x: vp.outW, branch: br, dir: -1 });
+                                    pkts.push({ el: dot, phase: 'out', x: vp.outW, branch: br, dir: -1, speed: spawnSpeed });
                                 }
                             };
 
                             // 1) Spike queue: burst dots from traffic spikes
+                            // Direction ratio based on actual download/upload split
                             for (const br of ['auto', 'ny', 'direct']) {
                                 if (!(sq[br] > 0)) continue;
                                 spwn[br] = (spwn[br] || 0) + 4 * dt;
                                 while (spwn[br] >= 1 && sq[br] > 0) {
                                     spwn[br] -= 1;
                                     sq[br]--;
-                                    _spawnDot(br, (bidir && Math.random() < 0.4) ? -1 : 1);
+                                    const rDown = vp[`rate_${br}_down`] || 0;
+                                    const rUp   = vp[`rate_${br}_up`]   || 0;
+                                    const downFrac = (rDown + rUp) > 0 ? rDown / (rDown + rUp) : 0.5;
+                                    _spawnDot(br, (bidir && Math.random() < downFrac) ? -1 : 1);
                                 }
                             }
 
                             // 2) Continuous rate-based spawning: keeps dots flowing as long as traffic exists
-                            if (!box._rateAccum) box._rateAccum = { auto: 0, ny: 0, direct: 0 };
-                            const _rates = { auto: vp.rate_auto || 0, ny: vp.rate_ny || 0, direct: vp.rate_direct || 0 };
+                            // Separate accumulators for download (inbound) and upload (outbound)
+                            if (!box._rateAccumUp)   box._rateAccumUp   = { auto: 0, ny: 0, direct: 0 };
+                            if (!box._rateAccumDown) box._rateAccumDown = { auto: 0, ny: 0, direct: 0 };
                             for (const br of ['auto', 'ny', 'direct']) {
-                                if (_rates[br] <= 0) continue;
-                                box._rateAccum[br] += _rates[br] * dt;
-                                while (box._rateAccum[br] >= 1) {
-                                    box._rateAccum[br] -= 1;
-                                    _spawnDot(br, (bidir && Math.random() < 0.4) ? -1 : 1);
+                                // Upload → outbound (dir=1, left-to-right)
+                                const rUp = vp[`rate_${br}_up`] || 0;
+                                if (rUp > 0) {
+                                    box._rateAccumUp[br] += rUp * dt;
+                                    while (box._rateAccumUp[br] >= 1) {
+                                        box._rateAccumUp[br] -= 1;
+                                        _spawnDot(br, 1);
+                                    }
+                                }
+                                // Download → inbound (dir=-1, right-to-left) — only in bidirectional mode
+                                if (bidir) {
+                                    const rDown = vp[`rate_${br}_down`] || 0;
+                                    if (rDown > 0) {
+                                        box._rateAccumDown[br] += rDown * dt;
+                                        while (box._rateAccumDown[br] >= 1) {
+                                            box._rateAccumDown[br] -= 1;
+                                            _spawnDot(br, -1);
+                                        }
+                                    }
                                 }
                             }
                         };
