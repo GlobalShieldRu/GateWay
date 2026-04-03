@@ -539,6 +539,10 @@
         /* Static IP edit pencil */
         .ip-row:hover .static-ip-edit-btn { color: rgba(100,116,139,0.6) !important; }
         .static-ip-edit-btn:hover { color: #93c5fd !important; }
+        /* Pin IP button */
+        .ip-row:hover .pin-ip-btn[data-pinned="0"] { color: rgba(100,116,139,0.5) !important; }
+        .pin-ip-btn[data-pinned="0"]:hover { color: rgba(52,211,153,0.8) !important; }
+        .pin-ip-btn[data-pinned="1"] { color: rgba(52,211,153,0.7) !important; }
         .rename-input { background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.4); border-radius: 6px; color: #f1f5f9; font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; padding: 2px 6px; outline: none; max-width: 180px; }
 
         /* ─── Tablet/small screens ≤ 900px ─────────────────── */
@@ -1964,6 +1968,7 @@
                                     <div style="display:flex;align-items:center;gap:4px;">
                                         <span class="ip-display">${dev.static_ip||dev.ip}</span>${dev.static_ip && dev.static_ip !== dev.ip ? `<span style="font-size:8px;color:rgba(100,116,139,0.35);">(${dev.ip})</span>` : ''}
                                         <button class="static-ip-edit-btn" data-ip="${dev.ip}" title="Статичный IP (DHCP резерв)" onclick="event.stopPropagation();GatewayApp.ui.startStaticIpEdit('${dev.ip}')" style="background:none;border:none;color:rgba(100,116,139,0);cursor:pointer;padding:0;line-height:1;transition:color 0.15s;flex-shrink:0;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                                        ${dev.mac ? `<button class="pin-ip-btn" data-ip="${dev.ip}" data-pinned="${dev.static_ip === dev.ip ? '1' : '0'}" title="${dev.static_ip === dev.ip ? 'IP закреплён — нажми чтобы открепить' : 'Закрепить IP'}" onclick="event.stopPropagation();GatewayApp.actions.togglePinIp('${dev.ip}',${dev.static_ip === dev.ip})" style="background:none;border:none;cursor:pointer;padding:0;line-height:1;flex-shrink:0;color:${dev.static_ip === dev.ip ? 'rgba(52,211,153,0.7)' : 'rgba(100,116,139,0)'};transition:color 0.15s;"><svg width="10" height="10" viewBox="0 0 24 24" fill="${dev.static_ip === dev.ip ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></button>` : ''}
                                         <span class="static-ip-prefix" style="display:none;font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">${dev.ip.split('.').slice(0,3).join('.')}.</span><input class="static-ip-input gsg-input" type="number" min="1" max="254" data-ip="${dev.ip}" data-mac="${dev.mac||''}" value="${(dev.static_ip||dev.ip).split('.')[3]||''}" placeholder="${dev.ip.split('.')[3]}" style="display:none;width:56px;font-size:11px;padding:3px 6px;font-family:'JetBrains Mono',monospace;">
                                     </div>
                                     <span style="font-size:9px;color:rgba(100,116,139,0.5);">${dev.mac}</span>
@@ -2862,25 +2867,28 @@
                     // Rebuild DOM only on topology change
                     const appIdsStr = [...activeAppIds].sort().join(',');
                     const devPreviewKey = onlineDevs.slice(0, DEV_PREVIEW_MAX).map(d => d.ip).join(',');
-                    const structKey = `${autoName}|${autoLineOk}|${nyName}|${nyLineOk}|${appIdsStr}|${devOnline}|${devTotal}|${devPreviewKey}|${state._modeStyle||'emoji'}|${onlineDevs.slice(0,DEV_PREVIEW_MAX).map(d=>d.mode).join(',')}`;
+                    const structKey = `${autoName}|${autoLineOk}|${nyName}|${nyLineOk}|${appIdsStr}|${devOnline}|${devTotal}|${devPreviewKey}|${state._modeStyle||'emoji'}|${onlineDevs.slice(0,DEV_PREVIEW_MAX).map(d=>d.mode).join(',')}|${state.providerLogo ? '1' : '0'}`;
                     const topoChanged = box.dataset.structKey !== structKey || !document.getElementById('rl-auto');
 
                     // ── Top domains per branch from active connections ──
                     const _topDomains = { auto: [], ny: [], direct: [] };
+                    const _appMinConns = { netflix: 3 };
                     // Active apps per branch (for smart icon flash)
                     box._activeApps = { auto: new Set(), ny: new Set(), direct: new Set() };
                     {
                         const _domCount = { auto: {}, ny: {}, direct: {} };
                         const _appPatterns = [
                             ['youtube',   /youtube|googlevideo|ytimg/i],
-                            ['telegram',  /telegram|t\.me/i],
-                            ['tiktok',    /tiktok|bytedance|musical\.ly/i],
-                            ['instagram', /instagram|cdninstagram/i],
-                            ['netflix',   /netflix|nflxvideo/i],
+                            ['telegram',  /telegram\.org|t\.me|telesco\.pe|tdesktop|telegram-cdn/i],
+                            ['tiktok',    /tiktok|bytedance|musical\.ly|tiktokcdn|tiktokv\./i],
+                            ['instagram', /instagram|cdninstagram|fbcdn\.net|facebook\.com/i],
+                            ['netflix',   /netflix\.com|nflxvideo\.net/i],
                             ['gemini',    /gemini|generativelanguage/i],
                             ['claude',    /claude|anthropic/i],
                             ['chatgpt',   /openai|chatgpt/i],
                         ];
+                        // Count connections per app per branch for debounce
+                        const _appConnCount = { auto: {}, ny: {}, direct: {} };
                         (state.allConnections || []).forEach(c => {
                             const chain = c.chain || 'DIRECT';
                             const br = chain === 'DIRECT' ? 'direct' : _isNyTag(chain) ? 'ny' : 'auto';
@@ -2888,13 +2896,23 @@
                             if (!h || /^\d+\.\d+\.\d+\.\d+$/.test(h)) return;
                             // Detect app from host
                             for (const [app, re] of _appPatterns) {
-                                if (re.test(h)) { box._activeApps[br].add(app); break; }
+                                if (re.test(h)) {
+                                    _appConnCount[br][app] = (_appConnCount[br][app] || 0) + 1;
+                                    break;
+                                }
                             }
                             // Shorten: strip common CDN prefixes, keep last 2 parts
                             const parts = h.split('.');
                             const short = parts.length > 2 ? parts.slice(-2).join('.') : h;
                             _domCount[br][short] = (_domCount[br][short] || 0) + 1;
                         });
+                        // Debounce: require >= 3 connections for netflix (avoids DNS/CDN flicker)
+                        // NOTE: _appMinConns hoisted before block so _domItems can access it
+                        for (const br of ['auto', 'ny', 'direct']) {
+                            for (const [app, cnt] of Object.entries(_appConnCount[br])) {
+                                if (cnt >= (_appMinConns[app] || 1)) box._activeApps[br].add(app);
+                            }
+                        }
                         for (const br of ['auto', 'ny', 'direct']) {
                             _topDomains[br] = Object.entries(_domCount[br])
                                 .sort((a, b) => b[1] - a[1])
@@ -2902,9 +2920,45 @@
                                 .map(([d, n]) => ({ domain: d, count: n }));
                         }
                     }
-                    const _domPills = (br, color) => _topDomains[br].map(d =>
-                        `<div style="font-family:'JetBrains Mono',monospace;font-size:8px;padding:2px 6px;border-radius:5px;background:${color}12;border:1px solid ${color}30;color:${color};white-space:nowrap;opacity:0.8;" title="${d.count} соед.">${d.domain}</div>`
-                    ).join('');
+                    // Domain → icon mapping (domain string → app icon key)
+                    const _domainIconMap = [
+                        [/tiktok|tiktokcdn|tiktokv|bytedance/i, 'tiktok', '#ee1d52', 'TikTok'],
+                        [/youtube|googlevideo|ytimg/i, 'youtube', '#ff0000', 'YouTube'],
+                        [/telegram\.org|t\.me|telesco\.pe|telegram-cdn/i, 'telegram', '#229ED9', 'Telegram'],
+                        [/instagram|cdninstagram|fbcdn|facebook/i, 'instagram', '#e1306c', 'Instagram'],
+                        [/netflix\.com|nflxvideo\.net/i, 'netflix', '#E50914', 'Netflix'],
+                        [/openai|chatgpt/i, 'chatgpt', '#10a37f', 'ChatGPT'],
+                        [/claude|anthropic/i, 'claude', '#d97706', 'Claude'],
+                        [/google|gemini|generativelanguage/i, 'gemini', '#8ab4f8', 'Gemini'],
+                    ];
+                    const _domIcon = (domain) => {
+                        for (const [re, key, color, label] of _domainIconMap) {
+                            if (re.test(domain)) return { key, color, label };
+                        }
+                        return null;
+                    };
+                    // Build domain items: icon for known apps, pill for unknown
+                    const _domItems = (br, fallbackColor) => {
+                        const seen = new Set();
+                        const items = [];
+                        for (const d of _topDomains[br]) {
+                            const ic = _domIcon(d.domain);
+                            if (ic && !seen.has(ic.key)) {
+                                // Debounce: skip apps that need more connections to confirm activity
+                                if ((_appMinConns[ic.key] || 0) > 0 && d.count < _appMinConns[ic.key]) continue;
+                                seen.add(ic.key);
+                                const svg = APP_ICONS[ic.key];
+                                if (svg) {
+                                    items.push(`<div title="${ic.label} (${d.count} соед.)" data-dom-key="${ic.key}" style="width:34px;height:34px;border-radius:8px;background:${ic.color}1a;border:1px solid ${ic.color}44;display:flex;align-items:center;justify-content:center;color:${ic.color};flex-shrink:0;transition:opacity 0.4s ease,transform 0.3s ease;"><div style="transform:scale(0.9);display:flex;">${svg}</div></div>`);
+                                    continue;
+                                }
+                            }
+                            if (!ic) {
+                                items.push(`<div data-dom-key="${d.domain}" title="${d.count} соед." style="font-family:'JetBrains Mono',monospace;font-size:11px;padding:3px 8px;border-radius:6px;background:${fallbackColor}12;border:1px solid ${fallbackColor}30;color:${fallbackColor};white-space:nowrap;line-height:1.3;transition:opacity 0.4s ease,transform 0.3s ease;">${d.domain}</div>`);
+                            }
+                        }
+                        return items.join('');
+                    };
 
                     if (topoChanged) {
                         box.dataset.structKey = structKey;
@@ -2938,7 +2992,7 @@
       <div style="position:absolute;left:50%;transform:translateX(-50%);bottom:-16px;font-size:9px;font-weight:800;color:#c9a84c;letter-spacing:0.09em;text-shadow:0 0 10px rgba(201,168,76,0.5);white-space:nowrap;">GSG</div>
     </div>
   </div>
-  <div id="rl-auto-row" style="display:grid;grid-template-columns:1fr 190px minmax(0,1fr);align-items:center;gap:6px;height:58px;transition:opacity 0.5s ease;">
+  <div id="rl-auto-row" style="display:grid;grid-template-columns:1fr minmax(0,1fr);align-items:center;gap:6px;height:58px;transition:opacity 0.5s ease;">
     <div style="position:relative;height:100%;overflow:visible;">
       <div id="rl-auto-track" style="position:absolute;left:0;right:0;top:50%;height:2px;background:${alBg};transform:translateY(-50%);border-radius:1px;transition:height 0.4s ease;"></div>
       <div id="rl-auto" style="position:absolute;left:0;right:0;top:50%;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
@@ -2950,12 +3004,11 @@
         </div>
       </div>
     </div>
-    <div id="rl-auto-apps" style="display:flex;gap:3px;align-items:center;flex-shrink:0;">
-      ${appBadge('#229ED9',APP_ICONS.telegram,'Telegram',activeAppIds.has('telegram'))}${appBadge('#ee1d52',APP_ICONS.tiktok,'TikTok',activeAppIds.has('tiktok'))}${appBadge('#ff0000',APP_ICONS.youtube,'YouTube',activeAppIds.has('youtube'))}${appBadge('#e1306c',APP_ICONS.instagram,'Instagram',activeAppIds.has('instagram'))}
+    <div id="rl-auto-apps" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;max-height:58px;overflow:hidden;">
+      ${_domItems('auto', 'rgba(201,168,76,')}
     </div>
-    <div id="rl-auto-domains" style="display:flex;gap:3px;align-items:center;flex-wrap:wrap;min-width:0;overflow:hidden;"></div>
   </div>
-  <div id="rl-ny-row" style="display:grid;grid-template-columns:1fr 190px minmax(0,1fr);align-items:center;gap:6px;height:58px;transition:opacity 0.5s ease;">
+  <div id="rl-ny-row" style="display:grid;grid-template-columns:1fr minmax(0,1fr);align-items:center;gap:6px;height:58px;transition:opacity 0.5s ease;">
     <div style="position:relative;height:100%;overflow:visible;">
       <div id="rl-ny-track" style="position:absolute;left:0;right:0;top:50%;height:2px;background:${nlBg};transform:translateY(-50%);border-radius:1px;transition:height 0.4s ease;"></div>
       <div id="rl-ny" style="position:absolute;left:0;right:0;top:50%;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
@@ -2967,12 +3020,11 @@
         </div>
       </div>
     </div>
-    <div id="rl-ny-apps" style="display:flex;gap:3px;align-items:center;flex-shrink:0;">
-      ${appBadge('#8ab4f8',APP_ICONS.gemini,'Gemini',true)}${appBadge('#d97706',APP_ICONS.claude,'Claude',true)}${appBadge('#10a37f',APP_ICONS.chatgpt,'ChatGPT',true)}${appBadge('#E50914',APP_ICONS.netflix,'Netflix',activeAppIds.has('netflix'))}
+    <div id="rl-ny-apps" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;max-height:58px;overflow:hidden;">
+      ${_domItems('ny', 'rgba(96,165,250,')}
     </div>
-    <div id="rl-ny-domains" style="display:flex;gap:3px;align-items:center;flex-wrap:wrap;min-width:0;overflow:hidden;"></div>
   </div>
-  <div id="rl-dir-row" style="display:grid;grid-template-columns:1fr 190px minmax(0,1fr);align-items:center;gap:6px;height:58px;transition:opacity 0.5s ease;">
+  <div id="rl-dir-row" style="display:grid;grid-template-columns:1fr minmax(0,1fr);align-items:center;gap:6px;height:58px;transition:opacity 0.5s ease;">
     <div style="position:relative;height:100%;overflow:visible;">
       <div id="rl-dir-track" style="position:absolute;left:0;right:0;top:50%;height:2px;background:rgba(52,211,153,0.15);transform:translateY(-50%);border-radius:1px;transition:height 0.4s ease;"></div>
       <div id="rl-dir" style="position:absolute;left:0;right:0;top:50%;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
@@ -2985,10 +3037,9 @@
         </div>
       </div>
     </div>
-    <div id="rl-dir-apps" style="display:flex;gap:3px;align-items:center;flex-shrink:0;">
-      <div title="Интернет напрямую" style="width:42px;height:42px;border-radius:10px;background:rgba(148,163,184,0.07);border:1px solid rgba(148,163,184,0.2);display:flex;align-items:center;justify-content:center;font-size:22px;">🌐</div>
+    <div id="rl-dir-apps" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;max-height:58px;overflow:hidden;">
+      ${_domItems('direct', 'rgba(148,163,184,') || '<div title="Интернет напрямую" style="width:34px;height:34px;border-radius:8px;background:rgba(148,163,184,0.07);border:1px solid rgba(148,163,184,0.2);display:flex;align-items:center;justify-content:center;font-size:18px;">🌐</div>'}
     </div>
-    <div id="rl-dir-domains" style="display:flex;gap:3px;align-items:center;flex-wrap:wrap;min-width:0;overflow:hidden;"></div>
   </div>
 </div>`;
                     }
@@ -3021,16 +3072,36 @@
                         if (inTrack) inTrack.style.height = lineH(totalDeviceSpeed) + 'px';
                     }
 
-                    // ── Update top domain pills ──
+                    // ── Update domain icons/pills with fade transitions ──
                     {
-                        const _dEl = { auto: document.getElementById('rl-auto-domains'), ny: document.getElementById('rl-ny-domains'), direct: document.getElementById('rl-dir-domains') };
+                        const _aEl = {
+                            auto: document.getElementById('rl-auto-apps'),
+                            ny: document.getElementById('rl-ny-apps'),
+                            direct: document.getElementById('rl-dir-apps')
+                        };
                         const _dColor = { auto: 'rgba(201,168,76,', ny: 'rgba(96,165,250,', direct: 'rgba(148,163,184,' };
                         for (const br of ['auto', 'ny', 'direct']) {
-                            if (!_dEl[br]) continue;
-                            const c = _dColor[br];
-                            _dEl[br].innerHTML = _topDomains[br].map(d =>
-                                `<div style="font-family:'JetBrains Mono',monospace;font-size:8px;padding:2px 6px;border-radius:5px;background:${c}0.07);border:1px solid ${c}0.18);color:${c}0.7);white-space:nowrap;" title="${d.count} соед.">${d.domain}</div>`
-                            ).join('');
+                            if (!_aEl[br]) continue;
+                            const newHtml = _domItems(br, _dColor[br]);
+                            const fallback = br === 'direct' ? '<div title="Интернет напрямую" style="width:34px;height:34px;border-radius:8px;background:rgba(148,163,184,0.07);border:1px solid rgba(148,163,184,0.2);display:flex;align-items:center;justify-content:center;font-size:18px;">🌐</div>' : '';
+                            const desired = newHtml || fallback;
+                            // Compare current keys to avoid full rebuild
+                            const curKeys = [..._aEl[br].children].map(c => c.dataset.domKey || '').join(',');
+                            const tmp = document.createElement('div');
+                            tmp.innerHTML = desired;
+                            const newKeys = [...tmp.children].map(c => c.dataset.domKey || '').join(',');
+                            if (curKeys !== newKeys) {
+                                // Fade out old items, then replace
+                                [..._aEl[br].children].forEach(c => { c.style.opacity = '0'; c.style.transform = 'scale(0.8)'; });
+                                setTimeout(() => {
+                                    if (_aEl[br]) _aEl[br].innerHTML = desired;
+                                    // Fade in new items
+                                    [...(_aEl[br]?.children || [])].forEach((c, i) => {
+                                        c.style.opacity = '0'; c.style.transform = 'scale(0.8)';
+                                        setTimeout(() => { c.style.opacity = '1'; c.style.transform = 'scale(1)'; }, 50 * i);
+                                    });
+                                }, 300);
+                            }
                         }
                     }
 
@@ -3141,7 +3212,7 @@
                                             const el = document.getElementById('rl-in');
                                             if (!el) return;
                                             const ix = vp.inW - (x - vp.outW);
-                                            const dot = mkDot('#2dd4a0', '0 0 6px rgba(45,212,160,0.4)', vp.globalSz * 0.85, 0.7);
+                                            const dot = mkDot(B_COLOR_RX[branch], B_GLOW_RX[branch], vp.globalSz * 0.85, 0.7);
                                             dot.style.left = Math.max(0, ix) + 'px';
                                             el.appendChild(dot);
                                             pkts.push({ el: dot, phase: 'in', x: Math.max(0, ix), branch, dir: -1 });
@@ -3181,23 +3252,12 @@
                                             const _appsId = pk.branch === 'direct' ? 'rl-dir-apps' : pk.branch === 'ny' ? 'rl-ny-apps' : 'rl-auto-apps';
                                             const _appsEl = document.getElementById(_appsId);
                                             if (_appsEl?.children.length) {
-                                                // Smart flash: prefer icon of an active app on this branch
-                                                const _brActiveApps = box._activeApps?.[pk.branch];
-                                                let _icon = null;
-                                                if (_brActiveApps?.size) {
-                                                    const _activeArr = [..._brActiveApps];
-                                                    const _candidates = [..._appsEl.children].filter(el =>
-                                                        _activeArr.some(a => el.title && el.title.toLowerCase() === a)
-                                                    );
-                                                    if (_candidates.length) {
-                                                        if (!box._appFlashIdx) box._appFlashIdx = { auto: 0, ny: 0, direct: 0 };
-                                                        const idx = (box._appFlashIdx[pk.branch] || 0) % _candidates.length;
-                                                        box._appFlashIdx[pk.branch] = idx + 1;
-                                                        _icon = _candidates[idx];
-                                                    }
-                                                }
-                                                // Fallback: random icon
-                                                if (!_icon) _icon = _appsEl.children[Math.floor(Math.random() * _appsEl.children.length)];
+                                                // Smart flash: cycle through domain icons/pills on this branch
+                                                const _kids = [..._appsEl.children];
+                                                if (!box._appFlashIdx) box._appFlashIdx = { auto: 0, ny: 0, direct: 0 };
+                                                const idx = (box._appFlashIdx[pk.branch] || 0) % _kids.length;
+                                                box._appFlashIdx[pk.branch] = idx + 1;
+                                                const _icon = _kids[idx];
                                                 if (_icon) {
                                                     _icon.classList.remove('app-flash');
                                                     void _icon.offsetWidth;
@@ -3215,12 +3275,12 @@
                                     pk.x -= speed * dt;
                                     if (pk.phase === 'out') {
                                         if (pk.x <= 0) {
-                                            // Arrived at GSG — switch to inbound green line
+                                            // Arrived at GSG — keep branch color through rl-in
                                             try { pk.el.parentNode?.removeChild(pk.el); } catch(e){}
                                             const inEl = document.getElementById('rl-in');
                                             if (!inEl) { pkts.splice(i, 1); continue; }
                                             const sz = pk._sz ?? vp.globalSz * 0.85;
-                                            const dot = mkDot('#2dd4a0', '0 0 6px rgba(45,212,160,0.4)', sz, 0.7);
+                                            const dot = mkDot(B_COLOR_RX[pk.branch], B_GLOW_RX[pk.branch], sz, 0.7);
                                             dot.style.left = vp.inW + 'px';
                                             dot._sz = sz;
                                             inEl.appendChild(dot);
@@ -3254,54 +3314,69 @@
                                 }
                             }
 
-                            // Spawn new packets — one dot per traffic spike (each spike = one bump on the chart)
+                            // Spawn new packets — spike queue + continuous rate-based
                             const spwn = box._vizSpawn;
                             const sq = state._spikeQueue || {};
                             const bidir = state.dotsMode === 'bidirectional';
+
+                            // Helper: spawn a single dot on a branch
+                            const _spawnDot = (br, dir) => {
+                                if (dir === 1) {
+                                    const el = document.getElementById('rl-in');
+                                    if (!el) return;
+                                    const sz = vp.globalSz;
+                                    const dot = mkDot('#34d399', '0 0 8px rgba(52,211,153,0.6)', sz);
+                                    dot.style.left = '0px';
+                                    dot._sz = sz;
+                                    el.appendChild(dot);
+                                    if (box._activeDots) box._activeDots[br] = (box._activeDots[br] || 0) + 1;
+                                    pkts.push({ el: dot, phase: 'in', x: 0, branch: br, dir: 1 });
+                                    const _dc = document.getElementById('rl-dev-preview');
+                                    if (_dc) {
+                                        const _dd = _dc.querySelectorAll('[data-ip]');
+                                        const _ad = [..._dd].filter(el => vp._activeTrafficIps && vp._activeTrafficIps.has(el.dataset.ip));
+                                        const _td = _ad.length > 0 ? _ad : [..._dd];
+                                        if (_td.length > 0) {
+                                            const _di = _td[Math.floor(Math.random() * _td.length)];
+                                            _di.classList.remove('app-flash');
+                                            void _di.offsetWidth;
+                                            _di.classList.add('app-flash');
+                                            setTimeout(() => _di.classList.remove('app-flash'), 600);
+                                        }
+                                    }
+                                } else {
+                                    const el = document.getElementById(B_ID[br]);
+                                    if (!el) return;
+                                    const sz = vp.globalSz * 0.85;
+                                    const dot = mkDot(B_COLOR_RX[br], B_GLOW_RX[br], sz, 0.7);
+                                    dot.style.left = vp.outW + 'px';
+                                    dot._sz = sz;
+                                    el.appendChild(dot);
+                                    if (box._activeDots) box._activeDots[br] = (box._activeDots[br] || 0) + 1;
+                                    pkts.push({ el: dot, phase: 'out', x: vp.outW, branch: br, dir: -1 });
+                                }
+                            };
+
+                            // 1) Spike queue: burst dots from traffic spikes
                             for (const br of ['auto', 'ny', 'direct']) {
                                 if (!(sq[br] > 0)) continue;
-                                // Drain at max 4 dots/sec so they don't all appear at once
                                 spwn[br] = (spwn[br] || 0) + 4 * dt;
                                 while (spwn[br] >= 1 && sq[br] > 0) {
                                     spwn[br] -= 1;
                                     sq[br]--;
-                                    const dir = (bidir && Math.random() < 0.4) ? -1 : 1;
-                                    if (dir === 1) {
-                                        // Outbound: start at devices, move right — flash active device
-                                        const el = document.getElementById('rl-in');
-                                        if (!el) break;
-                                        const sz = vp.globalSz;
-                                        const dot = mkDot('#34d399', '0 0 8px rgba(52,211,153,0.6)', sz);
-                                        dot.style.left = '0px';
-                                        dot._sz = sz;
-                                        el.appendChild(dot);
-                                        if (box._activeDots) box._activeDots[br] = (box._activeDots[br] || 0) + 1;
-                                        pkts.push({ el: dot, phase: 'in', x: 0, branch: br, dir: 1 });
-                                        const _dc = document.getElementById('rl-dev-preview');
-                                        if (_dc) {
-                                            const _dd = _dc.querySelectorAll('[data-ip]');
-                                            const _ad = [..._dd].filter(el => vp._activeTrafficIps && vp._activeTrafficIps.has(el.dataset.ip));
-                                            const _td = _ad.length > 0 ? _ad : [..._dd];
-                                            if (_td.length > 0) {
-                                                const _di = _td[Math.floor(Math.random() * _td.length)];
-                                                _di.classList.remove('app-flash');
-                                                void _di.offsetWidth;
-                                                _di.classList.add('app-flash');
-                                                setTimeout(() => _di.classList.remove('app-flash'), 600);
-                                            }
-                                        }
-                                    } else {
-                                        // Inbound: start at apps end, move left
-                                        const el = document.getElementById(B_ID[br]);
-                                        if (!el) break;
-                                        const sz = vp.globalSz * 0.85;
-                                        const dot = mkDot(B_COLOR_RX[br], B_GLOW_RX[br], sz, 0.7);
-                                        dot.style.left = vp.outW + 'px';
-                                        dot._sz = sz;
-                                        el.appendChild(dot);
-                                        if (box._activeDots) box._activeDots[br] = (box._activeDots[br] || 0) + 1;
-                                        pkts.push({ el: dot, phase: 'out', x: vp.outW, branch: br, dir: -1 });
-                                    }
+                                    _spawnDot(br, (bidir && Math.random() < 0.4) ? -1 : 1);
+                                }
+                            }
+
+                            // 2) Continuous rate-based spawning: keeps dots flowing as long as traffic exists
+                            if (!box._rateAccum) box._rateAccum = { auto: 0, ny: 0, direct: 0 };
+                            const _rates = { auto: vp.rate_auto || 0, ny: vp.rate_ny || 0, direct: vp.rate_direct || 0 };
+                            for (const br of ['auto', 'ny', 'direct']) {
+                                if (_rates[br] <= 0) continue;
+                                box._rateAccum[br] += _rates[br] * dt;
+                                while (box._rateAccum[br] >= 1) {
+                                    box._rateAccum[br] -= 1;
+                                    _spawnDot(br, (bidir && Math.random() < 0.4) ? -1 : 1);
                                 }
                             }
                         };
@@ -4673,6 +4748,19 @@
                     }, 400));
                 }
                 _deviceDebounceMap.get(ip)(ip, mode, assignedNode, tiktokNode, staticIp);
+            },
+
+            togglePinIp: async (ip, currentlyPinned) => {
+                const method = currentlyPinned ? 'DELETE' : 'POST';
+                const result = await utils.apiCall(`/devices/${ip}/pin`, { method });
+                if (result) {
+                    if (currentlyPinned) {
+                        ui.addEvent('📌', `IP ${ip} откреплён`, '#94a3b8');
+                    } else if (!result.already) {
+                        ui.addEvent('📌', `IP ${ip} закреплён`, '#34d399');
+                    }
+                    await actions.fetchData();
+                }
             },
 
             setGlobalNode: async (tag) => {

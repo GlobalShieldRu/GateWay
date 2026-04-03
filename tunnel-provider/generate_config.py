@@ -101,8 +101,8 @@ def main():
         "enable": True,
         "sniff": {
             "HTTP": {"ports": [80, 8080], "override-destination": True},
-            "TLS": {"ports": [443, 8443], "override-destination": False},
-            "QUIC": {"ports": [443], "override-destination": False}
+            "TLS": {"ports": [443, 8443], "override-destination": True},
+            "QUIC": {"ports": [443], "override-destination": True}
         }
     }
 
@@ -203,7 +203,7 @@ def main():
         if g_id not in existing_group_names:
             group_cfg = {
                 "name": g_id, "type": g_type, "proxies": proxies,
-                "url": "http://www.gstatic.com/generate_204", "interval": 300, "lazy": False
+                "url": "http://www.gstatic.com/generate_204", "interval": 600, "lazy": True
             }
             if g_type == "url-test":
                 group_cfg["tolerance"] = 50
@@ -391,6 +391,9 @@ def main():
                 for site in ["youtube", "meta", "instagram", "twitter"]:
                     device_sub.append(f"GEOSITE,{site},{target}")
                 device_sub.append(f"RULE-SET,rkn-domains,{target}")
+            # Добавляем domain_rules из proxy_groups в sub-rule
+            for dr in domain_rules:
+                device_sub.append(dr)
             device_sub.append("MATCH,DIRECT")
             sub_rules[sub_name] = device_sub
             ip_rules.append(f"SUB-RULE,(SRC-IP-CIDR,{ip}/32),{sub_name}")

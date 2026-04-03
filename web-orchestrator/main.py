@@ -1012,6 +1012,44 @@ async def _dhcp_force_renew(old_ip: str, mac: str):
     except Exception as e:
         logging.warning(f"[DHCP] Force renew failed: {e}")
 
+@app.get("/api/devices/{ip}/pin")
+async def get_device_pin(ip: str):
+    configs = await read_json(GSG_DEVICES_FILE, {})
+    conf = configs.get(ip, {})
+    pinned = bool(conf.get("static_ip") and conf.get("mac"))
+    return {"pinned": pinned}
+
+@app.post("/api/devices/{ip}/pin")
+async def pin_device_ip(ip: str):
+    async with _devices_lock:
+        configs = await read_json(GSG_DEVICES_FILE, {})
+        conf = configs.get(ip, {})
+        mac = conf.get("mac", "")
+        if not mac:
+            raise HTTPException(400, detail="MAC-адрес неизвестен")
+        if conf.get("static_ip") == ip:
+            return {"pinned": True, "already": True}
+        conf["static_ip"] = ip
+        configs[ip] = conf
+        async with aiofiles.open(GSG_DEVICES_FILE, 'w') as f:
+            await f.write(json.dumps(configs, indent=2))
+    async with aiofiles.open(GSG_CONFIG_DIR / ".reload_dhcp", 'w') as f:
+        await f.write("1")
+    return {"pinned": True}
+
+@app.delete("/api/devices/{ip}/pin")
+async def unpin_device_ip(ip: str):
+    async with _devices_lock:
+        configs = await read_json(GSG_DEVICES_FILE, {})
+        conf = configs.get(ip, {})
+        conf["static_ip"] = ""
+        configs[ip] = conf
+        async with aiofiles.open(GSG_DEVICES_FILE, 'w') as f:
+            await f.write(json.dumps(configs, indent=2))
+    async with aiofiles.open(GSG_CONFIG_DIR / ".reload_dhcp", 'w') as f:
+        await f.write("1")
+    return {"pinned": False}
+
 @app.get("/api/nodes")
 async def get_nodes():
     data = await read_json(GSG_NODES_FILE, {"nodes": []})
