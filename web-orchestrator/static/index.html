@@ -1367,6 +1367,7 @@
                         <div id="chartPeriodLabel" style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;">Трафик (последние 60 сек)</div>
                         <div style="display:flex;gap:4px;">
                             <button id="periodBtn-live"    onclick="GatewayApp.ui.setChartPeriod('live')"    style="font-size:10px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:'Syne',sans-serif;transition:all 0.15s;background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.4);color:#fbbf24;">Live</button>
+                            <button id="periodBtn-24h"     onclick="GatewayApp.ui.setChartPeriod('24h')"     style="font-size:10px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:'Syne',sans-serif;transition:all 0.15s;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);color:var(--muted);">24 часа</button>
                             <button id="periodBtn-days"    onclick="GatewayApp.ui.setChartPeriod('days')"    style="font-size:10px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:'Syne',sans-serif;transition:all 0.15s;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);color:var(--muted);">7 дней</button>
                             <button id="periodBtn-month"   onclick="GatewayApp.ui.setChartPeriod('month')"   style="font-size:10px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:'Syne',sans-serif;transition:all 0.15s;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);color:var(--muted);">30 дней</button>
                             <button id="periodBtn-alltime" onclick="GatewayApp.ui.setChartPeriod('alltime')" style="font-size:10px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:'Syne',sans-serif;transition:all 0.15s;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);color:var(--muted);">Всё время</button>
@@ -4244,13 +4245,14 @@
                 state._chartPeriod = period;
                 const labels = {
                     live: 'Трафик (последние 60 сек)',
+                    '24h': 'Трафик за последние 24 часа',
                     days: 'Трафик за последние 7 дней',
                     month: 'Трафик за последние 30 дней',
                     alltime: 'Трафик за всё время'
                 };
                 const lbl = document.getElementById('chartPeriodLabel');
                 if (lbl) lbl.textContent = labels[period] || '';
-                ['live','days','month','alltime'].forEach(p => {
+                ['live','24h','days','month','alltime'].forEach(p => {
                     const btn = document.getElementById('periodBtn-' + p);
                     if (!btn) return;
                     const active = p === period;
@@ -4462,6 +4464,25 @@
                         nyDown: h.nyDown || 0, nyUp: h.nyUp || 0,
                         directDown: h.directDown || 0, directUp: h.directUp || 0
                     }));
+                } else if (period === '24h') {
+                    // Последние 24 часа: показываем 24 столбика (по часам)
+                    // Используем live _trafficHistory если есть, иначе 2 дня из daily
+                    const _nH = state.nodeHistory || {};
+                    const _isNy = (t) => /ny|new[\s\-]?york/i.test(t);
+                    const now = new Date();
+                    // 2 дня: вчера и сегодня (24 часа данных на уровне дней)
+                    for (let i = 1; i >= 0; i--) {
+                        const d = new Date(); d.setDate(d.getDate() - i);
+                        const key = d.toISOString().slice(0, 10);
+                        const label = i === 0 ? 'Сегодня' : 'Вчера';
+                        let down = 0, up = 0, autoD = 0, autoU = 0, nyD = 0, nyU = 0;
+                        Object.values(_devH).forEach(h => { down += h.daily?.[key]?.down || 0; up += h.daily?.[key]?.up || 0; });
+                        Object.entries(_nH).forEach(([tag, h]) => {
+                            const dd = h.daily?.[key]?.down || 0, du = h.daily?.[key]?.up || 0;
+                            if (_isNy(tag)) { nyD += dd; nyU += du; } else if (tag !== 'auto' && tag !== 'DIRECT') { autoD += dd; autoU += du; }
+                        });
+                        bars.push({ label, _dailyKey: key, down, up, autoDown: autoD, autoUp: autoU, nyDown: nyD, nyUp: nyU, directDown: Math.max(0, down - autoD - nyD), directUp: Math.max(0, up - autoU - nyU) });
+                    }
                 } else if (period === 'days') {
                     const _nH = state.nodeHistory || {};
                     const _isNy = (t) => /ny|new[\s\-]?york/i.test(t);
