@@ -86,7 +86,7 @@ def main():
     server_config["mode"] = "rule"
     server_config["allow-lan"] = True
     server_config["external-controller"] = "0.0.0.0:9090"
-    server_config["log-level"] = "warning"
+    server_config["log-level"] = "silent"
     server_config["ipv6"] = False
 
     server_config["dns"] = {
