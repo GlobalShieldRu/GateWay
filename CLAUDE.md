@@ -36,6 +36,27 @@ override_rules → domain_rules (из групп) → ip_rules (устройст
 - После `git reset --hard` автоматически делается `chmod +x *.sh`
 - Релиз: `./release.sh X.Y.Z` — обновляет GSG_VERSION, тег, GitHub Release
 
+## Установка на устройство
+
+Скрипты установки/удаления GSG на целевом устройстве (OrangePi/NanoPi/Raspberry Pi):
+
+| Скрипт | Назначение |
+|--------|-----------|
+| `install.sh` | Полная установка: зависимости, Docker, systemd-сервисы, сборка образов, регистрация устройства |
+| `uninstall.sh` | Полное удаление GSG, возврат на DHCP |
+
+Пользователи устанавливают через:
+```bash
+bash <(curl -fsSL https://www.globalshield.ru/Install.sh)
+```
+
+**Install.sh на сайте** — файл должен быть доступен на сервере Stockholm (`194.87.30.15`) по пути `/root/vless_front/www/Install.sh`. Это симлинк или копия `install.sh` из репозитория. Caddy отдаёт его как `text/x-sh`. Если файл отсутствует — Caddy вернёт `index.html` (SPA-фолбэк), и пользователь получит ошибку `syntax error near unexpected token 'newline'`.
+
+Обновить скрипт на сайте:
+```bash
+scp GSG/install.sh root@194.87.30.15:/root/vless_front/www/Install.sh
+```
+
 ## Деплой
 
 **Обязательно пересобирать образы** (docker cp недостаточно!):
