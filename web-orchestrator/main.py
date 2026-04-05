@@ -858,11 +858,20 @@ async def get_network_status():
 
 @app.get("/api/nodes/ping")
 async def ping_nodes():
-    """Принудительно запускает тест задержек в Mihomo и возвращает результаты."""
+    """Пингует каждый уникальный сервер один раз, применяет результат ко всем узлам на нём."""
     data = await read_json(GSG_NODES_FILE, {"nodes": []})
     nodes = data.get("nodes", [])
-    results = {}
-    async def measure(n):
+
+    # Один представитель на каждый уникальный server-хост
+    unique_servers: dict[str, dict] = {}
+    for n in nodes:
+        srv = n.get("server", "")
+        if srv and srv not in unique_servers:
+            unique_servers[srv] = n
+
+    server_results: dict[str, int] = {}
+
+    async def measure_server(srv: str, n: dict):
         tag = n.get("tag", "")
         try:
             async with httpx.AsyncClient(timeout=6.0) as client:
@@ -870,22 +879,29 @@ async def ping_nodes():
                     f"http://127.0.0.1:9090/proxies/{tag}/delay",
                     params={"url": "https://www.google.com/", "timeout": 5000}
                 )
-                if r.status_code == 200:
-                    results[tag] = r.json().get("delay", -1)
-                else:
-                    results[tag] = -1
+                server_results[srv] = r.json().get("delay", -1) if r.status_code == 200 else -1
         except Exception:
-            results[tag] = -1
-    await asyncio.gather(*(measure(n) for n in nodes))
-    return results
+            server_results[srv] = -1
+
+    await asyncio.gather(*(measure_server(srv, n) for srv, n in unique_servers.items()))
+
+    # Все узлы одного сервера получают одинаковый пинг
+    return {n.get("tag", ""): server_results.get(n.get("server", ""), -1) for n in nodes}
 
 @app.get("/api/nodes/dashboard")
 async def get_nodes_dash():
     data = await read_json(GSG_NODES_FILE, {"nodes": []})
     nodes = data.get("nodes", [])
 
-    # Получаем задержки из Mihomo (реальный VLESS-латентность)
-    mihomo_delays = {}
+    # Один представитель на каждый уникальный server-хост
+    unique_servers: dict[str, dict] = {}
+    for n in nodes:
+        srv = n.get("server", "")
+        if srv and srv not in unique_servers:
+            unique_servers[srv] = n
+
+    # Получаем задержки из Mihomo (берём последнюю запись истории)
+    mihomo_delays: dict[str, int] = {}
     try:
         async with httpx.AsyncClient(timeout=2.0) as client:
             r = await client.get("http://127.0.0.1:9090/proxies")
@@ -897,18 +913,24 @@ async def get_nodes_dash():
     except Exception:
         pass
 
-    async def check(n):
-        tag = n.get("tag", "")
-        if tag in mihomo_delays:
-            p = mihomo_delays[tag]
-        else:
-            p = await ping_tcp(n['server'], int(n['server_port']))
-        n['ping'] = p
-        n['status'] = 'online' if p > 0 else 'offline'
-        return n
+    server_ping: dict[str, int] = {}
 
-    res = await asyncio.gather(*(check(n) for n in nodes))
-    return res
+    async def ping_server(srv: str, n: dict):
+        tag = n.get("tag", "")
+        p = mihomo_delays.get(tag, -1)
+        if p <= 0:
+            # История устарела или показывает ошибку — свежий TCP-пинг
+            p = await ping_tcp(n["server"], int(n["server_port"]))
+        server_ping[srv] = p
+
+    await asyncio.gather(*(ping_server(srv, n) for srv, n in unique_servers.items()))
+
+    for n in nodes:
+        p = server_ping.get(n.get("server", ""), -1)
+        n["ping"] = p
+        n["status"] = "online" if p > 0 else "offline"
+
+    return nodes
 
 @app.get("/api/devices")
 async def get_devices():
@@ -951,6 +973,44 @@ async def get_devices():
             "static_ip": conf.get("static_ip", ""),
         })
     return result
+
+@app.put("/api/devices/assign-node")
+async def assign_node_to_all(body: dict):
+    """Переключает assigned_node для всех устройств разом, сохраняя снапшот предыдущих значений."""
+    node = body.get("assigned_node", "auto")
+    async with _devices_lock:
+        configs = await read_json(GSG_DEVICES_FILE, {})
+        for ip, dev in configs.items():
+            if "_prev_assigned_node" not in dev:
+                dev["_prev_assigned_node"] = dev.get("assigned_node", "auto")
+            dev["assigned_node"] = node
+        async with aiofiles.open(GSG_DEVICES_FILE, 'w') as f:
+            await f.write(json.dumps(configs, indent=2))
+    async with aiofiles.open(GSG_CONFIG_DIR / ".reload_nftables", 'w') as f:
+        await f.write("1")
+    async with aiofiles.open(GSG_CONFIG_DIR / ".reload_singbox", 'w') as f:
+        await f.write("1")
+    return {"ok": True, "assigned_node": node, "count": len(configs)}
+
+@app.put("/api/devices/restore-nodes")
+async def restore_nodes():
+    """Восстанавливает индивидуальные assigned_node из снапшота."""
+    async with _devices_lock:
+        configs = await read_json(GSG_DEVICES_FILE, {})
+        restored = 0
+        for ip, dev in configs.items():
+            if "_prev_assigned_node" in dev:
+                dev["assigned_node"] = dev.pop("_prev_assigned_node")
+                restored += 1
+            else:
+                dev["assigned_node"] = "auto"
+        async with aiofiles.open(GSG_DEVICES_FILE, 'w') as f:
+            await f.write(json.dumps(configs, indent=2))
+    async with aiofiles.open(GSG_CONFIG_DIR / ".reload_nftables", 'w') as f:
+        await f.write("1")
+    async with aiofiles.open(GSG_CONFIG_DIR / ".reload_singbox", 'w') as f:
+        await f.write("1")
+    return {"ok": True, "restored": restored}
 
 @app.put("/api/devices/{ip}")
 async def update_device(ip: str, data: DeviceUpdate):

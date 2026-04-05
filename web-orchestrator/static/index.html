@@ -80,6 +80,13 @@
             50% { box-shadow: 0 0 14px var(--chip-border, rgba(59,130,246,0.6)), 0 0 22px var(--chip-border, rgba(59,130,246,0.2)); }
         }
         .app-chip .us-dot { position: absolute; top: -2px; right: -2px; width: 8px; height: 8px; border-radius: 50%; background: #3b82f6; border: 1px solid var(--bg); }
+        .app-chip.live::before { content: ''; position: absolute; top: -3px; left: -3px; width: 7px; height: 7px; border-radius: 50%; background: #22c55e; border: 1.5px solid #0A0908; animation: liveDot 2s ease-in-out infinite; }
+        @keyframes liveDot {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.7); }
+            50% { box-shadow: 0 0 0 4px rgba(34,197,94,0); }
+        }
+        #app-chip-popup { position: fixed; display: none; z-index: 9998; background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 10px 12px; min-width: 190px; max-width: 260px; box-shadow: 0 8px 28px rgba(0,0,0,0.65); animation: fadeInDown 0.14s ease; }
+        @keyframes fadeInDown { from { opacity:0; transform:translateY(-5px); } to { opacity:1; transform:translateY(0); } }
 
         /* Sidebar */
         #sidebar {
@@ -260,15 +267,19 @@
 
         /* Node card */
         .node-card {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
+            display: grid;
+            grid-template-columns: 1fr auto;
+            column-gap: 8px;
+            align-items: start;
             padding: 10px 12px;
             border-radius: 10px;
             background: rgba(255,255,255,0.03);
             border: 1px solid rgba(255,255,255,0.06);
             cursor: pointer;
             transition: all 0.18s ease;
+            min-width: 0;
+            overflow: hidden;
+            box-sizing: border-box;
         }
         .node-card:hover { border-color: rgba(59,130,246,0.3); background: rgba(59,130,246,0.05); }
         .node-card.selected {
@@ -299,6 +310,11 @@
             padding: 14px 20px;
             border-bottom: 1px solid rgba(255,255,255,0.04);
             transition: background 0.15s;
+        }
+        /* Wide screens: wider route column, narrower apps */
+        @media (min-width: 1700px) {
+            .dev-row-grid { grid-template-columns: 2.2fr 0.8fr 2fr 2fr 1.2fr 1.2fr 2fr; }
+            .dev-table-hdr-cols { grid-template-columns: 2.2fr 0.8fr 2fr 2fr 1.2fr 1.2fr 2fr !important; }
         }
         .dev-row-grid:last-child { border-bottom: none; }
         .dev-col-route { min-width: 0; overflow: hidden; }
@@ -556,6 +572,15 @@
             body { overflow-x: hidden !important; }
         }
 
+        /* Route viz: fill available height in panelStatus flex column */
+        #routeViz { flex: 1; display: flex; flex-direction: column; }
+
+        /* ─── Subscription panel: 2 cols wide, 1 col narrow ──── */
+        @media (max-width: 1700px) {
+            #nodesDashboard { grid-template-columns: 1fr !important; }
+            #panelSub { flex: 0 0 320px !important; max-width: 320px !important; }
+        }
+
         /* ─── Mobile ≤ 768px ────────────────────────────────── */
         @media (max-width: 768px) {
             body { overflow-x: hidden !important; overflow-y: auto; }
@@ -598,7 +623,9 @@
             }
             /* Override inline min-width on panels */
             #panelStatus { min-width: 0 !important; flex: unset !important; overflow-x: hidden !important; max-width: 100vw !important; }
-            #panelSub    { min-width: 0 !important; flex: unset !important; order: -1 !important; }
+            #panelSub    { min-width: 0 !important; flex: unset !important; order: -1 !important; max-width: min(100%, 380px) !important; }
+            /* Nodes grid: 2 columns on mobile — narrower cards, smaller gap */
+            #nodesDashboard { grid-template-columns: 1fr 1fr !important; }
             /* Hide drag divider on mobile */
             #topGridDivider { display: none !important; }
             #sidebarDivider { display: none !important; }
@@ -853,6 +880,14 @@
         </div>
     </div>
 
+    <!-- App chip popup -->
+    <div id="app-chip-popup">
+        <div id="app-chip-popup-title" style="font-weight:700;font-size:13px;margin-bottom:4px;display:flex;align-items:center;gap:6px;"></div>
+        <div id="app-chip-popup-stats" style="font-size:11px;color:#94a3b8;margin-bottom:8px;"></div>
+        <div style="font-size:10px;color:#64748b;margin-bottom:5px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;">Маршрут</div>
+        <div id="app-chip-popup-actions" style="display:flex;gap:5px;flex-wrap:wrap;"></div>
+    </div>
+
     <!-- Feedback Modal -->
     <div id="feedbackModal" onclick="if(event.target===this)GatewayApp.ui.closeFeedback()" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);align-items:center;justify-content:center;">
         <div class="glass" style="width:min(460px,calc(100vw - 32px));padding:28px;position:relative;animation:fadeSlideUp 0.25s ease both;">
@@ -907,7 +942,7 @@
             </div>
         </header>
 
-        <main id="main-scroll" style="flex:1;overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:20px;" id="mainContent">
+        <main id="main-scroll" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:16px;" id="mainContent">
 
             <!-- Page tagline -->
             <div style="text-align:center;padding:8px 0 4px;position:relative;">
@@ -921,15 +956,16 @@
             </div>
 
             <!-- Top row: Status + Subscription -->
-            <div style="display:flex;gap:0;align-items:stretch;" class="reveal reveal-1" id="topGrid">
+            <div style="display:flex;gap:16px;align-items:stretch;" class="reveal reveal-1" id="topGrid">
 
                 <!-- Network Status card -->
-                <div class="glass" id="panelStatus" style="padding:24px;position:relative;overflow:hidden;flex:1.8;min-width:320px;">
+                <div class="glass" id="panelStatus" style="padding:24px;position:relative;overflow:hidden;flex:1 1 auto;min-width:500px;display:flex;flex-direction:column;">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;">
                         <div style="font-size:16px;font-weight:800;color:#f1f5f9;">Состояние сети</div>
                         <div style="display:flex;align-items:center;gap:8px;">
                             <button id="dotsModeBtn" onclick="GatewayApp.ui.toggleDotsMode();" title="Направление точек" style="background:none;border:none;cursor:pointer;color:#64748b;padding:2px 6px;font-size:13px;line-height:1;font-family:'JetBrains Mono',monospace;font-weight:700;">→</button>
                             <button id="routeVizToggleBtn" onclick="GatewayApp.ui.toggleRouteVizMode();" title="Переключить вид" style="background:none;border:none;cursor:pointer;color:#64748b;padding:2px 4px;font-size:14px;line-height:1;">📊</button>
+                            <button id="colResizerBtn" onclick="GatewayApp.ui.toggleColResizer();" title="Настроить ширину колонок" style="background:none;border:none;cursor:pointer;color:#64748b;padding:2px 4px;font-size:14px;line-height:1;">⚙</button>
                         <span id="globalProtectionBadge" class="status-badge loading">
                             <span style="animation:skelPulse 1s infinite;display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;"></span>
                             Проверка...
@@ -946,9 +982,9 @@
                     </div>
 
                     <!-- Traffic sparkline -->
-                    <div id="trafficChartSection" style="margin-top:14px;border-top:1px solid rgba(255,255,255,0.04);padding-top:12px;">
+                    <div id="trafficChartSection" style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.04);">
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                            <span class="section-label">График трафика · 60 сек</span>
+                            <span class="section-label" data-chart-label>График трафика · 60 сек</span>
                             <div style="display:flex;gap:12px;align-items:center;">
                                 <div style="display:flex;align-items:center;gap:5px;">
                                     <span style="width:7px;height:7px;border-radius:50%;background:#c9a84c;display:inline-block;flex-shrink:0;"></span>
@@ -969,13 +1005,9 @@
 
                 </div>
 
-                <!-- Drag handle -->
-                <div id="topGridDivider" title="Перетащить для изменения размера" style="width:14px;cursor:col-resize;display:flex;align-items:center;justify-content:center;flex-shrink:0;user-select:none;" onpointerdown="GatewayApp.ui.startPanelResize(event)">
-                    <div style="width:3px;height:36px;border-radius:2px;background:rgba(255,255,255,0.07);transition:background 0.15s;" onmouseover="this.style.background='rgba(201,168,76,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.07)'"></div>
-                </div>
 
                 <!-- Subscription + Nodes card -->
-                <div class="glass" id="panelSub" style="padding:24px;display:flex;flex-direction:column;gap:20px;flex:1;min-width:240px;">
+                <div class="glass" id="panelSub" style="padding:24px;display:flex;flex-direction:column;gap:20px;flex:0 0 600px;max-width:600px;min-width:240px;container-type:inline-size;">
                     <div>
                         <div style="font-size:16px;font-weight:800;color:#f1f5f9;margin-bottom:16px;">Подписка</div>
                         <div class="section-label" style="margin-bottom:6px;">URL провайдера (V2Ray / Clash)</div>
@@ -993,9 +1025,14 @@
 
                     <div style="flex:1;display:flex;flex-direction:column;min-height:0;">
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                            <div style="display:flex;align-items:center;gap:6px;">
+                            <div style="display:flex;align-items:center;gap:10px;">
                                 <div class="section-label">УЗЛЫ</div>
                                 <span id="nodesOnlineCount" style="font-size:10px;font-weight:700;color:#34d399;"></span>
+                                <label id="autoNodeToggle" title="Автоматически выбирает узел с наименьшей задержкой" style="display:flex;align-items:center;gap:5px;cursor:pointer;user-select:none;">
+                                    <input type="checkbox" id="autoNodeCheck" onchange="if(this.checked)GatewayApp.actions.restoreNodeSettings()" style="display:none;">
+                                    <span id="autoNodeBox" style="width:14px;height:14px;border-radius:4px;border:1.5px solid rgba(148,163,184,0.4);display:flex;align-items:center;justify-content:center;transition:all 0.15s;flex-shrink:0;"></span>
+                                    <span style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:0.04em;">АВТО</span>
+                                </label>
                             </div>
                             <button class="btn-ghost" id="pingBtn" onclick="GatewayApp.actions.pingNodes()">
                                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:inline;margin-right:4px;"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
@@ -1032,7 +1069,7 @@
                         </div>
                     </div>
                     <!-- Desktop table header -->
-                    <div class="dev-table-hdr" style="display:grid;grid-template-columns:2.2fr 0.8fr 2fr 1.5fr 1.8fr 1.2fr 2fr;gap:10px;padding:8px 20px;border-bottom:1px solid rgba(255,255,255,0.04);align-items:center;">
+                    <div class="dev-table-hdr dev-table-hdr-cols" style="display:grid;grid-template-columns:2.2fr 0.8fr 2fr 1.5fr 1.8fr 1.2fr 2fr;gap:10px;padding:8px 20px;border-bottom:1px solid rgba(255,255,255,0.04);align-items:center;">
                         <div class="section-label sort-hdr" onclick="GatewayApp.ui.setSort('hostname')" style="cursor:pointer;user-select:none;display:flex;align-items:center;gap:3px;white-space:nowrap;">Клиент <span id="sort-ind-hostname" style="font-size:9px;"></span></div>
                         <div class="section-label" style="white-space:nowrap;">Активность</div>
                         <div class="section-label sort-hdr" onclick="GatewayApp.ui.setSort('traffic')" style="cursor:pointer;user-select:none;display:flex;align-items:center;gap:3px;white-space:nowrap;"><span id="sort-ind-traffic" style="font-size:9px;"></span>Трафик</div>
@@ -1079,10 +1116,6 @@
                             <button class="btn-primary" style="font-size:10px;padding:4px 12px;" onclick="GatewayApp.ui.showGroupEditor()">+ Создать</button>
                         </div>
                         <div id="groups-list" style="display:flex;flex-direction:column;gap:10px;"></div>
-                    </div>
-                    <!-- Divider (synced with top panels) -->
-                    <div title="Перетащить" style="width:14px;cursor:col-resize;display:flex;align-items:center;justify-content:center;flex-shrink:0;user-select:none;" onpointerdown="GatewayApp.ui.startPanelResize(event)">
-                        <div style="width:3px;height:36px;border-radius:2px;background:rgba(255,255,255,0.07);transition:background 0.15s;" onmouseover="this.style.background='rgba(201,168,76,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.07)'"></div>
                     </div>
                     <!-- RIGHT: Route test -->
                     <div id="routesRight" class="glass" style="padding:20px;flex:1;min-width:280px;overflow-y:auto;">
@@ -1474,6 +1507,18 @@
 
         ];
 
+        // Used in fetchConnections and app-chip popup to match connection hosts → appId
+        const _APP_MATCH_PATTERNS = [
+            ['telegram',  /telegram\.org|t\.me|telesco\.pe|tdesktop|telegram-cdn/i],
+            ['tiktok',    /tiktok|bytedance|musical\.ly|tiktokcdn|tiktokv\./i],
+            ['youtube',   /youtube|googlevideo|ytimg/i],
+            ['instagram', /instagram|cdninstagram|fbcdn\.net|facebook\.com/i],
+            ['gemini',    /gemini|generativelanguage/i],
+            ['claude',    /claude|anthropic/i],
+            ['chatgpt',   /openai|chatgpt/i],
+            ['netflix',   /netflix\.com|nflxvideo\.net/i],
+        ];
+
         const DEVICE_ICONS = {
             phone:   `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18" stroke-width="3"/></svg>`,
             apple:   `<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>`,
@@ -1818,7 +1863,9 @@
 
             renderDevices: (devices) => {
                 const trafficKeys = devices.map(d => { const t = state.traffic?.[d.ip]; return t ? `${d.ip}:${(t.speed_down||0)>0||(t.speed_up||0)>0?1:0}` : ''; }).join(',');
-                const newHash = JSON.stringify(devices) + JSON.stringify(state.nodes) + JSON.stringify(state.deviceApps) + (state._modeStyle||'emoji') + trafficKeys + (state._devSearch||'');
+                const _adKey = Object.entries(state._activeDeviceApps || {}).map(([ip,apps]) => ip + ':' + Object.keys(apps).sort().join('+')).sort().join('|');
+                const _timeBucket = Math.floor(Date.now() / 30000); // forces re-render every 30s for chip cooldown
+                const newHash = JSON.stringify(devices) + JSON.stringify(state.nodes) + JSON.stringify(state.deviceApps) + (state._modeStyle||'emoji') + trafficKeys + (state._devSearch||'') + _adKey + _timeBucket;
                 if (state._devicesHash === newHash) return;
                 state._devicesHash = newHash;
 
@@ -1900,24 +1947,29 @@
                     const hasTikTok = !!devApps['tiktok'];
                     const tiktokNode = dev.tiktok_node || 'auto';
                     const nodeOptions = [['auto','Авто'], ...state.nodes.map(n=>[n.tag, n.tag])].map(([v,l])=>`<option value="${v}"${tiktokNode===v?' selected':''}>${l}</option>`).join('');
-                    const appsHtml = `<div style="display:flex;flex-direction:column;gap:4px;">
-                        <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;max-width:204px;">
-                        ${APPS.filter(a=>!a.ny).map(app => {
-                            const active = !!devApps[app.id];
-                            const chipStyle = active ? `--chip-bg:${app.color}22;--chip-border:${app.color}55;--chip-color:${app.color};` : '';
-                            return `<button class="app-chip${active ? ' active' : ''}" data-ip="${dev.ip}" data-app="${app.id}" title="${app.title}" style="${chipStyle}">${APP_ICONS[app.id]}</button>`;
-                        }).join('')}
-                        </div>
-                        <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;max-width:204px;">
-                        ${APPS.filter(a=>a.ny).map(app => {
-                            const active = app.alwaysActive || !!devApps[app.id];
-                            const chipStyle = active ? `--chip-bg:${app.color}22;--chip-border:${app.color}55;--chip-color:${app.color};` : '';
-                            return `<button class="app-chip${active ? ' active' : ''}" data-ip="${dev.ip}" data-app="${app.id}" title="${app.title}" style="${chipStyle}">${APP_ICONS[app.id]}<span class="us-dot"></span></button>`;
+                    const _liveApps = (state._activeDeviceApps || {})[dev.ip] || {};
+                    const _CHIP_CD  = 30000; // 30s cooldown
+                    const _nowMs    = Date.now();
+                    const _recentApps = (state._lastSeenApps || {})[dev.ip] || {};
+                    const _isRecent = (aid) => !!_recentApps[aid] && (_nowMs - _recentApps[aid] < _CHIP_CD);
+                    // Show chip if live now OR seen within last 30s
+                    const _visNonNY = APPS.filter(a => !a.ny && (!!_liveApps[a.id] || _isRecent(a.id)));
+                    const _visNY    = APPS.filter(a =>  a.ny && (!!_liveApps[a.id] || _isRecent(a.id)));
+                    const _anyChips = _visNonNY.length > 0 || _visNY.length > 0;
+                    const appsHtml = _anyChips ? `<div style="display:flex;flex-direction:column;gap:4px;">
+                        <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;max-width:216px;">
+                        ${[..._visNonNY, ..._visNY].map(app => {
+                            const isNY = app.ny;
+                            const isLive   = !!_liveApps[app.id];
+                            const isRecent = !isLive && _isRecent(app.id);
+                            const active   = isLive || isRecent;
+                            const chipStyle = active ? `--chip-bg:${app.color}${isLive?'22':'15'};--chip-border:${app.color}${isLive?'55':'40'};--chip-color:${app.color};${isRecent?'opacity:0.5;':''}` : '';
+                            const dot = isNY ? '<span class="us-dot"></span>' : '';
+                            return `<button class="app-chip${active?' active':''}${isLive?' live':''}" data-ip="${dev.ip}" data-app="${app.id}" title="${app.title}" style="${chipStyle}">${APP_ICONS[app.id]}${dot}</button>`;
                         }).join('')}
                         </div>
                         ${hasUSApp ? `<div style="font-size:9px;color:#60a5fa;font-weight:700;font-family:'JetBrains Mono',monospace;display:flex;align-items:center;gap:3px;"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>NY узел</div>` : ''}
-                        ${hasTikTok ? `<div style="display:flex;align-items:center;gap:4px;"><span style="font-size:9px;color:#ee1d52;font-weight:700;flex-shrink:0;">TT →</span><select class="gsg-select tiktok-node-select" data-ip="${dev.ip}" style="font-size:10px;padding:2px 6px;height:22px;min-width:0;flex:1;max-width:120px;" title="Узел для TikTok">${nodeOptions}</select></div>` : ''}
-                    </div>`;
+                    </div>` : `<span style="color:#334155;font-size:12px;">—</span>`;
 
                     // Compute effective route for this device
                     let routeNode = null;
@@ -1935,18 +1987,28 @@
                     const _modeC = _modeColors[dev.mode] || '#64748b';
                     const _ms = state._modeStyle || 'emoji';
 
+                    // Cache last known route node tag per device
+                    if (!state._lastRouteTag) state._lastRouteTag = {};
                     let routeHtml;
                     if (dev.mode === 'bypass') {
-                        routeHtml = `<div style="display:flex;align-items:center;gap:8px;"><span style="font-size:20px;">🔓</span><div><div style="font-size:12px;font-weight:700;color:#94a3b8;">Напрямую</div><div style="font-size:10px;color:var(--muted);">без прокси</div></div></div>`;
+                        routeHtml = `<div style="font-size:12px;font-weight:700;color:#64748b;white-space:nowrap;">Напрямую</div>`;
                     } else if (dev.mode === 'block') {
-                        routeHtml = `<div style="display:flex;align-items:center;gap:8px;"><span style="font-size:20px;">🚫</span><div><div style="font-size:12px;font-weight:700;color:#ef4444;">Заблокировано</div></div></div>`;
-                    } else if (routeNode) {
-                        const rn = routeNode;
-                        const nodeColor = dev.mode === 'global' ? '#3b82f6' : '#c9a84c';
-                        const ronline = rn.status === 'online';
-                        routeHtml = `<div style="min-width:0;"><div title="${rn.tag}" style="font-size:12px;font-weight:700;color:${ronline ? nodeColor : 'var(--muted)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${rn.tag}</div></div>`;
+                        routeHtml = `<div style="font-size:12px;font-weight:700;color:#ef4444;white-space:nowrap;">Заблокировано</div>`;
                     } else {
-                        routeHtml = `<div style="font-size:11px;color:var(--muted);">Нет узлов</div>`;
+                        const nodeColor = dev.mode === 'global' ? '#3b82f6' : '#c9a84c';
+                        const _devSpd = state.traffic?.[dev.ip];
+                        const _devActive = (Object.keys(_liveApps).length > 0) || (_devSpd && ((_devSpd.speed_down || 0) + (_devSpd.speed_up || 0)) > 0);
+                        if (routeNode) {
+                            state._lastRouteTag[dev.ip] = routeNode.tag; // remember last known route
+                        }
+                        const displayTag = routeNode?.tag || state._lastRouteTag[dev.ip];
+                        const ronline = routeNode ? routeNode.status === 'online' : false;
+                        if (displayTag) {
+                            const _routeColor = !routeNode ? '#64748b' : !ronline ? 'var(--muted)' : _devActive ? nodeColor : '#64748b';
+                            routeHtml = `<div style="min-width:0;"><div title="${displayTag}" style="font-size:12px;font-weight:700;color:${_routeColor};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color 0.4s;">${displayTag}</div></div>`;
+                        } else {
+                            routeHtml = `<div style="font-size:11px;color:#64748b;">—</div>`;
+                        }
                     }
 
                     return `<div data-ip="${dev.ip}" data-device-ip="${dev.ip}" class="device-row-item dev-row-grid" onmouseover="this.style.background='rgba(255,255,255,0.025)'" onmouseout="this.style.background=''">
@@ -2027,13 +2089,13 @@
                         ${appsHtml}
                         <!-- Col 6: MODE -->
                         <div>
-                            <div style="display:flex;gap:3px;flex-wrap:wrap;">
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;">
                                 ${['smart','global','bypass','block'].map(m => {
                                     const pillColors = {smart:'#c9a84c',global:'#3b82f6',bypass:'#94a3b8',block:'#ef4444'};
                                     const pillLabels = {smart:'Smart',global:'Global',bypass:'Bypass',block:'Block'};
                                     const c = pillColors[m];
                                     const active = dev.mode === m;
-                                    return `<span class="mode-pill" data-ip="${dev.ip}" data-mode="${m}" title="${{smart:'Smart',global:'Global',bypass:'Bypass',block:'Block'}[m]}" style="padding:2px 7px;border-radius:5px;font-size:9px;font-weight:700;cursor:pointer;transition:all 0.15s;white-space:nowrap;${active ? `background:${c}22;border:1px solid ${c};color:${c};` : `background:transparent;border:1px solid rgba(255,255,255,0.08);color:rgba(148,163,184,0.5);`}">${pillLabels[m]}</span>`;
+                                    return `<span class="mode-pill" data-ip="${dev.ip}" data-mode="${m}" title="${{smart:'Smart',global:'Global',bypass:'Bypass',block:'Block'}[m]}" style="padding:2px 4px;border-radius:5px;font-size:9px;font-weight:700;cursor:pointer;transition:all 0.15s;text-align:center;${active ? `background:${c}22;border:1px solid ${c};color:${c};` : `background:transparent;border:1px solid rgba(255,255,255,0.08);color:rgba(148,163,184,0.5);`}">${pillLabels[m]}</span>`;
                                 }).join('')}
                             </div>
                         </div>
@@ -2155,7 +2217,10 @@
                     const sparkEl = document.querySelector(`.dev-spark[data-ip="${ip}"]`);
                     if (sparkEl) sparkEl.innerHTML = ui.makeSparkBars(state.deviceTrafficHistory[ip], state.deviceChainHistory[ip], state._deviceUpHistory?.[ip]);
                 });
-                // Update route column with live chain breakdown (hash-gated to prevent flicker)
+                // Update route column with live chain breakdown + 30s dimming cooldown
+                const _CHAIN_CD = 30000;
+                const _now = Date.now();
+                if (!state._chainLastSeen) state._chainLastSeen = {};
                 if (state.deviceChains) {
                     Object.keys(state.deviceChains).forEach(ip => {
                         const chains = state.deviceChains[ip];
@@ -2164,24 +2229,45 @@
                         const routeEl = rowEl?.querySelector('.dev-col-route');
                         if (!routeEl) return;
                         const dev = state.devices?.find(d => d.ip === ip);
-                        const sortedChains = Object.entries(chains)
-                            .filter(([, d]) => d.speed_down > 0 || d.speed_up > 0)
-                            .sort(([, a], [, b]) => (b.speed_down + b.speed_up) - (a.speed_down + a.speed_up));
-                        if (sortedChains.length === 0) { if (routeEl.innerHTML) routeEl.innerHTML = ''; return; }
-                        // Build a hash of what matters: chain names + whether each has active speed
-                        const chainHash = sortedChains.map(([ch, d]) => `${ch}:${d.speed_down > 0 ? 1 : 0}:${d.speed_up > 0 ? 1 : 0}:${Math.round((d.total_down + d.total_up) / 1024)}`).join('|');
+                        if (!state._chainLastSeen[ip]) state._chainLastSeen[ip] = {};
+                        // Update last-seen timestamps for active chains
+                        Object.entries(chains).forEach(([ch, d]) => {
+                            if (d.speed_down > 0 || d.speed_up > 0) state._chainLastSeen[ip][ch] = _now;
+                        });
+                        // Include: active chains + recently-seen chains (within 30s), max 3
+                        const visibleChains = Object.entries(chains)
+                            .map(([ch, d]) => {
+                                const lastSeen = state._chainLastSeen[ip][ch] || 0;
+                                const isActive = d.speed_down > 0 || d.speed_up > 0;
+                                const isRecent = !isActive && (_now - lastSeen < _CHAIN_CD);
+                                return { ch, d, isActive, isRecent };
+                            })
+                            .filter(x => x.isActive || x.isRecent)
+                            .sort((a, b) => {
+                                if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
+                                return (b.d.speed_down + b.d.speed_up) - (a.d.speed_down + a.d.speed_up);
+                            })
+                            .slice(0, 3);
+                        if (visibleChains.length === 0) {
+                            routeEl.dataset.chainHash = '';
+                            return;
+                        }
+                        // Hash includes active flag + speed for change detection
+                        const chainHash = visibleChains.map(({ ch, d, isActive }) =>
+                            `${ch}:${isActive?1:0}:${Math.round((d.speed_down+d.speed_up)/512)}`
+                        ).join('|');
                         if (routeEl.dataset.chainHash === chainHash) return;
                         routeEl.dataset.chainHash = chainHash;
                         routeEl.innerHTML = `<div style="display:flex;flex-direction:column;gap:5px;min-width:0;">${
-                            sortedChains.map(([chain, data]) => {
-                                const isDirect = chain === 'DIRECT';
-                                const color = isDirect ? '#94a3b8' : (dev?.mode === 'global' ? '#3b82f6' : '#c9a84c');
-                                const label = isDirect ? 'Напрямую' : chain;
-                                const hasSpeed = data.speed_down > 0 || data.speed_up > 0;
-                                const speedHtml = hasSpeed
-                                    ? `<span style="color:#34d399;">↓${utils.formatBytes(data.speed_down)}/s</span> <span style="color:#60a5fa;">↑${utils.formatBytes(data.speed_up)}/s</span>`
-                                    : `<span style="color:rgba(100,116,139,0.6);">${utils.formatBytes(data.total_down + data.total_up)}</span>`;
-                                return `<div style="min-width:0;"><div title="${label}" style="font-size:11px;font-weight:700;color:${color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${label}</div><div style="font-family:'JetBrains Mono',monospace;font-size:9px;margin-top:1px;">${speedHtml}</div></div>`;
+                            visibleChains.map(({ ch, d, isActive }) => {
+                                const isDirect = ch === 'DIRECT';
+                                const baseColor = isDirect ? '#94a3b8' : (dev?.mode === 'global' ? '#3b82f6' : '#c9a84c');
+                                const color = isActive ? baseColor : '#64748b';
+                                const label = isDirect ? 'Напрямую' : ch;
+                                const speedHtml = isActive
+                                    ? `<span style="color:#34d399;">↓${utils.formatBytes(d.speed_down)}/s</span> <span style="color:#60a5fa;">↑${utils.formatBytes(d.speed_up)}/s</span>`
+                                    : `<span style="color:#475569;">затихает…</span>`;
+                                return `<div style="min-width:0;opacity:${isActive?1:0.45};transition:opacity 0.5s;"><div title="${label}" style="font-size:11px;font-weight:700;color:${color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${label}</div><div style="font-family:'JetBrains Mono',monospace;font-size:9px;margin-top:1px;">${speedHtml}</div></div>`;
                             }).join('')
                         }</div>`;
                     });
@@ -2575,17 +2661,20 @@
                 const countEl = document.getElementById('nodesOnlineCount');
                 if (countEl) countEl.textContent = onlineCount ? `${onlineCount}/${state.nodes.length} онлайн` : '';
 
-                let html = `
-                    <div class="node-card ${state.globalNode === 'auto' ? 'selected' : ''}" onclick="GatewayApp.actions.setGlobalNode('auto')" title="Автоматически выбирает узел с наименьшей задержкой. Проверка каждые 5 минут или по запросу.">
-                        <div style="display:flex;align-items:center;gap:8px;">
-                            <span style="font-size:18px;">⚡</span>
-                            <div>
-                                <div style="font-size:12px;font-weight:700;color:${state.globalNode==='auto'?'#93c5fd':'#f1f5f9'};">Авто</div>
-                                <div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">Балансировка</div>
-                            </div>
-                        </div>
-                    </div>`;
+                // Update Auto checkbox state
+                const autoCheck = document.getElementById('autoNodeCheck');
+                const autoBox   = document.getElementById('autoNodeBox');
+                const isAuto    = state.globalNode === 'auto';
+                if (autoCheck) autoCheck.checked = isAuto;
+                if (autoBox) {
+                    autoBox.style.background      = isAuto ? '#3b82f6' : 'transparent';
+                    autoBox.style.borderColor     = isAuto ? '#3b82f6' : 'rgba(148,163,184,0.4)';
+                    autoBox.innerHTML             = isAuto ? '<svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="#fff" stroke-width="2"><polyline points="1.5,5 4,7.5 8.5,2"/></svg>' : '';
+                }
+                const autoLabel = document.getElementById('autoNodeToggle');
+                if (autoLabel) autoLabel.querySelector('span:last-child').style.color = isAuto ? '#93c5fd' : 'var(--muted)';
 
+                let html = '';
                 const today = new Date().toISOString().slice(0, 10);
                 const thisMonth = today.slice(0, 7);
                 html += state.nodes.map(n => {
@@ -2600,18 +2689,16 @@
                     const todayTotal = (todayD.down + todayD.up) || sessionTotal;
                     const monthTotal = (monthD.down + monthD.up);
                     return `
-                    <div class="node-card ${isSelected ? 'selected' : ''}" onclick="GatewayApp.actions.setGlobalNode('${n.tag}')">
-                        <div style="display:flex;align-items:center;gap:8px;overflow:hidden;min-width:0;">
-                            <div style="overflow:hidden;min-width:0;">
-                                <div style="font-size:12px;font-weight:700;color:${isSelected?'#93c5fd':'#f1f5f9'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${n.tag}</div>
-                                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-                                    <span style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;text-transform:uppercase;">${n.type}</span>
-                                    ${todayTotal > 0 ? `<span data-node-traf="${n.tag}" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(52,211,153,0.8);">сег: ${utils.formatBytes(todayTotal)}</span>` : `<span data-node-traf="${n.tag}"></span>`}
-                                    ${monthTotal > 0 ? `<span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(96,165,250,0.8);">мес: ${utils.formatBytes(monthTotal)}</span>` : ''}
-                                </div>
+                    <div class="node-card ${isSelected ? 'selected' : ''}" onclick="GatewayApp.actions.setGlobalNode('${n.tag}')" style="min-height:64px;align-items:flex-start;">
+                        <div style="overflow:hidden;min-width:0;flex:1;">
+                            <div title="${n.tag}" style="font-size:12px;font-weight:700;color:${isSelected?'#93c5fd':'#f1f5f9'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3;margin-bottom:4px;">${n.tag}</div>
+                            <div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;text-transform:uppercase;margin-bottom:2px;">${n.type}</div>
+                            <div style="display:flex;gap:8px;">
+                                <span data-node-traf="${n.tag}" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:${todayTotal>0?'rgba(52,211,153,0.8)':'rgba(100,116,139,0.5)'};">сег: ${todayTotal > 0 ? utils.formatBytes(todayTotal) : '—'}</span>
+                                <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:${monthTotal>0?'rgba(96,165,250,0.8)':'rgba(100,116,139,0.5)'};">мес: ${monthTotal > 0 ? utils.formatBytes(monthTotal) : '—'}</span>
                             </div>
                         </div>
-                        <div style="flex-shrink:0;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;" class="${pingClass}">
+                        <div style="flex-shrink:0;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;margin-top:2px;" class="${pingClass}">
                             ${n.status === 'online' ? n.ping + 'ms' : 'ERR'}
                         </div>
                     </div>`;
@@ -2871,10 +2958,10 @@
                     const globalDur = gTier.dur;
 
                     // Traffic-proportional spawn rate: more traffic = more dots
-                    // Separate rates for download (inbound, dir=-1) and upload (outbound, dir=1)
+                    // Shared peak so download (dominant) gets dense flow, upload gets proportionally lighter
                     const peakBps  = Math.max(smAuto, smNy, smDirect, 1);
-                    const peakDown = Math.max(smAutoDown, smNyDown, smDirectDown, 1);
-                    const peakUp   = Math.max(smAutoUp, smNyUp, smDirectUp, 10 * 1024); // min 10KB/s so tiny upload doesn't get amplified
+                    // Shared peak across both directions: ensures upload density is proportional to download
+                    const peakShared = Math.max(smAutoDown, smNyDown, smDirectDown, smAutoUp, smNyUp, smDirectUp, 10 * 1024);
                     const MAX_RATE = 2.0;
                     const MIN_RATE = 0.4;
                     const toRate   = (bps, peak) => {
@@ -2886,13 +2973,13 @@
                     const rate_ny     = toRate(smNy, peakBps);
                     const rate_direct = toRate(smDirect, peakBps);
                     // Download rates → inbound particles (dir=-1, right-to-left)
-                    const rate_auto_down   = toRate(smAutoDown, peakDown);
-                    const rate_ny_down     = toRate(smNyDown, peakDown);
-                    const rate_direct_down = toRate(smDirectDown, peakDown);
+                    const rate_auto_down   = toRate(smAutoDown, peakShared);
+                    const rate_ny_down     = toRate(smNyDown, peakShared);
+                    const rate_direct_down = toRate(smDirectDown, peakShared);
                     // Upload rates → outbound particles (dir=1, left-to-right)
-                    const rate_auto_up   = toRate(smAutoUp, peakUp);
-                    const rate_ny_up     = toRate(smNyUp, peakUp);
-                    const rate_direct_up = toRate(smDirectUp, peakUp);
+                    const rate_auto_up   = toRate(smAutoUp, peakShared);
+                    const rate_ny_up     = toRate(smNyUp, peakShared);
+                    const rate_direct_up = toRate(smDirectUp, peakShared);
 
                     // rn_* needed for pre-seeding (use per-branch duration)
                     const rn_auto   = Math.max(0, Math.round(rate_auto   * branchDur.auto));
@@ -2942,7 +3029,17 @@
                             const chain = c.chain || 'DIRECT';
                             const br = chain === 'DIRECT' ? 'direct' : _isNyTag(chain) ? 'ny' : 'auto';
                             const h = c.host;
-                            if (!h || /^\d+\.\d+\.\d+\.\d+$/.test(h)) return;
+                            if (!h || /^\d+\.\d+\.\d+\.\d+$/.test(h)) {
+                                // IP-only connection: infer service from proxy node name (e.g. "🇺🇸 NY | VK" → "vk")
+                                if (chain !== 'DIRECT') {
+                                    const pipeIdx = chain.indexOf('|');
+                                    if (pipeIdx !== -1) {
+                                        const svc = chain.substring(pipeIdx + 1).trim();
+                                        if (svc) _domCount[br][svc] = (_domCount[br][svc] || 0) + 1;
+                                    }
+                                }
+                                return;
+                            }
                             // Detect app from host
                             for (const [app, re] of _appPatterns) {
                                 if (re.test(h)) {
@@ -2962,11 +3059,59 @@
                                 if (cnt >= (_appMinConns[app] || 1)) box._activeApps[br].add(app);
                             }
                         }
+                        // Per-domain speed from connection byte deltas
+                        const _domSpeed = { auto: {}, ny: {}, direct: {} };
+                        Object.values(state._connSpeeds || {}).forEach(s => {
+                            const chain = s.chain || 'DIRECT';
+                            const br = chain === 'DIRECT' ? 'direct' : _isNyTag(chain) ? 'ny' : 'auto';
+                            const h = s.host;
+                            if (!h) return;
+                            const isIp = /^\d+\.\d+\.\d+\.\d+$/.test(h);
+                            let key;
+                            if (isIp) {
+                                // IP-only: use service label from chain
+                                const pipeIdx = chain.indexOf('|');
+                                key = pipeIdx !== -1 ? chain.substring(pipeIdx + 1).trim() : null;
+                            } else {
+                                const parts = h.split('.');
+                                key = parts.length > 2 ? parts.slice(-2).join('.') : h;
+                            }
+                            if (!key) return;
+                            _domSpeed[br][key] = (_domSpeed[br][key] || 0) + (s.down || 0) + (s.up || 0);
+                        });
                         for (const br of ['auto', 'ny', 'direct']) {
                             _topDomains[br] = Object.entries(_domCount[br])
-                                .sort((a, b) => b[1] - a[1])
+                                .sort((a, b) => {
+                                    // Sort by speed first, then by connection count
+                                    const sa = _domSpeed[br][a[0]] || 0;
+                                    const sb = _domSpeed[br][b[0]] || 0;
+                                    return sb !== sa ? sb - sa : b[1] - a[1];
+                                })
                                 .slice(0, 12)
-                                .map(([d, n]) => ({ domain: d, count: n }));
+                                .map(([d, n]) => ({ domain: d, count: n, speed: _domSpeed[br][d] || 0 }));
+                        }
+                    }
+                    // Top device per branch (by download speed)
+                    const _branchTopDev = { auto: null, ny: null, direct: null };
+                    {
+                        const _devSpeed = { auto: {}, ny: {}, direct: {} };
+                        Object.values(state._connSpeeds || {}).forEach(s => {
+                            if (!s.src) return;
+                            const chain = s.chain || 'DIRECT';
+                            const br = chain === 'DIRECT' ? 'direct' : _isNyTag(chain) ? 'ny' : 'auto';
+                            _devSpeed[br][s.src] = (_devSpeed[br][s.src] || 0) + (s.down || 0);
+                        });
+                        for (const br of ['auto', 'ny', 'direct']) {
+                            const top = Object.entries(_devSpeed[br]).sort((a, b) => b[1] - a[1])[0];
+                            if (top && top[1] > 512) {
+                                const ip = top[0];
+                                const dev = (state.devices || []).find(d => d.ip === ip);
+                                _branchTopDev[br] = {
+                                    ip,
+                                    name: dev ? (dev.custom_name || dev.hostname || ip) : ip,
+                                    bps: top[1],
+                                };
+                            }
                         }
                     }
                     // Domain → icon mapping (domain string → app icon key)
@@ -2980,10 +3125,11 @@
                         [/claude|anthropic/i, 'claude', '#d97706', 'Claude'],
                         [/gemini|generativelanguage/i, 'gemini', '#8ab4f8', 'Gemini'],
                         // Favicon-based icons (no SVG in APP_ICONS — rendered via <img>)
+                        [/kinopoisk/i, 'kinopoisk', '#ff6600', 'Kinopoisk', 'https://www.kinopoisk.ru/favicon.ico'],
                         [/yandex|ya\.ru/i, 'yandex', '#ff0000', 'Yandex', 'https://yandex.ru/favicon.ico'],
                         [/apple\.|icloud\.|apple-cloudkit\./i, 'apple', '#a3a3a3', 'Apple', 'https://apple.com/favicon.ico'],
                         [/megogo\./i, 'megogo', '#1db954', 'Megogo', 'https://megogo.net/favicon.ico'],
-                        [/vk\.|userapi\.com|vkuseraudio\./i, 'vk', '#0077ff', 'VK', 'https://vk.com/favicon.ico'],
+                        [/^VK$|vk\.|userapi\.com|vkuseraudio\./i, 'vk', '#0077ff', 'VK', 'https://vk.com/favicon.ico'],
                         [/ok\.ru|odnoklassniki\./i, 'ok', '#ee8208', 'OK', 'https://ok.ru/favicon.ico'],
                         [/spotify\.|scdn\.co/i, 'spotify', '#1db954', 'Spotify', 'https://open.spotify.com/favicon.ico'],
                         [/twitch\.|twitchsvc\./i, 'twitch', '#9146ff', 'Twitch', 'https://twitch.tv/favicon.ico'],
@@ -2999,6 +3145,13 @@
                         return null;
                     };
                     // Build domain items: icon+label for known apps, pill for unknown
+                    const _fmtSpd = (bps) => {
+                        if (!bps || bps < 512) return '';
+                        if (bps < 1024*1024) return (bps/1024).toFixed(0) + 'K';
+                        return (bps/1024/1024).toFixed(1) + 'M';
+                    };
+                    const _pillStyle = 'display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:6px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.4);flex-shrink:0;overflow:hidden;box-sizing:border-box;transition:opacity 0.2s ease,transform 0.2s ease;';
+                    const _spdBadge = (bps) => bps > 512 ? `<span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(52,211,153,0.85);font-weight:700;white-space:nowrap;flex-shrink:0;">${_fmtSpd(bps)}</span>` : '';
                     const _domItems = (br, fallbackColor) => {
                         const seen = new Set();
                         const items = [];
@@ -3008,25 +3161,26 @@
                                 // Debounce: skip apps that need more connections to confirm activity
                                 if ((_appMinConns[ic.key] || 0) > 0 && d.count < _appMinConns[ic.key]) continue;
                                 seen.add(ic.key);
+                                const spd = _spdBadge(d.speed);
                                 const svg = APP_ICONS[ic.key];
                                 if (svg) {
-                                    // SVG icon (YouTube, Telegram, etc.)
-                                    items.push(`<div title="${ic.label} (${d.count} соед.)" data-dom-key="${ic.key}" style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:6px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.4);flex-shrink:0;transition:opacity 0.2s ease,transform 0.2s ease;"><div style="width:16px;height:16px;display:flex;align-items:center;justify-content:center;color:${ic.color};flex-shrink:0;">${svg}</div><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#fff;white-space:nowrap;line-height:1.2;">${ic.label}</span></div>`);
+                                    items.push(`<div title="${ic.label} (${d.count} соед.)" data-dom-key="${ic.key}" style="${_pillStyle}"><div style="width:16px;height:16px;display:flex;align-items:center;justify-content:center;color:${ic.color};flex-shrink:0;">${svg}</div><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;">${ic.label}</span>${spd}</div>`);
                                     continue;
                                 }
-                                // Special: GlobalShield — gold pill with "GS" text
                                 if (ic.key === 'globalshield') {
-                                    items.push(`<div title="${ic.label} (${d.count} соед.)" data-dom-key="${ic.key}" style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:6px;background:rgba(251,191,36,0.2);border:1px solid rgba(251,191,36,0.5);flex-shrink:0;transition:opacity 0.2s ease,transform 0.2s ease;"><span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:800;color:#fbbf24;line-height:1;">GS</span><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#fff;white-space:nowrap;line-height:1.2;">${ic.label}</span></div>`);
+                                    items.push(`<div title="${ic.label} (${d.count} соед.)" data-dom-key="${ic.key}" style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:6px;background:rgba(251,191,36,0.2);border:1px solid rgba(251,191,36,0.5);flex-shrink:0;overflow:hidden;box-sizing:border-box;transition:opacity 0.2s ease,transform 0.2s ease;"><span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:800;color:#fbbf24;line-height:1;">GS</span><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;">${ic.label}</span>${spd}</div>`);
                                     continue;
                                 }
-                                // Favicon-based icon (Yandex, Apple, VK, etc.)
                                 if (ic.favicon) {
-                                    items.push(`<div title="${ic.label} (${d.count} соед.)" data-dom-key="${ic.key}" style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:6px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.4);flex-shrink:0;transition:opacity 0.2s ease,transform 0.2s ease;"><img src="${ic.favicon}" width="14" height="14" style="border-radius:2px;vertical-align:middle;flex-shrink:0;" onerror="this.style.display='none'"><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#fff;white-space:nowrap;line-height:1.2;">${ic.label}</span></div>`);
+                                    items.push(`<div title="${ic.label} (${d.count} соед.)" data-dom-key="${ic.key}" style="${_pillStyle}"><img src="${ic.favicon}" width="14" height="14" style="border-radius:2px;vertical-align:middle;flex-shrink:0;" onerror="this.style.display='none'"><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;">${ic.label}</span>${spd}</div>`);
                                     continue;
                                 }
                             }
                             if (!ic) {
-                                items.push(`<div data-dom-key="${d.domain}" title="${d.count} соед." style="font-family:'JetBrains Mono',monospace;font-size:12px;padding:3px 8px;border-radius:6px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.4);color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px;line-height:1.3;transition:opacity 0.2s ease,transform 0.2s ease;">${d.domain}</div>`);
+                                const _skipLabels = /^(обход блокировок|bypass|балансировка|balance|auto|авто|прямой|direct)$/i;
+                                if (_skipLabels.test(d.domain)) continue;
+                                const spd = _spdBadge(d.speed);
+                                items.push(`<div data-dom-key="${d.domain}" title="${d.count} соед." style="font-family:'JetBrains Mono',monospace;font-size:12px;padding:3px 8px;border-radius:6px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.4);color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box;line-height:1.3;transition:opacity 0.2s ease,transform 0.2s ease;display:inline-flex;align-items:center;gap:5px;flex-shrink:0;">${d.domain}${spd}</div>`);
                             }
                         }
                         return items.join('');
@@ -3058,7 +3212,7 @@
 
                         const pillBase = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10;display:flex;align-items:center;border-radius:9px;padding:5px 10px;width:180px;box-sizing:border-box;';
                         const nameStyle = 'font-size:10px;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;min-width:0;';
-                        box.innerHTML = `<div style="display:grid;grid-template-columns:90px 172px 56px 1fr;grid-template-rows:auto auto auto;row-gap:10px;align-items:center;margin-bottom:18px;">
+                        box.innerHTML = `<div style="display:grid;grid-template-columns:90px 172px 56px 1fr;grid-template-rows:1fr 1fr 1fr;row-gap:10px;align-items:center;flex:1;margin-bottom:0;">
   <div style="grid-row:1/4;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;text-align:center;width:90px;min-width:0;">
     <div style="font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);">Устройства</div>
     <div id="rl-dev-preview" style="display:flex;gap:2px;flex-wrap:wrap;justify-content:center;max-width:90px;">${devPreview || '<div style="width:18px;height:18px;border-radius:6px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);display:flex;align-items:center;justify-content:center;font-size:9px;">💻</div>'}</div>
@@ -3074,56 +3228,61 @@
       <div style="position:absolute;left:50%;transform:translateX(-50%);bottom:-16px;font-size:9px;font-weight:800;color:#c9a84c;letter-spacing:0.09em;text-shadow:0 0 10px rgba(201,168,76,0.5);white-space:nowrap;">GSG</div>
     </div>
   </div>
-  <div id="rl-auto-row" style="display:grid;grid-template-columns:1fr minmax(0,1fr);align-items:center;gap:6px;min-height:58px;transition:opacity 0.5s ease;">
+  <div id="rl-auto-row" style="display:grid;grid-template-columns:1fr minmax(0,1fr);align-items:center;gap:6px;min-height:58px;overflow:visible;transition:opacity 0.5s ease;">
     <div style="position:relative;height:100%;overflow:visible;">
       <div id="rl-auto-track" style="position:absolute;left:0;right:0;top:50%;height:2px;background:${alBg};transform:translateY(-50%);border-radius:1px;transition:height 0.4s ease;"></div>
       <div id="rl-auto" style="position:absolute;left:0;right:0;top:50%;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
-      <div style="${pillBase}background:rgba(10,9,8,0.96);border:1px solid rgba(52,211,153,0.35);">
+      <div id="rl-auto-pill" style="${pillBase}background:rgba(10,9,8,0.96);border:1px solid rgba(52,211,153,0.35);transition:border-color 0.4s ease,box-shadow 0.4s ease;">
         <div style="min-width:0;flex:1;">
           <div style="${nameStyle}">${autoName}</div>
           <div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;font-weight:600;white-space:nowrap;" class="${autoPingCls}">${autoPingStr}</div>
           <span id="rl-auto-spd" style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:rgba(201,168,76,0.7);white-space:nowrap;"></span>
+          <span id="rl-auto-dev" style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:rgba(148,163,184,0.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:160px;"></span>
         </div>
       </div>
     </div>
-    <div id="rl-auto-apps" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;max-height:120px;overflow:hidden;">
+    <div id="rl-auto-apps" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;overflow:hidden;min-width:0;">
       ${_domItems('auto', 'rgba(201,168,76,')}
     </div>
   </div>
-  <div id="rl-ny-row" style="display:grid;grid-template-columns:1fr minmax(0,1fr);align-items:center;gap:6px;min-height:58px;transition:opacity 0.5s ease;">
+  <div id="rl-ny-row" style="display:grid;grid-template-columns:1fr minmax(0,1fr);align-items:center;gap:6px;min-height:58px;overflow:visible;transition:opacity 0.5s ease;">
     <div style="position:relative;height:100%;overflow:visible;">
       <div id="rl-ny-track" style="position:absolute;left:0;right:0;top:50%;height:2px;background:${nlBg};transform:translateY(-50%);border-radius:1px;transition:height 0.4s ease;"></div>
       <div id="rl-ny" style="position:absolute;left:0;right:0;top:50%;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
-      <div style="${pillBase}background:rgba(10,9,8,0.96);border:1px solid rgba(52,211,153,0.35);">
+      <div id="rl-ny-pill" style="${pillBase}background:rgba(10,9,8,0.96);border:1px solid rgba(52,211,153,0.35);transition:border-color 0.4s ease,box-shadow 0.4s ease;">
         <div style="min-width:0;flex:1;">
           <div style="${nameStyle}">${nyName}</div>
           <div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;font-weight:600;white-space:nowrap;" class="${nyPingCls}">${nyPingStr}</div>
           <span id="rl-ny-spd" style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:rgba(96,165,250,0.7);white-space:nowrap;"></span>
+          <span id="rl-ny-dev" style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:rgba(148,163,184,0.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:160px;"></span>
         </div>
       </div>
     </div>
-    <div id="rl-ny-apps" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;max-height:120px;overflow:hidden;">
+    <div id="rl-ny-apps" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;overflow:hidden;min-width:0;">
       ${_domItems('ny', 'rgba(96,165,250,')}
     </div>
   </div>
-  <div id="rl-dir-row" style="display:grid;grid-template-columns:1fr minmax(0,1fr);align-items:center;gap:6px;min-height:58px;transition:opacity 0.5s ease;">
+  <div id="rl-dir-row" style="display:grid;grid-template-columns:1fr minmax(0,1fr);align-items:center;gap:6px;min-height:58px;overflow:visible;transition:opacity 0.5s ease;">
     <div style="position:relative;height:100%;overflow:visible;">
       <div id="rl-dir-track" style="position:absolute;left:0;right:0;top:50%;height:2px;background:rgba(52,211,153,0.15);transform:translateY(-50%);border-radius:1px;transition:height 0.4s ease;"></div>
       <div id="rl-dir" style="position:absolute;left:0;right:0;top:50%;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
-      <div style="${pillBase}background:rgba(10,9,8,0.96);border:1px solid rgba(52,211,153,0.35);">
+      <div id="rl-dir-pill" style="${pillBase}background:rgba(10,9,8,0.96);border:1px solid rgba(52,211,153,0.35);transition:border-color 0.4s ease,box-shadow 0.4s ease;">
         ${directFlagPill ? `<div style="flex-shrink:0;margin-right:6px;display:flex;align-items:center;">${directFlagPill}</div>` : ''}
         <div style="min-width:0;flex:1;">
           <div style="${nameStyle}">Напрямую</div>
           <div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:rgba(148,163,184,0.5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${ispName}">${shortIspViz || directIp}</div>
           <span id="rl-dir-spd" style="font-family:\'JetBrains Mono\',monospace;font-size:8px;color:rgba(148,163,184,0.6);white-space:nowrap;"></span>
+          <span id="rl-dir-dev" style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:rgba(148,163,184,0.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;max-width:160px;"></span>
         </div>
       </div>
     </div>
-    <div id="rl-dir-apps" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;max-height:120px;overflow:hidden;">
+    <div id="rl-dir-apps" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;overflow:hidden;min-width:0;">
       ${_domItems('direct', 'rgba(148,163,184,') || '<div title="Интернет напрямую" style="width:34px;height:34px;border-radius:8px;background:rgba(148,163,184,0.07);border:1px solid rgba(148,163,184,0.2);display:flex;align-items:center;justify-content:center;font-size:18px;">🌐</div>'}
     </div>
   </div>
 </div>`;
+                        // Apply saved column widths after DOM rebuild
+                        ui.applyColResizerFromStorage();
                     }
 
                     // ── Dynamic line thickness, opacity, speed badges ─────────────────
@@ -3142,6 +3301,9 @@
                             { id: 'ny',   bps: smNy   },
                             { id: 'dir',  bps: smDirect },
                         ];
+                        const _pillGlowColor = { auto: '201,168,76', ny: '96,165,250', dir: '148,163,184' };
+                        const _pillDownBps   = { auto: smAutoDown, ny: smNyDown, dir: smDirectDown };
+                        const _pillPeakDown  = Math.max(smAutoDown, smNyDown, smDirectDown, 1);
                         for (const { id, bps } of branches) {
                             const trackEl = document.getElementById(`rl-${id}-track`);
                             const rowEl   = document.getElementById(`rl-${id}-row`);
@@ -3149,9 +3311,44 @@
                             if (trackEl) trackEl.style.height  = lineH(bps) + 'px';
                             if (rowEl)   rowEl.style.opacity   = rowOp(bps, id);
                             if (spdEl)   spdEl.textContent     = fmtSpd(bps);
+                            // Active route glow: brighter border + box-shadow proportional to download speed
+                            const pillEl = document.getElementById(`rl-${id}-pill`);
+                            if (pillEl) {
+                                const dBps = _pillDownBps[id] || 0;
+                                const intensity = Math.min(dBps / _pillPeakDown, 1);
+                                const rgb = _pillGlowColor[id];
+                                if (dBps > 1024) {
+                                    // Scale border opacity 0.35 → 0.9, glow spread 0 → 18px
+                                    const borderA = (0.35 + intensity * 0.55).toFixed(2);
+                                    const glowA   = (intensity * 0.45).toFixed(2);
+                                    const glowSz  = Math.round(6 + intensity * 12);
+                                    pillEl.style.borderColor = `rgba(${rgb},${borderA})`;
+                                    pillEl.style.boxShadow   = `0 0 ${glowSz}px rgba(${rgb},${glowA})`;
+                                } else {
+                                    pillEl.style.borderColor = 'rgba(52,211,153,0.35)';
+                                    pillEl.style.boxShadow   = 'none';
+                                }
+                            }
                         }
                         const inTrack = document.getElementById('rl-in-track');
                         if (inTrack) inTrack.style.height = lineH(totalDeviceSpeed) + 'px';
+                    }
+
+                    // ── Update top device per branch ──
+                    {
+                        const _devMap = { auto: 'rl-auto-dev', ny: 'rl-ny-dev', direct: 'rl-dir-dev' };
+                        for (const br of ['auto', 'ny', 'direct']) {
+                            const el = document.getElementById(_devMap[br]);
+                            if (!el) continue;
+                            const td = _branchTopDev[br];
+                            if (td) {
+                                const spd = td.bps > 1024*1024 ? (td.bps/1024/1024).toFixed(1)+'M' : Math.round(td.bps/1024)+'K';
+                                el.textContent = `↓ ${td.name} · ${spd}`;
+                                el.title = `${td.ip} — ${(td.bps/1024/1024).toFixed(2)} MB/s`;
+                            } else {
+                                el.textContent = '';
+                            }
+                        }
                     }
 
                     // ── Update domain icons/pills with per-item diff transitions ──
@@ -3226,17 +3423,17 @@
                         box._vizSpawn   = box._vizSpawn   || { auto: 0, ny: 0, direct: 0 };
 
                         const B_ID    = { auto: 'rl-auto', ny: 'rl-ny', direct: 'rl-dir' };
-                        const B_COLOR = { auto: '#c9a84c',  ny: '#60a5fa',  direct: '#94a3b8' };
-                        const B_COLOR_RX = { auto: '#a8892e', ny: '#3b82f6', direct: '#64748b' };
+                        const B_COLOR = { auto: '#a8892e',  ny: '#3b82f6',  direct: '#64748b' };
+                        const B_COLOR_RX = { auto: '#f0c844', ny: '#93c5fd', direct: '#cbd5e1' };
                         const B_GLOW  = {
-                            auto:   '0 0 8px rgba(201,168,76,0.5)',
-                            ny:     '0 0 8px rgba(96,165,250,0.4)',
-                            direct: '0 0 6px rgba(148,163,184,0.3)'
+                            auto:   '0 0 5px rgba(168,137,46,0.3)',
+                            ny:     '0 0 5px rgba(59,130,246,0.3)',
+                            direct: '0 0 4px rgba(100,116,139,0.2)'
                         };
                         const B_GLOW_RX = {
-                            auto:   '0 0 6px rgba(168,137,46,0.35)',
-                            ny:     '0 0 6px rgba(59,130,246,0.3)',
-                            direct: '0 0 4px rgba(100,116,139,0.2)'
+                            auto:   '0 0 10px rgba(240,200,68,0.7)',
+                            ny:     '0 0 10px rgba(147,197,253,0.6)',
+                            direct: '0 0 8px rgba(203,213,225,0.6)'
                         };
 
                         const mkDot = (color, glow, sz, opacity) => {
@@ -3297,11 +3494,11 @@
                                     // Capture per-particle speed at seed time
                                     const seedSpeed = pixPerSecBranch[branch] || pixPerSecBranch.auto;
                                     if (dir === 1) {
-                                        // Outbound dot — same as before
+                                        // Outbound dot (upload) — small & dim
                                         if (x < vp.inW) {
                                             const el = document.getElementById('rl-in');
                                             if (!el) return;
-                                            const dot = mkDot('#34d399', '0 0 8px rgba(52,211,153,0.6)', vp.globalSz);
+                                            const dot = mkDot('#34d399', '0 0 8px rgba(52,211,153,0.6)', vp.globalSz * 0.6, 0.45);
                                             dot.style.left = x + 'px';
                                             el.appendChild(dot);
                                             pkts.push({ el: dot, phase: 'in', x, branch, dir: 1, speed: seedSpeed });
@@ -3309,18 +3506,18 @@
                                             const el = document.getElementById(B_ID[branch]);
                                             if (!el) return;
                                             const bx = x - vp.inW;
-                                            const dot = mkDot(B_COLOR[branch], B_GLOW[branch], vp.globalSz);
+                                            const dot = mkDot(B_COLOR[branch], B_GLOW[branch], vp.globalSz * 0.6, 0.45);
                                             dot.style.left = bx + 'px';
                                             el.appendChild(dot);
                                             pkts.push({ el: dot, phase: 'out', x: bx, branch, dir: 1, speed: seedSpeed });
                                         }
                                     } else {
-                                        // Inbound dot — starts on branch line, moves toward devices
+                                        // Inbound dot (download) — large & bright
                                         if (x < vp.outW) {
                                             const el = document.getElementById(B_ID[branch]);
                                             if (!el) return;
                                             const bx = vp.outW - x;
-                                            const dot = mkDot(B_COLOR_RX[branch], B_GLOW_RX[branch], vp.globalSz * 0.85, 0.7);
+                                            const dot = mkDot(B_COLOR_RX[branch], B_GLOW_RX[branch], vp.globalSz);
                                             dot.style.left = bx + 'px';
                                             el.appendChild(dot);
                                             pkts.push({ el: dot, phase: 'out', x: bx, branch, dir: -1, speed: seedSpeed });
@@ -3328,7 +3525,7 @@
                                             const el = document.getElementById('rl-in');
                                             if (!el) return;
                                             const ix = vp.inW - (x - vp.outW);
-                                            const dot = mkDot(B_COLOR_RX[branch], B_GLOW_RX[branch], vp.globalSz * 0.85, 0.7);
+                                            const dot = mkDot(B_COLOR_RX[branch], B_GLOW_RX[branch], vp.globalSz);
                                             dot.style.left = Math.max(0, ix) + 'px';
                                             el.appendChild(dot);
                                             pkts.push({ el: dot, phase: 'in', x: Math.max(0, ix), branch, dir: -1, speed: seedSpeed });
@@ -3354,8 +3551,8 @@
                                             try { pk.el.parentNode?.removeChild(pk.el); } catch(e){}
                                             const bEl = document.getElementById(B_ID[pk.branch]);
                                             if (!bEl) { pkts.splice(i, 1); continue; }
-                                            const sz = pk._sz ?? vp.globalSz;
-                                            const dot = mkDot(B_COLOR[pk.branch], B_GLOW[pk.branch], sz);
+                                            const sz = pk._sz ?? vp.globalSz * 0.6;
+                                            const dot = mkDot(B_COLOR[pk.branch], B_GLOW[pk.branch], sz, 0.45);
                                             dot.style.left = '0px';
                                             dot._sz = sz;
                                             bEl.appendChild(dot);
@@ -3393,8 +3590,8 @@
                                             try { pk.el.parentNode?.removeChild(pk.el); } catch(e){}
                                             const inEl = document.getElementById('rl-in');
                                             if (!inEl) { pkts.splice(i, 1); continue; }
-                                            const sz = pk._sz ?? vp.globalSz * 0.85;
-                                            const dot = mkDot(B_COLOR_RX[pk.branch], B_GLOW_RX[pk.branch], sz, 0.7);
+                                            const sz = pk._sz ?? vp.globalSz;
+                                            const dot = mkDot(B_COLOR_RX[pk.branch], B_GLOW_RX[pk.branch], sz);
                                             dot.style.left = vp.inW + 'px';
                                             dot._sz = sz;
                                             inEl.appendChild(dot);
@@ -3444,8 +3641,8 @@
                                 if (dir === 1) {
                                     const el = document.getElementById('rl-in');
                                     if (!el) return;
-                                    const sz = vp.globalSz;
-                                    const dot = mkDot('#34d399', '0 0 8px rgba(52,211,153,0.6)', sz);
+                                    const sz = vp.globalSz * 0.6;
+                                    const dot = mkDot('#34d399', '0 0 8px rgba(52,211,153,0.6)', sz, 0.45);
                                     dot.style.left = '0px';
                                     dot._sz = sz;
                                     el.appendChild(dot);
@@ -3469,8 +3666,8 @@
                                 } else {
                                     const el = document.getElementById(B_ID[br]);
                                     if (!el) return;
-                                    const sz = vp.globalSz * 0.85;
-                                    const dot = mkDot(B_COLOR_RX[br], B_GLOW_RX[br], sz, 0.7);
+                                    const sz = vp.globalSz;
+                                    const dot = mkDot(B_COLOR_RX[br], B_GLOW_RX[br], sz);
                                     dot.style.left = vp.outW + 'px';
                                     dot._sz = sz;
                                     el.appendChild(dot);
@@ -3716,46 +3913,54 @@
                 const hist = state.trafficHistory;
                 if (hist.length < 2) return;
 
-                // All series share the same Y scale (max across all)
+                const N = hist.length;
                 const maxVal = Math.max(1024, ...hist.map(p =>
-                    Math.max(p.down||0, p.autoDown||0, p.nyDown||0, p.directDown||0)));
-                const drawLine = (key, stroke, fill, lw) => {
-                    const pts = hist.map((p, i) => ({
-                        x: (i / (hist.length - 1)) * W,
-                        y: H - ((p[key]||0) / maxVal) * H * 0.88 - H * 0.06
-                    }));
-                    if (fill) {
-                        ctx.beginPath();
-                        ctx.moveTo(pts[0].x, H);
-                        ctx.lineTo(pts[0].x, pts[0].y);
-                        for (let i = 1; i < pts.length; i++) {
-                            const cpx = (pts[i-1].x + pts[i].x) / 2;
-                            ctx.bezierCurveTo(cpx, pts[i-1].y, cpx, pts[i].y, pts[i].x, pts[i].y);
-                        }
-                        ctx.lineTo(pts[pts.length-1].x, H);
-                        ctx.closePath();
-                        ctx.fillStyle = fill;
-                        ctx.fill();
-                    }
+                    Math.max(p.autoDown||0, p.nyDown||0, p.directDown||0)));
+
+                const getY = (v) => H - ((v || 0) / maxVal) * H * 0.85 - H * 0.04;
+
+                const drawSmoothArea = (key, stroke, fill, lw) => {
+                    const step = W / (N - 1);
                     ctx.beginPath();
-                    ctx.moveTo(pts[0].x, pts[0].y);
-                    for (let i = 1; i < pts.length; i++) {
-                        const cpx = (pts[i-1].x + pts[i].x) / 2;
-                        ctx.bezierCurveTo(cpx, pts[i-1].y, cpx, pts[i].y, pts[i].x, pts[i].y);
+                    ctx.moveTo(0, H);
+                    ctx.lineTo(0, getY(hist[0]?.[key]));
+                    for (let i = 1; i < N; i++) {
+                        const x0 = (i - 1) * step, x1 = i * step;
+                        const cx = (x0 + x1) / 2;
+                        ctx.bezierCurveTo(cx, getY(hist[i-1]?.[key]), cx, getY(hist[i]?.[key]), x1, getY(hist[i]?.[key]));
+                    }
+                    ctx.lineTo(W, H);
+                    ctx.closePath();
+                    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+                    ctx.beginPath();
+                    ctx.moveTo(0, getY(hist[0]?.[key]));
+                    for (let i = 1; i < N; i++) {
+                        const x0 = (i - 1) * step, x1 = i * step;
+                        const cx = (x0 + x1) / 2;
+                        ctx.bezierCurveTo(cx, getY(hist[i-1]?.[key]), cx, getY(hist[i]?.[key]), x1, getY(hist[i]?.[key]));
                     }
                     ctx.strokeStyle = stroke;
                     ctx.lineWidth = (lw || 1.5) * dpr;
                     ctx.lineJoin = 'round';
+                    ctx.lineCap = 'round';
                     ctx.stroke();
                 };
-                drawLine('directDown', '#94a3b8', 'rgba(148,163,184,0.05)', 1.0);
-                drawLine('nyDown', '#3b82f6', 'rgba(59,130,246,0.10)', 1.5);
-                drawLine('autoDown', '#c9a84c', 'rgba(201,168,76,0.13)', 1.5);
 
-                const last = hist[hist.length - 1] || {};
-                const autoSpd   = (last.autoDown||0)   + (last.autoUp||0);
-                const nySpd     = (last.nyDown||0)      + (last.nyUp||0);
-                const directSpd = (last.directDown||0)  + (last.directUp||0);
+                drawSmoothArea('directDown', '#94a3b8', 'rgba(148,163,184,0.05)', 1.0);
+                drawSmoothArea('nyDown', '#3b82f6', 'rgba(59,130,246,0.10)', 1.5);
+                drawSmoothArea('autoDown', '#c9a84c', 'rgba(201,168,76,0.13)', 1.5);
+
+                const labelEl = document.querySelector('.section-label[data-chart-label]');
+                if (labelEl) {
+                    const secs = N;
+                    const dur = secs >= 3600 ? '1 час' : secs >= 60 ? Math.round(secs/60) + ' мин' : secs + ' сек';
+                    labelEl.textContent = `График трафика · ${dur}`;
+                }
+
+                const last = hist[N - 1] || {};
+                const autoSpd   = (last.autoDown||0) + (last.autoUp||0);
+                const nySpd     = (last.nyDown||0)   + (last.nyUp||0);
+                const directSpd = (last.directDown||0) + (last.directUp||0);
                 const el = (id) => document.getElementById(id);
                 if (el('chartSpeedAuto')) el('chartSpeedAuto').textContent = utils.formatBytes(autoSpd)   + '/s';
                 if (el('chartSpeedNy'))   el('chartSpeedNy').textContent   = utils.formatBytes(nySpd)     + '/s';
@@ -3925,7 +4130,7 @@
                 const onMove = (ev) => {
                     const dx  = ev.clientX - startX;
                     const tot = totalW();
-                    const newW = Math.min(Math.max(startLW + dx, 320), tot - 240);
+                    const newW = Math.min(Math.max(startLW + dx, 500), tot - 380);
                     const ratio = newW / tot;
                     left.style.flex  = `0 0 ${newW}px`;
                     right.style.flex = `0 0 ${tot - newW}px`;
@@ -3976,6 +4181,316 @@
                     if (box._vizPackets) { box._vizPackets.forEach(p => { try { p.el?.parentNode?.removeChild(p.el); } catch(e){} }); box._vizPackets = []; }
                 }
             },
+
+            // ── Column Resizer ────────────────────────────────────────
+            toggleColResizer: () => {
+                const existing = document.getElementById('colResizerOverlay');
+                if (existing) { existing.remove(); return; }
+                const section = document.getElementById('routeViz');
+                if (!section) return;
+                const grid = section.firstElementChild;
+                if (!grid) return;
+                const parent = section.closest('.glass');
+                if (!parent) return;
+
+                // Default divider positions (% of section width) — between 4 columns
+                // Default grid: 90px 172px 56px 1fr on ~700px => ~13%, ~37.5%, ~45.5%
+                const sectionW = section.offsetWidth;
+                const defaults = ui._colResizerDefaults(sectionW);
+                const saved = ui._colResizerLoad();
+                const positions = saved || defaults.slice();
+
+                // Subgrid ratio (0..1) — split between nodes and domains inside 4th column
+                let subgridRatio = ui._subgridRatioLoad() ?? ui._defaultColPositions().subgrid;
+
+                const overlay = document.createElement('div');
+                overlay.id = 'colResizerOverlay';
+                overlay.style.cssText = 'position:absolute;top:0;left:0;right:0;bottom:0;z-index:50;background:rgba(0,0,0,0.35);border-radius:16px;';
+
+                // Toolbar
+                const toolbar = document.createElement('div');
+                toolbar.style.cssText = 'position:absolute;top:8px;right:8px;display:flex;gap:6px;z-index:52;';
+                toolbar.innerHTML = `
+                    <button onclick="GatewayApp.ui.copyColPositions();" style="font-family:'JetBrains Mono',monospace;font-size:10px;padding:4px 10px;border-radius:6px;border:1px solid rgba(59,130,246,0.4);background:rgba(59,130,246,0.15);color:#60a5fa;cursor:pointer;">📋 Позиции</button>
+                    <button onclick="GatewayApp.ui.resetColResizer();" style="font-family:'JetBrains Mono',monospace;font-size:10px;padding:4px 10px;border-radius:6px;border:1px solid rgba(239,68,68,0.4);background:rgba(239,68,68,0.15);color:#f87171;cursor:pointer;">Сбросить</button>
+                    <button onclick="GatewayApp.ui.toggleColResizer();" style="font-family:'JetBrains Mono',monospace;font-size:10px;padding:4px 10px;border-radius:6px;border:1px solid rgba(251,191,36,0.4);background:rgba(251,191,36,0.15);color:#fbbf24;cursor:pointer;">Готово</button>
+                `;
+                overlay.appendChild(toolbar);
+
+                // Create 3 main divider lines
+                positions.forEach((pct, idx) => {
+                    const line = document.createElement('div');
+                    line.className = 'col-resizer-line';
+                    line.dataset.idx = idx;
+                    line.style.cssText = `position:absolute;top:0;bottom:0;width:2px;background:rgba(251,191,36,0.8);left:${pct}%;z-index:51;cursor:col-resize;`;
+
+                    const handle = document.createElement('div');
+                    handle.style.cssText = 'position:absolute;top:4px;left:50%;transform:translateX(-50%);width:16px;height:16px;border-radius:50%;background:rgba(251,191,36,0.9);border:2px solid rgba(251,191,36,1);cursor:col-resize;z-index:53;box-shadow:0 0 8px rgba(251,191,36,0.5);';
+                    line.appendChild(handle);
+                    overlay.appendChild(line);
+                });
+
+                // Create 4th line — subgrid divider between nodes and domains
+                const _subgridLinePct = () => {
+                    const col4Start = positions[2]; // 3rd divider = start of 4th column
+                    const col4Width = 100 - col4Start;
+                    return col4Start + col4Width * subgridRatio;
+                };
+                const subLine = document.createElement('div');
+                subLine.className = 'col-resizer-line col-resizer-subgrid';
+                subLine.dataset.idx = 'sub';
+                subLine.style.cssText = `position:absolute;top:0;bottom:0;width:2px;background:rgba(251,191,36,0.5);left:${_subgridLinePct()}%;z-index:51;cursor:col-resize;border-style:dashed;`;
+                const subHandle = document.createElement('div');
+                subHandle.style.cssText = 'position:absolute;top:4px;left:50%;transform:translateX(-50%);width:16px;height:16px;border-radius:50%;background:rgba(251,191,36,0.6);border:2px dashed rgba(251,191,36,0.9);cursor:col-resize;z-index:53;box-shadow:0 0 8px rgba(251,191,36,0.3);';
+                subLine.appendChild(subHandle);
+                overlay.appendChild(subLine);
+
+                parent.style.position = 'relative';
+                parent.appendChild(overlay);
+
+                // Drag logic
+                let dragging = null;
+                const onDown = (e) => {
+                    const line = e.target.closest('.col-resizer-line');
+                    if (!line) return;
+                    e.preventDefault();
+                    const idx = line.dataset.idx === 'sub' ? 'sub' : parseInt(line.dataset.idx);
+                    dragging = { idx, startX: (e.touches ? e.touches[0].clientX : e.clientX) };
+                };
+                const onMove = (e) => {
+                    if (dragging === null) return;
+                    e.preventDefault();
+                    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                    const rect = overlay.getBoundingClientRect();
+                    const relX = clientX - rect.left;
+                    let pct = (relX / rect.width) * 100;
+
+                    if (dragging.idx === 'sub') {
+                        // Subgrid line: clamp within 4th column
+                        const col4Start = positions[2];
+                        const col4Width = 100 - col4Start;
+                        const minGap = (40 / rect.width) * 100;
+                        pct = Math.max(col4Start + minGap, Math.min(100 - minGap, pct));
+                        subgridRatio = (pct - col4Start) / col4Width;
+                        subgridRatio = Math.max(0.1, Math.min(0.9, subgridRatio));
+                        subLine.style.left = pct + '%';
+                        ui._applySubgridRatio(subgridRatio);
+                    } else {
+                        // Main column lines — same as before
+                        const minGap = (60 / rect.width) * 100;
+                        const prevLimit = dragging.idx > 0 ? positions[dragging.idx - 1] + minGap : minGap;
+                        const nextLimit = dragging.idx < positions.length - 1 ? positions[dragging.idx + 1] - minGap : 100 - minGap;
+                        pct = Math.max(prevLimit, Math.min(nextLimit, pct));
+
+                        positions[dragging.idx] = pct;
+                        const lines = overlay.querySelectorAll('.col-resizer-line:not(.col-resizer-subgrid)');
+                        lines[dragging.idx].style.left = pct + '%';
+
+                        // Also reposition subgrid line (4th column start may have moved)
+                        subLine.style.left = _subgridLinePct() + '%';
+
+                        // Live update grid
+                        ui._applyColPositions(positions, section);
+                    }
+                };
+                const onUp = () => {
+                    if (dragging === null) return;
+                    dragging = null;
+                    ui._colResizerSave(positions);
+                    ui._subgridRatioSave(subgridRatio);
+                };
+
+                overlay.addEventListener('mousedown', onDown);
+                overlay.addEventListener('touchstart', onDown, { passive: false });
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('touchmove', onMove, { passive: false });
+                document.addEventListener('mouseup', onUp);
+                document.addEventListener('touchend', onUp);
+
+                overlay._cleanup = () => {
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('touchmove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                    document.removeEventListener('touchend', onUp);
+                };
+            },
+
+            resetColResizer: () => {
+                const key = 'gsg_col_dividers_' + Math.round(window.innerWidth / 200) * 200;
+                localStorage.removeItem(key);
+                localStorage.removeItem('gsg_subgrid_ratio');
+                // Apply interpolated defaults after removing manual settings
+                const interp = ui._defaultColPositions();
+                ui._applyColPositions(interp.cols.slice(0, 3));
+                ui._applySubgridRatio(interp.subgrid);
+                // Remove overlay
+                const overlay = document.getElementById('colResizerOverlay');
+                if (overlay) {
+                    if (overlay._cleanup) overlay._cleanup();
+                    overlay.remove();
+                }
+            },
+
+            copyColPositions: () => {
+                const ui = GatewayApp.ui;
+                const section = document.getElementById('routeViz');
+                const sectionW = section ? section.offsetWidth : 700;
+                const saved = ui._colResizerLoad();
+                const interp = ui._defaultColPositions();
+                const positions = saved || interp.cols.slice(0, 3);
+                const subgrid = ui._subgridRatioLoad() ?? interp.subgrid;
+                // Compute 4th divider (subgrid line) position in %
+                const col4Start = positions[2];
+                const col4Width = 100 - positions[2];
+                const subgridPct = Math.round((col4Start + col4Width * subgrid) * 100) / 100;
+                const cols = positions.map(p => Math.round(p * 100) / 100).concat(subgridPct);
+                const data = {
+                    width: window.innerWidth,
+                    cols: cols,
+                    subgrid: Math.round(subgrid * 1000) / 1000
+                };
+                const json = JSON.stringify(data);
+                const existing = document.getElementById('colPosTextarea');
+                if (existing) { existing.remove(); return; }
+                const overlay = document.getElementById('colResizerOverlay');
+                if (!overlay) return;
+                const ta = document.createElement('textarea');
+                ta.id = 'colPosTextarea';
+                ta.readOnly = true;
+                ta.value = json;
+                ta.rows = 3;
+                ta.style.cssText = 'position:absolute;bottom:8px;left:8px;right:8px;z-index:52;font-family:"JetBrains Mono",monospace;font-size:11px;background:rgba(15,15,20,0.95);color:#fbbf24;border:1px solid rgba(251,191,36,0.6);border-radius:8px;padding:8px;resize:none;width:calc(100% - 16px);box-sizing:border-box;';
+                overlay.appendChild(ta);
+                ta.focus(); ta.select();
+                try { document.execCommand('copy'); } catch(e) {}
+            },
+
+            _colResizerDefaults: (sectionW) => {
+                // Match default grid: 90px 172px 56px 1fr
+                if (!sectionW || sectionW < 100) sectionW = 700;
+                const c1 = 90, c2 = 172, c3 = 56;
+                const d1 = (c1 / sectionW) * 100;
+                const d2 = ((c1 + c2) / sectionW) * 100;
+                const d3 = ((c1 + c2 + c3) / sectionW) * 100;
+                return [d1, d2, d3];
+            },
+
+            // ── Interpolated column positions based on window width ──
+            _interpolateColPositions: (w) => {
+                const WIDE   = { width: 2192, cols: [9.12, 20.16, 25.12, 66.23], subgrid: 0.549 };
+                const NARROW = { width: 1392, cols: [13.14, 23.2, 30.93, 68.85], subgrid: 0.549 };
+                if (w >= WIDE.width)   return { cols: WIDE.cols,   subgrid: WIDE.subgrid };
+                if (w <= NARROW.width) return { cols: NARROW.cols, subgrid: NARROW.subgrid };
+                const t = (w - NARROW.width) / (WIDE.width - NARROW.width);
+                return {
+                    cols:    NARROW.cols.map((n, i) => n + (WIDE.cols[i] - n) * t),
+                    subgrid: NARROW.subgrid
+                };
+            },
+            _defaultColPositions: () => {
+                return GatewayApp.ui._interpolateColPositions(window.innerWidth);
+            },
+
+            _colResizerLoad: () => {
+                const key = 'gsg_col_dividers_' + Math.round(window.innerWidth / 200) * 200;
+                try {
+                    const raw = localStorage.getItem(key);
+                    if (!raw) return null;
+                    const arr = JSON.parse(raw);
+                    if (Array.isArray(arr) && arr.length === 3 && arr.every(v => typeof v === 'number')) return arr;
+                } catch(e) {}
+                return null;
+            },
+
+            _colResizerSave: (positions) => {
+                const key = 'gsg_col_dividers_' + Math.round(window.innerWidth / 200) * 200;
+                localStorage.setItem(key, JSON.stringify(positions.map(p => Math.round(p * 100) / 100)));
+            },
+
+            _subgridRatioLoad: () => {
+                try {
+                    const raw = localStorage.getItem('gsg_subgrid_ratio');
+                    if (!raw) return null;
+                    const v = parseFloat(raw);
+                    if (isFinite(v) && v >= 0.1 && v <= 0.9) return v;
+                } catch(e) {}
+                return null;
+            },
+
+            _subgridRatioSave: (ratio) => {
+                localStorage.setItem('gsg_subgrid_ratio', String(Math.round(ratio * 1000) / 1000));
+            },
+
+            _applySubgridRatio: (ratio) => {
+                const rows = ['rl-auto-row', 'rl-ny-row', 'rl-dir-row'];
+                const fr1 = ratio;
+                const fr2 = 1 - ratio;
+                const tpl = `${fr1}fr minmax(0,${fr2}fr)`;
+                rows.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.style.gridTemplateColumns = tpl;
+                });
+            },
+
+            _applyColPositions: (positions, section) => {
+                if (!section) section = document.getElementById('routeViz');
+                if (!section) return;
+                const grid = section.firstElementChild;
+                if (!grid || grid.style.display !== 'grid') return;
+                const w = section.offsetWidth || 700;
+                const px1 = Math.round(positions[0] / 100 * w);
+                const px2 = Math.round((positions[1] - positions[0]) / 100 * w);
+                const px3 = Math.round((positions[2] - positions[1]) / 100 * w);
+                grid.style.gridTemplateColumns = `${px1}px ${px2}px ${px3}px 1fr`;
+            },
+
+            applyColResizerFromStorage: () => {
+                const saved = ui._colResizerLoad();
+                if (saved) {
+                    // User has manual settings for this bucket — use them
+                    ui._applyColPositions(saved);
+                    const ratio = ui._subgridRatioLoad();
+                    if (ratio !== null) ui._applySubgridRatio(ratio);
+                } else {
+                    // No manual settings — use adaptive interpolation
+                    const interp = ui._defaultColPositions();
+                    // interp.cols has 4 values: [col0edge, col1edge, col2edge, subgridDivider]
+                    // First 3 are main column dividers
+                    ui._applyColPositions(interp.cols.slice(0, 3));
+                    ui._applySubgridRatio(interp.subgrid);
+                }
+                // Refresh vizParams widths without rebuilding DOM (avoids particle flicker)
+                setTimeout(() => ui._refreshVizWidths(), 50);
+            },
+
+            _refreshVizWidths: () => {
+                const box = document.getElementById('routeViz');
+                if (!box || !box._vizParams) return;
+
+                const inEl  = document.getElementById('rl-in');
+                const outEl = document.getElementById('rl-auto');
+                const oldInW  = box._vizParams.inW;
+                const oldOutW = box._vizParams.outW;
+
+                if (inEl)  box._vizParams.inW  = inEl.offsetWidth;
+                if (outEl) box._vizParams.outW = outEl.offsetWidth;
+
+                const newInW  = box._vizParams.inW;
+                const newOutW = box._vizParams.outW;
+
+                // Normalise existing particle positions so they stay in bounds
+                if (box._vizPackets) {
+                    for (const pk of box._vizPackets) {
+                        if (pk.phase === 'in') {
+                            if (pk.x > newInW) pk.x = 0;
+                        } else {
+                            if (pk.x > newOutW) pk.x = 0;
+                        }
+                        if (pk.x < 0) pk.x = pk.phase === 'in' ? newInW : newOutW;
+                    }
+                }
+            },
+            // ── End Column Resizer ─────────────────────────────────────
 
             openFeedback: () => {
                 const last = parseInt(localStorage.getItem('gsg_feedback_last') || '0');
@@ -4909,10 +5424,31 @@
                 state.globalNode = tag;
                 ui.renderNodes();
                 ui.renderRouteViz();
+                // Сразу сохраняем глобальный узел
                 await utils.apiCall('/subscription/node', { method: 'PUT', body: JSON.stringify({ global_node: tag }) });
                 if (tag !== prev) ui.addEvent('🌐', `Глобальный узел: ${tag === 'auto' ? 'Авто' : tag}`, '#fbbf24');
                 actions.fetchNodes();
-                actions.fetchData();
+                if (tag !== 'auto') {
+                    // Bulk assign в фоне — не блокирует UI, обновляет после подтверждения сервера
+                    utils.apiCall('/devices/assign-node', { method: 'PUT', body: JSON.stringify({ assigned_node: tag }), _silent: true })
+                        .then(() => actions.fetchData())
+                        .catch(() => {});
+                } else {
+                    actions.fetchData();
+                }
+            },
+
+            restoreNodeSettings: async () => {
+                await utils.apiCall('/subscription/node', { method: 'PUT', body: JSON.stringify({ global_node: 'auto' }) });
+                state.globalNode = 'auto';
+                ui.addEvent('🌐', 'Узлы устройств восстановлены', '#34d399');
+                ui.renderNodes();
+                ui.renderRouteViz();
+                actions.fetchNodes();
+                // Восстанавливаем снапшот в фоне
+                utils.apiCall('/devices/restore-nodes', { method: 'PUT', _silent: true })
+                    .then(() => actions.fetchData())
+                    .catch(() => {});
             },
 
             pingNodes: async () => {
@@ -4952,8 +5488,8 @@
                 if (nodeTrafficFresh) { state.nodeTraffic = nodeTrafficFresh; ui.updateNodeTrafficDOM(); }
                 if (traffic) {
                     state.traffic = traffic;
-                    ui.updateTrafficDOM();
                     ui.renderDevices(state.devices);
+                    ui.updateTrafficDOM();
                     // Update mobile header speed
                     const msd = document.getElementById('mobileSpeedDown');
                     if (msd) {
@@ -4980,7 +5516,7 @@
                         directDown: Math.max(0, totalDown - autoDown_ - nyDown_),
                         directUp:   Math.max(0, totalUp   - autoUp_   - nyUp_)
                     });
-                    if (state.trafficHistory.length > 60) state.trafficHistory.shift();
+                    if (state.trafficHistory.length > 300) state.trafficHistory.shift();
 
                     // Spike detection for dot visualization (1 dot per traffic burst)
                     // Uses decaying baseline: drops to 0 quickly after traffic stops,
@@ -5059,6 +5595,7 @@
                     state._prevDeviceIPs = newIPs;
                     state.devices = devices;
                     ui.renderDevices(devices);
+                    ui.updateTrafficDOM();
                     actions.fetchVendors(devices);
                 }
             },
@@ -5204,6 +5741,56 @@
                     }
                     const data = await r.json();
                     state.allConnections = data.connections || [];
+                    // Track per-connection speed by diffing cumulative bytes between polls
+                    const now = Date.now();
+                    const prev = state._connPrev || {};
+                    const speeds = {};
+                    state.allConnections.forEach(c => {
+                        const key = `${c.src}|${c.host}|${c.chain}`;
+                        const p = prev[key];
+                        if (p) {
+                            const dt = (now - p.ts) / 1000;
+                            if (dt > 0.05) {
+                                speeds[key] = {
+                                    down: Math.max(0, (c.download - p.down) / dt),
+                                    up:   Math.max(0, (c.upload   - p.up  ) / dt),
+                                    host: c.host, chain: c.chain, src: c.src,
+                                };
+                            }
+                        }
+                        prev[key] = { up: c.upload, down: c.download, ts: now };
+                    });
+                    // Evict stale keys
+                    const activeKeys = new Set(state.allConnections.map(c => `${c.src}|${c.host}|${c.chain}`));
+                    Object.keys(prev).forEach(k => { if (!activeKeys.has(k)) delete prev[k]; });
+                    state._connPrev   = prev;
+                    state._connSpeeds = speeds;
+                    // Compute active apps per device IP (for chip highlighting)
+                    const _adApps = {};
+                    state.allConnections.forEach(c => {
+                        const srcIp = c.src; if (!srcIp) return;
+                        const host = c.host || '';
+                        for (const [aid, pat] of _APP_MATCH_PATTERNS) {
+                            if (pat.test(host)) {
+                                if (!_adApps[srcIp]) _adApps[srcIp] = {};
+                                _adApps[srcIp][aid] = (_adApps[srcIp][aid] || 0) + 1;
+                            }
+                        }
+                    });
+                    // Track last-seen timestamps for cooldown dimming
+                    const _now = Date.now();
+                    if (!state._lastSeenApps) state._lastSeenApps = {};
+                    Object.entries(_adApps).forEach(([ip, apps]) => {
+                        if (!state._lastSeenApps[ip]) state._lastSeenApps[ip] = {};
+                        Object.keys(apps).forEach(aid => { state._lastSeenApps[ip][aid] = _now; });
+                    });
+                    const _prevAdKey = JSON.stringify(state._activeDeviceApps || {});
+                    state._activeDeviceApps = _adApps;
+                    // Trigger immediate device re-render when active apps change
+                    if (JSON.stringify(_adApps) !== _prevAdKey && state.devices?.length) {
+                        ui.renderDevices(state.devices);
+                        ui.updateTrafficDOM();
+                    }
                     ui.applyConnFilter();
                 } catch (e) {
                     if (box) box.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ef4444;font-size:13px;">${e.message}</div>`;
@@ -5935,6 +6522,14 @@
 
             // Global mode buttons (toolbar)
             // Global mode buttons (delegated — toolbar may not exist at init time)
+            // Close app-chip popup when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('#app-chip-popup') && !e.target.closest('.app-chip')) {
+                    const p = document.getElementById('app-chip-popup');
+                    if (p) p.style.display = 'none';
+                }
+            });
+
             document.addEventListener('click', async (e) => {
                 const btn = e.target.closest('.global-mode-btn');
                 if (!btn) return;
@@ -6006,32 +6601,79 @@
                     actions.updateDeviceSettings(ip, dev?.mode || 'smart', node);
                     return;
                 }
-                // App chip
+                // App chip — show info popup
                 const chip = e.target.closest('.app-chip');
                 if (!chip) return;
                 const ip = chip.dataset.ip;
-                const app = chip.dataset.app;
-                if (!ip || !app) return;
+                const appId = chip.dataset.app;
+                if (!ip || !appId) return;
+                e.stopPropagation();
 
-                if (!state.deviceApps[ip]) state.deviceApps[ip] = {};
-                state.deviceApps[ip][app] = !state.deviceApps[ip][app];
-                localStorage.setItem('gsg_device_apps', JSON.stringify(state.deviceApps));
+                const appDef = APPS.find(a => a.id === appId);
+                if (!appDef) return;
 
-                // Determine target node based on selected apps
-                const devApps = state.deviceApps[ip];
-                const needsUS = ['gemini', 'claude'].some(a => devApps[a]);
-                let targetNode = 'auto';
-                if (needsUS) {
-                    const nyNode = state.nodes.find(n => /ny|new.?york/i.test(n.tag) && n.status === 'online');
-                    if (nyNode) targetNode = nyNode.tag;
+                const liveInfo = (state._activeDeviceApps || {})[ip] || {};
+                const isLive = !!liveInfo[appId];
+                const fmtSpd = (bps) => bps >= 1e6 ? `${(bps/1e6).toFixed(1)} MB/s` : bps >= 1024 ? `${(bps/1024).toFixed(0)} KB/s` : `${Math.round(bps)} B/s`;
+
+                // Compute speed for this app on this device
+                let totDown = 0, totConns = 0;
+                if (isLive) {
+                    Object.values(state._connSpeeds || {}).forEach(sp => {
+                        if (sp.src !== ip) return;
+                        for (const [aid, pat] of _APP_MATCH_PATTERNS) {
+                            if (aid === appId && pat.test(sp.host || '')) { totDown += sp.down; totConns++; }
+                        }
+                    });
                 }
 
                 const dev = state.devices.find(d => d.ip === ip);
-                const currentMode = dev ? dev.mode : 'smart';
-                actions.updateDeviceSettings(ip, currentMode, targetNode);
+                const curNode = dev?.assigned_node || 'auto';
 
-                state._devicesHash = null;
-                ui.renderDevices(state.devices);
+                const popup = document.getElementById('app-chip-popup');
+                document.getElementById('app-chip-popup-title').innerHTML =
+                    `<span style="color:${appDef.color};">●</span> ${appDef.title}`;
+
+                const statsEl2 = document.getElementById('app-chip-popup-stats');
+                const _connLine = isLive
+                    ? `<span style="color:#22c55e;font-weight:600;">● Активно</span> · ${liveInfo[appId]} соед${totDown > 0 ? ` · ↓${fmtSpd(totDown)}` : ''}`
+                    : `<span style="color:#475569;">● Нет соединений</span>`;
+                if (appId === 'tiktok') {
+                    statsEl2.innerHTML = _connLine;
+                } else if (appDef.ny) {
+                    statsEl2.innerHTML = _connLine + `<br><span style="color:#3b82f6;font-size:10px;">🇺🇸 Маршрут через NY задан правилами</span>`;
+                } else {
+                    statsEl2.innerHTML = _connLine;
+                }
+
+                const actionsDiv = document.getElementById('app-chip-popup-actions');
+                const nodeLabel = actionsDiv.previousElementSibling;
+                if (appId === 'tiktok') {
+                    // TikTok has dedicated tiktok_node — don't mix with device node
+                    if (nodeLabel) nodeLabel.style.display = 'none';
+                    const ttCur = dev?.tiktok_node || 'auto';
+                    const _pgsTT = [{ tag: 'auto', label: 'Авто' }, ...(state.proxyGroups || []).map(pg => ({ tag: pg.name, label: pg.name }))];
+                    actionsDiv.innerHTML = `<div style="font-size:10px;color:#64748b;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;width:100%;margin-bottom:4px;">Маршрут TikTok</div>`
+                        + _pgsTT.map(n => {
+                            const isCur = n.tag === ttCur;
+                            return `<button onclick="(()=>{const d=GatewayApp.state.devices.find(x=>x.ip==='${ip}');GatewayApp.actions.updateDeviceSettings('${ip}',d?.mode||'smart',d?.assigned_node||'auto','${n.tag}');document.getElementById('app-chip-popup').style.display='none';})()" style="padding:3px 9px;border-radius:6px;font-size:11px;font-weight:600;border:1px solid ${isCur?'#ee1d52':'#334155'};background:${isCur?'rgba(238,29,82,0.12)':'transparent'};color:${isCur?'#ee1d52':'#94a3b8'};cursor:pointer;">${n.label}</button>`;
+                        }).join('');
+                } else if (appDef.ny) {
+                    if (nodeLabel) nodeLabel.style.display = 'none';
+                    actionsDiv.innerHTML = '';
+                } else {
+                    if (nodeLabel) nodeLabel.style.display = '';
+                    const _pgsOpts = [{ tag: 'auto', label: 'Авто' }, ...(state.proxyGroups || []).map(pg => ({ tag: pg.name, label: pg.name }))];
+                    actionsDiv.innerHTML = _pgsOpts.map(n => {
+                        const isCur = n.tag === curNode;
+                        return `<button onclick="GatewayApp.actions.updateDeviceSettings('${ip}','${dev?.mode||'smart'}','${n.tag}');document.getElementById('app-chip-popup').style.display='none';" style="padding:3px 9px;border-radius:6px;font-size:11px;font-weight:600;border:1px solid ${isCur?'#fbbf24':'#334155'};background:${isCur?'rgba(251,191,36,0.12)':'transparent'};color:${isCur?'#fbbf24':'#94a3b8'};cursor:pointer;">${n.label}</button>`;
+                    }).join('');
+                }
+
+                const rect = chip.getBoundingClientRect();
+                popup.style.left = `${Math.min(rect.left, window.innerWidth - 230)}px`;
+                popup.style.top = `${rect.bottom + 6}px`;
+                popup.style.display = 'block';
             });
 
             // Static IP blur — handled inside startStaticIpEdit via input.onblur
@@ -6150,6 +6792,7 @@
             // Init data
             actions.fetchInitialStaticData();
             actions.fetchNodes();
+            actions.fetchGroups();
 
             const pollingLoop = async () => { await actions.fetchData(); setTimeout(pollingLoop, 5000); };
             setTimeout(pollingLoop, 300);
@@ -6238,18 +6881,26 @@
 
         const savedSplit = parseFloat(localStorage.getItem('gsg_panel_split') || '0.62');
 
+        // Restore main panel split from saved ratio
+        requestAnimationFrame(() => {
+            const pL = document.getElementById('panelStatus');
+            const pR = document.getElementById('panelSub');
+            const tG = document.getElementById('topGrid');
+            if (pL && pR && tG && localStorage.getItem('gsg_panel_split')) {
+                const tot = tG.getBoundingClientRect().width - 14;
+                if (tot > 100) {
+                    pL.style.flex = `0 0 ${(savedSplit * tot).toFixed(0)}px`;
+                    pR.style.flex = `0 0 ${((1 - savedSplit) * tot).toFixed(0)}px`;
+                }
+            }
+        });
+
         // Routes split — use same split as main panels
         const rl = document.getElementById('routesLeft');
         const rr2 = document.getElementById('routesRight');
         if (rl && rr2) {
             rl.style.flex = '0 0 ' + (savedSplit * 100).toFixed(1) + '%';
             rr2.style.flex = '0 0 ' + ((1 - savedSplit) * 100).toFixed(1) + '%';
-        }
-        const panelStatus = document.getElementById('panelStatus');
-        const panelSub    = document.getElementById('panelSub');
-        if (panelStatus && panelSub) {
-            panelStatus.style.flex = `0 0 ${(savedSplit * 100).toFixed(1)}%`;
-            panelSub.style.flex    = `0 0 ${((1 - savedSplit) * 100).toFixed(1)}%`;
         }
 
         const savedAnim = localStorage.getItem('gsg_anim');
@@ -6278,6 +6929,22 @@
         }
 
         GatewayApp.init();
+
+        // Resize listener — recalculate column positions on window resize (debounce 200ms)
+        let _resizeTimer = null;
+        window.addEventListener('resize', () => {
+            clearTimeout(_resizeTimer);
+            _resizeTimer = setTimeout(() => {
+                const bucket = 'gsg_col_dividers_' + Math.round(window.innerWidth / 200) * 200;
+                const hasManual = localStorage.getItem(bucket);
+                if (!hasManual) {
+                    const interp = GatewayApp.ui._interpolateColPositions(window.innerWidth);
+                    GatewayApp.ui._applyColPositions(interp.cols.slice(0, 3));
+                    GatewayApp.ui._applySubgridRatio(interp.subgrid);
+                }
+                setTimeout(() => GatewayApp.ui._refreshVizWidths(), 50);
+            }, 200);
+        });
 
         // Show onboarding modal for first-time users
         if (!localStorage.getItem('gsg_onboarding_v1')) {
