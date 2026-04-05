@@ -6846,13 +6846,7 @@
                 const _connLine = isLive
                     ? `<span style="color:#22c55e;font-weight:600;">● Активно</span> · ${liveInfo[appId]} соед${totDown > 0 ? ` · ↓${fmtSpd(totDown)}` : ''}`
                     : `<span style="color:#475569;">● Нет соединений</span>`;
-                if (appId === 'tiktok') {
-                    statsEl2.innerHTML = _connLine;
-                } else if (appDef.ny) {
-                    statsEl2.innerHTML = _connLine + `<br><span style="color:#3b82f6;font-size:10px;">🇺🇸 Маршрут через NY задан правилами</span>`;
-                } else {
-                    statsEl2.innerHTML = _connLine;
-                }
+                statsEl2.innerHTML = _connLine;
 
                 const actionsDiv = document.getElementById('app-chip-popup-actions');
                 const nodeLabel = actionsDiv.previousElementSibling;
@@ -6873,16 +6867,16 @@
                     if (_bypassEl && _bypassGroup) {
                         const _isBypass = _curGroup?.id === 'bypass';
                         const _bEsc = _bypassGroup.id.replace(/'/g,"\\'");
-                        _bypassEl.innerHTML = `<button onclick="document.getElementById('app-chip-popup').style.display='none';GatewayApp.actions.${_isBypass ? `removeAppFromAllGroups('${appId}')` : `addAppToGroup('${appId}','${_bEsc}')`}" title="Маршрутизировать напрямую (без VPN)" style="padding:2px 8px;border-radius:5px;font-size:10px;font-weight:600;border:1px solid ${_isBypass ? '#94a3b855' : '#334155'};background:${_isBypass ? 'rgba(148,163,184,0.15)' : 'transparent'};color:${_isBypass ? '#94a3b8' : '#475569'};cursor:pointer;transition:all 0.15s;white-space:nowrap;">${_isBypass ? '⊘ Напрямую' : 'Напрямую'}</button>`;
+                        _bypassEl.innerHTML = `<button onclick="document.getElementById('app-chip-popup').style.display='none';GatewayApp.actions.${_isBypass ? `removeAppFromAllGroups('${appId}')` : `addAppToGroup('${appId}','${_bEsc}')`}" title="Маршрутизировать напрямую (без VPN)" style="padding:2px 8px;border-radius:5px;font-size:10px;font-weight:600;border:1px solid ${_isBypass ? '#22c55e88' : '#334155'};background:${_isBypass ? 'rgba(34,197,94,0.15)' : 'transparent'};color:${_isBypass ? '#22c55e' : '#475569'};cursor:pointer;transition:all 0.15s;white-space:nowrap;">${_isBypass ? '⊘ Напрямую' : 'Напрямую'}</button>`;
                     }
                     actionsDiv.innerHTML =
                         `<div style="font-size:10px;color:#64748b;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;width:100%;margin-bottom:4px;">Маршрут (домены в группу)</div>` +
                         _groups.map(pg => {
                             const isCur = _curGroup?.id === pg.id;
                             const esc = pg.id.replace(/'/g,"\\'");
-                            return `<button onclick="document.getElementById('app-chip-popup').style.display='none';GatewayApp.actions.${isCur ? `removeAppFromAllGroups('${appId}')` : `addAppToGroup('${appId}','${esc}')`}" style="padding:3px 9px;border-radius:6px;font-size:11px;font-weight:600;border:1px solid ${isCur?appDef.color+'88':'#334155'};background:${isCur?appDef.color+'22':'transparent'};color:${isCur?appDef.color:'#94a3b8'};cursor:pointer;transition:all 0.15s;">${pg.name}${isCur?' ✕':''}</button>`;
+                            return `<button onclick="document.getElementById('app-chip-popup').style.display='none';GatewayApp.actions.${isCur ? `removeAppFromAllGroups('${appId}')` : `addAppToGroup('${appId}','${esc}')`}" style="padding:3px 9px;border-radius:6px;font-size:11px;font-weight:600;border:1px solid ${isCur?'#22c55e88':'#334155'};background:${isCur?'rgba(34,197,94,0.15)':'transparent'};color:${isCur?'#22c55e':'#94a3b8'};cursor:pointer;transition:all 0.15s;">${pg.name}${isCur?' ✕':''}</button>`;
                         }).join('') +
-                        (_curGroup ? '' : `<div style="font-size:9px;color:#475569;margin-top:4px;width:100%;">Домены не добавлены ни в одну группу</div>`);
+                        (_curGroup ? '' : `<div style="font-size:9px;color:#475569;margin-top:4px;width:100%;">Нет правила — трафик идёт по умолчанию (Smart)</div>`);
                 } else if (appDef.ny) {
                     nodeLabel.style.display = 'none';
                     actionsDiv.innerHTML = `<div style="font-size:10px;color:#3b82f6;">🇺🇸 Всегда через NY по правилам Mihomo</div>`;

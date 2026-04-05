@@ -47,14 +47,14 @@ override_rules → domain_rules (из групп) → ip_rules (устройст
 
 Пользователи устанавливают через:
 ```bash
-bash <(curl -fsSL https://www.globalshield.ru/Install.sh)
+bash <(curl -fsSL https://www.globalshield.ru/install.sh)
 ```
 
-**Install.sh на сайте** — файл должен быть доступен на сервере Stockholm (`194.87.30.15`) по пути `/root/vless_front/www/Install.sh`. Это симлинк или копия `install.sh` из репозитория. Caddy отдаёт его как `text/x-sh`. Если файл отсутствует — Caddy вернёт `index.html` (SPA-фолбэк), и пользователь получит ошибку `syntax error near unexpected token 'newline'`.
+**install.sh на сайте** — файл должен быть доступен на сервере Stockholm (`194.87.30.15`) по пути `/root/vless_front/www/install.sh`. Caddy отдаёт как `application/x-sh`. Если файл отсутствует — Caddy вернёт `index.html` (SPA-фолбэк), и пользователь получит ошибку `syntax error near unexpected token 'newline'`.
 
 Обновить скрипт на сайте:
 ```bash
-scp GSG/install.sh root@194.87.30.15:/root/vless_front/www/Install.sh
+scp GSG/install.sh root@194.87.30.15:/root/vless_front/www/install.sh
 ```
 
 ## Деплой
