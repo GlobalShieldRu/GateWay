@@ -882,7 +882,7 @@
 
     <!-- App chip popup -->
     <div id="app-chip-popup">
-        <div id="app-chip-popup-title" style="font-weight:700;font-size:13px;margin-bottom:4px;display:flex;align-items:center;gap:6px;"></div>
+        <div id="app-chip-popup-title" style="font-weight:700;font-size:13px;margin-bottom:4px;display:flex;align-items:center;gap:6px;justify-content:space-between;"><span id="app-chip-popup-title-text" style="display:flex;align-items:center;gap:6px;"></span><span id="app-chip-popup-bypass"></span></div>
         <div id="app-chip-popup-stats" style="font-size:11px;color:#94a3b8;margin-bottom:8px;"></div>
         <div style="font-size:10px;color:#64748b;margin-bottom:5px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;">Маршрут</div>
         <div id="app-chip-popup-actions" style="display:flex;gap:5px;flex-wrap:wrap;"></div>
@@ -1093,7 +1093,7 @@
             <!-- Groups tab -->
             <div id="tab-groups" class="tab-content expert-item reveal reveal-2">
                 <!-- Top: two panels with draggable divider -->
-                <div id="routesGrid" style="display:flex;gap:0;align-items:stretch;margin-bottom:20px;">
+                <div id="routesGrid" style="display:flex;gap:12px;align-items:stretch;margin-bottom:20px;">
                     <!-- LEFT: Rulesets + Groups -->
                     <div id="routesLeft" class="glass" style="padding:20px;flex:0 0 55%;display:flex;flex-direction:column;gap:16px;overflow-y:auto;">
                         <div style="font-size:13px;font-weight:800;color:#f1f5f9;display:flex;align-items:center;gap:6px;">
@@ -1498,6 +1498,14 @@
             { id: 'tiktok',    title: 'TikTok',             color: '#ee1d52', ny: false },
             { id: 'youtube',   title: 'YouTube',            color: '#ff0000', ny: false },
             { id: 'instagram', title: 'Instagram',          color: '#e1306c', ny: false },
+            { id: 'vk',        title: 'VK',                 color: '#0077ff', ny: false, favicon: 'https://vk.com/favicon.ico' },
+            { id: 'ok',        title: 'OK',                 color: '#ee8208', ny: false, favicon: 'https://ok.ru/favicon.ico' },
+            { id: 'kinopoisk', title: 'Kinopoisk',          color: '#ff6600', ny: false, favicon: 'https://www.kinopoisk.ru/favicon.ico' },
+            { id: 'yandex',    title: 'Yandex',             color: '#ff0000', ny: false, favicon: 'https://yandex.ru/favicon.ico' },
+            { id: 'discord',   title: 'Discord',            color: '#5865f2', ny: false, favicon: 'https://discord.com/favicon.ico' },
+            { id: 'spotify',   title: 'Spotify',            color: '#1db954', ny: false, favicon: 'https://open.spotify.com/favicon.ico' },
+            { id: 'twitch',    title: 'Twitch',             color: '#9146ff', ny: false, favicon: 'https://twitch.tv/favicon.ico' },
+            { id: 'megogo',    title: 'Megogo',             color: '#1db954', ny: false, favicon: 'https://megogo.net/favicon.ico' },
 
             { id: 'gemini',    title: 'Gemini (только US)', color: '#8ab4f8', ny: true, alwaysActive: true },
             { id: 'claude',    title: 'Claude (только US)', color: '#d97706', ny: true, alwaysActive: true },
@@ -1507,12 +1515,48 @@
 
         ];
 
+        // Полные списки доменов для каждого приложения (для добавления в proxy-группы)
+        const APP_DOMAINS = {
+            telegram:  ['telegram.org', 't.me', 'telesco.pe', 'telegram-cdn.org', 'tdesktop.com', 'tg.dev', 'telegra.ph'],
+            tiktok:    ['tiktok.com', 'tiktokcdn.com', 'tiktokv.com', 'tiktokcdn-us.com', 'tiktok-row.com',
+                        'bytedance.com', 'byteoversea.com', 'bytecdn.cn', 'ibyteimg.com',
+                        'musical.ly', 'muscdn.com', 'tiktokstaticb.com', 'tiktokstaticcdn.com',
+                        'ttwstatic.com', 'ttlivecdn.com', 'tiktokio.com'],
+            youtube:   ['youtube.com', 'youtu.be', 'ytimg.com', 'yt3.ggpht.com',
+                        'googlevideo.com', 'youtube-nocookie.com', 'youtubei.googleapis.com'],
+            instagram: ['instagram.com', 'cdninstagram.com', 'fbcdn.net', 'facebook.com',
+                        'instagram-brand.com', 'ig.me'],
+            netflix:   ['netflix.com', 'nflxvideo.net', 'nflximg.com', 'nflxso.net',
+                        'nflximg.net', 'netflix.net', 'nflx.net'],
+            gemini:    ['gemini.google.com', 'generativelanguage.googleapis.com', 'aistudio.google.com'],
+            claude:    ['claude.ai', 'anthropic.com', 'api.anthropic.com'],
+            chatgpt:   ['chat.openai.com', 'openai.com', 'chatgpt.com', 'api.openai.com', 'oaistatic.com'],
+            kinopoisk: ['kinopoisk.ru', 'kinopoisk.com', 'hd.kinopoisk.ru', 'yastatic.net'],
+            yandex:    ['yandex.ru', 'yandex.com', 'ya.ru', 'yandex.net', 'yandexcloud.net'],
+            vk:        ['vk.com', 'vk.ru', 'userapi.com', 'vkuseraudio.com', 'vk-cdn.net', 'vkontakte.ru'],
+            ok:        ['ok.ru', 'odnoklassniki.ru'],
+            spotify:   ['spotify.com', 'scdn.co', 'spotifycdn.com', 'pscdn.co'],
+            twitch:    ['twitch.tv', 'twitchsvc.net', 'jtvnw.net', 'twitchapps.com'],
+            discord:   ['discord.com', 'discord.gg', 'discordapp.com', 'discordapp.net', 'discord.media'],
+            megogo:    ['megogo.net'],
+            apple:     ['apple.com', 'icloud.com', 'apple-cloudkit.com', 'mzstatic.com', 'cdn-apple.com'],
+            google:    ['google.com', 'googleapis.com', 'gstatic.com', 'google.ru', 'google.co'],
+        };
+
         // Used in fetchConnections and app-chip popup to match connection hosts → appId
         const _APP_MATCH_PATTERNS = [
             ['telegram',  /telegram\.org|t\.me|telesco\.pe|tdesktop|telegram-cdn/i],
             ['tiktok',    /tiktok|bytedance|musical\.ly|tiktokcdn|tiktokv\./i],
             ['youtube',   /youtube|googlevideo|ytimg/i],
             ['instagram', /instagram|cdninstagram|fbcdn\.net|facebook\.com/i],
+            ['vk',        /\bvk\.com|userapi\.com|vkuseraudio|vkontakte\.ru/i],
+            ['ok',        /ok\.ru|odnoklassniki/i],
+            ['kinopoisk', /kinopoisk/i],
+            ['yandex',    /yandex\.|ya\.ru/i],
+            ['discord',   /discord\./i],
+            ['spotify',   /spotify\.|scdn\.co/i],
+            ['twitch',    /twitch\.|jtvnw/i],
+            ['megogo',    /megogo/i],
             ['gemini',    /gemini|generativelanguage/i],
             ['claude',    /claude|anthropic/i],
             ['chatgpt',   /openai|chatgpt/i],
@@ -1965,7 +2009,8 @@
                             const active   = isLive || isRecent;
                             const chipStyle = active ? `--chip-bg:${app.color}${isLive?'22':'15'};--chip-border:${app.color}${isLive?'55':'40'};--chip-color:${app.color};${isRecent?'opacity:0.5;':''}` : '';
                             const dot = isNY ? '<span class="us-dot"></span>' : '';
-                            return `<button class="app-chip${active?' active':''}${isLive?' live':''}" data-ip="${dev.ip}" data-app="${app.id}" title="${app.title}" style="${chipStyle}">${APP_ICONS[app.id]}${dot}</button>`;
+                            const _appIcon = APP_ICONS[app.id] || (app.favicon ? `<img src="${app.favicon}" width="18" height="18" style="border-radius:3px;object-fit:contain;" onerror="this.style.display='none'">` : `<span style="font-size:10px;font-weight:800;">${app.title[0]}</span>`);
+                            return `<button class="app-chip${active?' active':''}${isLive?' live':''}" data-ip="${dev.ip}" data-app="${app.id}" title="${app.title}" style="${chipStyle}">${_appIcon}${dot}</button>`;
                         }).join('')}
                         </div>
                         ${hasUSApp ? `<div style="font-size:9px;color:#60a5fa;font-weight:700;font-family:'JetBrains Mono',monospace;display:flex;align-items:center;gap:3px;"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>NY узел</div>` : ''}
@@ -2221,6 +2266,13 @@
                 const _CHAIN_CD = 30000;
                 const _now = Date.now();
                 if (!state._chainLastSeen) state._chainLastSeen = {};
+                // Build active connection chains per device IP from connections data
+                const _activeConnChains = {};
+                (state.allConnections || []).forEach(c => {
+                    if (!c.src) return;
+                    if (!_activeConnChains[c.src]) _activeConnChains[c.src] = [];
+                    if (c.chain) _activeConnChains[c.src].push(c.chain);
+                });
                 if (state.deviceChains) {
                     Object.keys(state.deviceChains).forEach(ip => {
                         const chains = state.deviceChains[ip];
@@ -2230,22 +2282,30 @@
                         if (!routeEl) return;
                         const dev = state.devices?.find(d => d.ip === ip);
                         if (!state._chainLastSeen[ip]) state._chainLastSeen[ip] = {};
-                        // Update last-seen timestamps for active chains
+                        const connChainsForIp = _activeConnChains[ip] || [];
+                        // Check if chain has active connection (even if speed=0)
+                        const _hasConn = (ch) => connChainsForIp.some(cc =>
+                            ch === 'DIRECT' ? (cc === 'DIRECT' || cc === '') : (cc === ch || cc.includes(ch) || ch.includes(cc))
+                        );
+                        // Update last-seen timestamps for active chains (speed or active connection)
                         Object.entries(chains).forEach(([ch, d]) => {
-                            if (d.speed_down > 0 || d.speed_up > 0) state._chainLastSeen[ip][ch] = _now;
+                            if (d.speed_down > 0 || d.speed_up > 0 || _hasConn(ch)) state._chainLastSeen[ip][ch] = _now;
                         });
                         // Include: active chains + recently-seen chains (within 30s), max 3
                         const visibleChains = Object.entries(chains)
                             .map(([ch, d]) => {
                                 const lastSeen = state._chainLastSeen[ip][ch] || 0;
-                                const isActive = d.speed_down > 0 || d.speed_up > 0;
+                                const hasConn = _hasConn(ch);
+                                const isActive = d.speed_down > 0 || d.speed_up > 0 || hasConn;
                                 const isRecent = !isActive && (_now - lastSeen < _CHAIN_CD);
-                                return { ch, d, isActive, isRecent };
+                                return { ch, d, isActive, hasConn, isRecent };
                             })
                             .filter(x => x.isActive || x.isRecent)
                             .sort((a, b) => {
                                 if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
-                                return (b.d.speed_down + b.d.speed_up) - (a.d.speed_down + a.d.speed_up);
+                                const spd = (b.d.speed_down + b.d.speed_up) - (a.d.speed_down + a.d.speed_up);
+                                if (spd !== 0) return spd;
+                                return a.ch.localeCompare(b.ch);
                             })
                             .slice(0, 3);
                         if (visibleChains.length === 0) {
@@ -2264,8 +2324,11 @@
                                 const baseColor = isDirect ? '#94a3b8' : (dev?.mode === 'global' ? '#3b82f6' : '#c9a84c');
                                 const color = isActive ? baseColor : '#64748b';
                                 const label = isDirect ? 'Напрямую' : ch;
+                                const hasSpeed = d.speed_down > 0 || d.speed_up > 0;
                                 const speedHtml = isActive
-                                    ? `<span style="color:#34d399;">↓${utils.formatBytes(d.speed_down)}/s</span> <span style="color:#60a5fa;">↑${utils.formatBytes(d.speed_up)}/s</span>`
+                                    ? (hasSpeed
+                                        ? `<span style="color:#34d399;">↓${utils.formatBytes(d.speed_down)}/s</span> <span style="color:#60a5fa;">↑${utils.formatBytes(d.speed_up)}/s</span>`
+                                        : `<span style="color:transparent;user-select:none;">↓0 B/s ↑0 B/s</span>`)
                                     : `<span style="color:#475569;">затихает…</span>`;
                                 return `<div style="min-width:0;opacity:${isActive?1:0.45};transition:opacity 0.5s;"><div title="${label}" style="font-size:11px;font-weight:700;color:${color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${label}</div><div style="font-family:'JetBrains Mono',monospace;font-size:9px;margin-top:1px;">${speedHtml}</div></div>`;
                             }).join('')
@@ -2486,8 +2549,7 @@
                             ${domains.length > 0 ? `<div>
                                 <div style="font-size:10px;color:#64748b;margin-bottom:4px;">Домены (${domains.length}):</div>
                                 <div style="display:flex;flex-wrap:wrap;gap:3px;">
-                                    ${domains.slice(0, 12).map(d => _renderDomainPill(d, !!conflicts[d.trim().toLowerCase()], pg.id)).join('')}
-                                    ${domains.length > 12 ? '<span style="font-size:10px;color:#64748b;">+' + (domains.length - 12) + '</span>' : ''}
+                                    ${domains.map(d => _renderDomainPill(d, !!conflicts[d.trim().toLowerCase()], pg.id)).join('')}
                                 </div>
                             </div>` : `<div style="font-size:10px;color:#475569;">Нет доменов</div>`}
                         </div>
@@ -2775,7 +2837,7 @@
 
                 const autoNode = state.globalNode !== 'auto'
                     ? state.nodes.find(n => n.tag === state.globalNode)
-                    : state.nodes.find(n => n.status === 'online');
+                    : state.nodes.filter(n => n.status === 'online').sort((a, b) => (a.ping || 9999) - (b.ping || 9999))[0];
                 const nyNode = state.nodes.find(n => /ny|new[\s-]?york/i.test(n.tag));
 
                 const autoFlag  = data ? utils.getFlagEmoji(data.tunnel.country) : (autoNode ? utils.getFlagEmoji(autoNode.tag) : '🌍');
@@ -3145,13 +3207,7 @@
                         return null;
                     };
                     // Build domain items: icon+label for known apps, pill for unknown
-                    const _fmtSpd = (bps) => {
-                        if (!bps || bps < 512) return '';
-                        if (bps < 1024*1024) return (bps/1024).toFixed(0) + 'K';
-                        return (bps/1024/1024).toFixed(1) + 'M';
-                    };
                     const _pillStyle = 'display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:6px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.4);flex-shrink:0;overflow:hidden;box-sizing:border-box;transition:opacity 0.2s ease,transform 0.2s ease;';
-                    const _spdBadge = (bps) => bps > 512 ? `<span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(52,211,153,0.85);font-weight:700;white-space:nowrap;flex-shrink:0;">${_fmtSpd(bps)}</span>` : '';
                     const _domItems = (br, fallbackColor) => {
                         const seen = new Set();
                         const items = [];
@@ -3161,26 +3217,27 @@
                                 // Debounce: skip apps that need more connections to confirm activity
                                 if ((_appMinConns[ic.key] || 0) > 0 && d.count < _appMinConns[ic.key]) continue;
                                 seen.add(ic.key);
-                                const spd = _spdBadge(d.speed);
                                 const svg = APP_ICONS[ic.key];
+                                const _hasDomains = APP_DOMAINS[ic.key]?.length > 0;
+                                const _dragAttrs = _hasDomains ? ` draggable="true" data-app-id="${ic.key}" data-src-branch="${br}" ondragstart="window._vzDragStart(event)" ondragend="window._vzDragEnd(event)"` : '';
+                                const _grabCursor = _hasDomains ? 'cursor:grab;' : '';
                                 if (svg) {
-                                    items.push(`<div title="${ic.label} (${d.count} соед.)" data-dom-key="${ic.key}" style="${_pillStyle}"><div style="width:16px;height:16px;display:flex;align-items:center;justify-content:center;color:${ic.color};flex-shrink:0;">${svg}</div><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;">${ic.label}</span>${spd}</div>`);
+                                    items.push(`<div title="${ic.label} (${d.count} соед.)" data-dom-key="${ic.key}"${_dragAttrs} style="${_pillStyle}${_grabCursor}"><div style="width:16px;height:16px;display:flex;align-items:center;justify-content:center;color:${ic.color};flex-shrink:0;">${svg}</div><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;">${ic.label}</span></div>`);
                                     continue;
                                 }
                                 if (ic.key === 'globalshield') {
-                                    items.push(`<div title="${ic.label} (${d.count} соед.)" data-dom-key="${ic.key}" style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:6px;background:rgba(251,191,36,0.2);border:1px solid rgba(251,191,36,0.5);flex-shrink:0;overflow:hidden;box-sizing:border-box;transition:opacity 0.2s ease,transform 0.2s ease;"><span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:800;color:#fbbf24;line-height:1;">GS</span><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;">${ic.label}</span>${spd}</div>`);
+                                    items.push(`<div title="${ic.label} (${d.count} соед.)" data-dom-key="${ic.key}" style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:6px;background:rgba(251,191,36,0.2);border:1px solid rgba(251,191,36,0.5);flex-shrink:0;overflow:hidden;box-sizing:border-box;transition:opacity 0.2s ease,transform 0.2s ease;"><span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:800;color:#fbbf24;line-height:1;">GS</span><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;">${ic.label}</span></div>`);
                                     continue;
                                 }
                                 if (ic.favicon) {
-                                    items.push(`<div title="${ic.label} (${d.count} соед.)" data-dom-key="${ic.key}" style="${_pillStyle}"><img src="${ic.favicon}" width="14" height="14" style="border-radius:2px;vertical-align:middle;flex-shrink:0;" onerror="this.style.display='none'"><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;">${ic.label}</span>${spd}</div>`);
+                                    items.push(`<div title="${ic.label} (${d.count} соед.)" data-dom-key="${ic.key}"${_dragAttrs} style="${_pillStyle}${_grabCursor}"><img src="${ic.favicon}" width="14" height="14" style="border-radius:2px;vertical-align:middle;flex-shrink:0;" onerror="this.style.display='none'"><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;">${ic.label}</span></div>`);
                                     continue;
                                 }
                             }
                             if (!ic) {
                                 const _skipLabels = /^(обход блокировок|bypass|балансировка|balance|auto|авто|прямой|direct)$/i;
                                 if (_skipLabels.test(d.domain)) continue;
-                                const spd = _spdBadge(d.speed);
-                                items.push(`<div data-dom-key="${d.domain}" title="${d.count} соед." style="font-family:'JetBrains Mono',monospace;font-size:12px;padding:3px 8px;border-radius:6px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.4);color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box;line-height:1.3;transition:opacity 0.2s ease,transform 0.2s ease;display:inline-flex;align-items:center;gap:5px;flex-shrink:0;">${d.domain}${spd}</div>`);
+                                items.push(`<div data-dom-key="${d.domain}" title="${d.count} соед." style="font-family:'JetBrains Mono',monospace;font-size:12px;padding:3px 8px;border-radius:6px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.4);color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box;line-height:1.3;transition:opacity 0.2s ease,transform 0.2s ease;display:inline-flex;align-items:center;gap:5px;flex-shrink:0;">${d.domain}</div>`);
                             }
                         }
                         return items.join('');
@@ -3204,6 +3261,7 @@
                             box._vizPackets.forEach(p => { try { p.el?.parentNode?.removeChild(p.el); } catch(e){} });
                             box._vizPackets = [];
                         }
+                        box._activeDots  = { auto: 0, ny: 0, direct: 0 };
                         box._vizSpawn    = { auto: 0, ny: 0, direct: 0 };
                         box._vizSeeded   = false;
 
@@ -3232,7 +3290,7 @@
     <div style="position:relative;height:100%;overflow:visible;">
       <div id="rl-auto-track" style="position:absolute;left:0;right:0;top:50%;height:2px;background:${alBg};transform:translateY(-50%);border-radius:1px;transition:height 0.4s ease;"></div>
       <div id="rl-auto" style="position:absolute;left:0;right:0;top:50%;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
-      <div id="rl-auto-pill" style="${pillBase}background:rgba(10,9,8,0.96);border:1px solid rgba(52,211,153,0.35);transition:border-color 0.4s ease,box-shadow 0.4s ease;">
+      <div id="rl-auto-pill" ondragover="window._vzDragOver(event,'auto')" ondragleave="window._vzDragLeave(event)" ondrop="window._vzDrop(event,'auto')" style="${pillBase}background:rgba(10,9,8,0.96);border:1px solid rgba(52,211,153,0.35);transition:border-color 0.4s ease,box-shadow 0.4s ease;cursor:default;">
         <div style="min-width:0;flex:1;">
           <div style="${nameStyle}">${autoName}</div>
           <div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;font-weight:600;white-space:nowrap;" class="${autoPingCls}">${autoPingStr}</div>
@@ -3249,7 +3307,7 @@
     <div style="position:relative;height:100%;overflow:visible;">
       <div id="rl-ny-track" style="position:absolute;left:0;right:0;top:50%;height:2px;background:${nlBg};transform:translateY(-50%);border-radius:1px;transition:height 0.4s ease;"></div>
       <div id="rl-ny" style="position:absolute;left:0;right:0;top:50%;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
-      <div id="rl-ny-pill" style="${pillBase}background:rgba(10,9,8,0.96);border:1px solid rgba(52,211,153,0.35);transition:border-color 0.4s ease,box-shadow 0.4s ease;">
+      <div id="rl-ny-pill" ondragover="window._vzDragOver(event,'ny')" ondragleave="window._vzDragLeave(event)" ondrop="window._vzDrop(event,'ny')" style="${pillBase}background:rgba(10,9,8,0.96);border:1px solid rgba(52,211,153,0.35);transition:border-color 0.4s ease,box-shadow 0.4s ease;cursor:default;">
         <div style="min-width:0;flex:1;">
           <div style="${nameStyle}">${nyName}</div>
           <div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;font-weight:600;white-space:nowrap;" class="${nyPingCls}">${nyPingStr}</div>
@@ -3266,7 +3324,7 @@
     <div style="position:relative;height:100%;overflow:visible;">
       <div id="rl-dir-track" style="position:absolute;left:0;right:0;top:50%;height:2px;background:rgba(52,211,153,0.15);transform:translateY(-50%);border-radius:1px;transition:height 0.4s ease;"></div>
       <div id="rl-dir" style="position:absolute;left:0;right:0;top:50%;height:2px;background:transparent;overflow:visible;transform:translateY(-50%);"></div>
-      <div id="rl-dir-pill" style="${pillBase}background:rgba(10,9,8,0.96);border:1px solid rgba(52,211,153,0.35);transition:border-color 0.4s ease,box-shadow 0.4s ease;">
+      <div id="rl-dir-pill" ondragover="window._vzDragOver(event,'direct')" ondragleave="window._vzDragLeave(event)" ondrop="window._vzDrop(event,'direct')" style="${pillBase}background:rgba(10,9,8,0.96);border:1px solid rgba(52,211,153,0.35);transition:border-color 0.4s ease,box-shadow 0.4s ease;cursor:default;">
         ${directFlagPill ? `<div style="flex-shrink:0;margin-right:6px;display:flex;align-items:center;">${directFlagPill}</div>` : ''}
         <div style="min-width:0;flex:1;">
           <div style="${nameStyle}">Напрямую</div>
@@ -3366,7 +3424,6 @@
                             const fallback = br === 'direct' ? '<div data-dom-key="__globe__" title="Интернет напрямую" style="width:34px;height:34px;border-radius:8px;background:rgba(148,163,184,0.07);border:1px solid rgba(148,163,184,0.2);display:flex;align-items:center;justify-content:center;font-size:18px;">🌐</div>' : '';
                             const desired = newHtml || fallback;
 
-                            // Parse desired items into a map by key
                             const tmp = document.createElement('div');
                             tmp.innerHTML = desired;
                             const newItems = new Map();
@@ -3375,14 +3432,12 @@
                                 newItems.set(key, c);
                             });
 
-                            // Current items by key
                             const curItems = new Map();
                             [...container.children].forEach(c => {
                                 const key = c.dataset.domKey || c.textContent.trim();
                                 curItems.set(key, c);
                             });
 
-                            // Remove items no longer present (fade out individually)
                             for (const [key, el] of curItems) {
                                 if (!newItems.has(key)) {
                                     el.style.opacity = '0';
@@ -3391,13 +3446,11 @@
                                 }
                             }
 
-                            // Add new items that don't exist yet (fade in individually)
                             for (const [key, newEl] of newItems) {
                                 if (!curItems.has(key)) {
                                     newEl.style.opacity = '0';
                                     newEl.style.transform = 'scale(0.85)';
                                     container.appendChild(newEl);
-                                    // Force reflow then animate in
                                     requestAnimationFrame(() => {
                                         newEl.style.opacity = '1';
                                         newEl.style.transform = 'scale(1)';
@@ -3917,7 +3970,15 @@
                 const maxVal = Math.max(1024, ...hist.map(p =>
                     Math.max(p.autoDown||0, p.nyDown||0, p.directDown||0)));
 
-                const getY = (v) => H - ((v || 0) / maxVal) * H * 0.85 - H * 0.04;
+                // Logarithmic scale: log(1) = 0, log(maxVal) = 1
+                const logMin = Math.log(512);  // ~0.5 KB floor
+                const logMax = Math.log(Math.max(maxVal, 1024));
+                const getY = (v) => {
+                    if (!v || v < 1) return H - H * 0.02;
+                    const logV = Math.log(Math.max(v, 1));
+                    const norm = Math.max(0, Math.min(1, (logV - logMin) / (logMax - logMin)));
+                    return H - norm * H * 0.82 - H * 0.04;
+                };
 
                 const drawSmoothArea = (key, stroke, fill, lw) => {
                     const step = W / (N - 1);
@@ -3949,6 +4010,48 @@
                 drawSmoothArea('directDown', '#94a3b8', 'rgba(148,163,184,0.05)', 1.0);
                 drawSmoothArea('nyDown', '#3b82f6', 'rgba(59,130,246,0.10)', 1.5);
                 drawSmoothArea('autoDown', '#c9a84c', 'rgba(201,168,76,0.13)', 1.5);
+
+                // Draw max label above the peak point of each line
+                ctx.font = `${Math.round(9 * dpr)}px JetBrains Mono, monospace`;
+                const step = W / (N - 1);
+                const PAD = 4 * dpr;
+                const lineH = Math.round(10 * dpr);
+                const peakLines = [
+                    { key: 'autoDown',   color: 'rgba(201,168,76,0.9)'   },
+                    { key: 'nyDown',     color: 'rgba(96,165,250,0.9)'   },
+                    { key: 'directDown', color: 'rgba(148,163,184,0.75)' },
+                ];
+                // collect labels to draw (only if val >= 512)
+                const peakLabels = peakLines.map(({ key, color }) => {
+                    let maxV = 0, maxIdx = 0;
+                    hist.forEach((p, i) => { if ((p[key]||0) > maxV) { maxV = p[key]||0; maxIdx = i; } });
+                    if (maxV < 512) return null;
+                    const px = maxIdx * step;
+                    const py = getY(maxV);
+                    const text = utils.formatBytes(maxV) + '/s';
+                    return { text, color, px, py };
+                }).filter(Boolean);
+
+                // Draw each label centered above its peak; clamp to canvas edges
+                peakLabels.forEach(({ text, color, px, py }) => {
+                    const tw = ctx.measureText(text).width;
+                    const lx = Math.max(PAD, Math.min(W - tw - PAD, px - tw / 2));
+                    const ly = Math.max(PAD, py - lineH - PAD);
+                    // small background pill for readability
+                    ctx.fillStyle = 'rgba(10,9,8,0.65)';
+                    ctx.beginPath();
+                    ctx.roundRect(lx - 2*dpr, ly - 1*dpr, tw + 4*dpr, lineH + 2*dpr, 3*dpr);
+                    ctx.fill();
+                    ctx.fillStyle = color;
+                    ctx.textBaseline = 'top';
+                    ctx.textAlign = 'left';
+                    ctx.fillText(text, lx, ly);
+                    // dot at peak
+                    ctx.beginPath();
+                    ctx.arc(px, py, 2.5 * dpr, 0, Math.PI * 2);
+                    ctx.fillStyle = color;
+                    ctx.fill();
+                });
 
                 const labelEl = document.querySelector('.section-label[data-chart-label]');
                 if (labelEl) {
@@ -5741,27 +5844,35 @@
                     }
                     const data = await r.json();
                     state.allConnections = data.connections || [];
-                    // Track per-connection speed by diffing cumulative bytes between polls
+                    // Track per-connection speed by diffing cumulative bytes between polls.
+                    // Group by (src|host|chain) and SUM bytes — multiple conns sharing the same
+                    // key would otherwise cause huge delta spikes (prev set by conn B, delta vs conn A).
                     const now = Date.now();
                     const prev = state._connPrev || {};
                     const speeds = {};
+                    const _connAgg = {};
                     state.allConnections.forEach(c => {
                         const key = `${c.src}|${c.host}|${c.chain}`;
+                        if (!_connAgg[key]) _connAgg[key] = { down: 0, up: 0, host: c.host, chain: c.chain, src: c.src };
+                        _connAgg[key].down += c.download || 0;
+                        _connAgg[key].up   += c.upload   || 0;
+                    });
+                    Object.entries(_connAgg).forEach(([key, agg]) => {
                         const p = prev[key];
                         if (p) {
                             const dt = (now - p.ts) / 1000;
                             if (dt > 0.05) {
                                 speeds[key] = {
-                                    down: Math.max(0, (c.download - p.down) / dt),
-                                    up:   Math.max(0, (c.upload   - p.up  ) / dt),
-                                    host: c.host, chain: c.chain, src: c.src,
+                                    down: Math.max(0, (agg.down - p.down) / dt),
+                                    up:   Math.max(0, (agg.up   - p.up  ) / dt),
+                                    host: agg.host, chain: agg.chain, src: agg.src,
                                 };
                             }
                         }
-                        prev[key] = { up: c.upload, down: c.download, ts: now };
+                        prev[key] = { up: agg.up, down: agg.down, ts: now };
                     });
                     // Evict stale keys
-                    const activeKeys = new Set(state.allConnections.map(c => `${c.src}|${c.host}|${c.chain}`));
+                    const activeKeys = new Set(Object.keys(_connAgg));
                     Object.keys(prev).forEach(k => { if (!activeKeys.has(k)) delete prev[k]; });
                     state._connPrev   = prev;
                     state._connSpeeds = speeds;
@@ -6017,6 +6128,9 @@
                     var isDirect = t.type === 'direct';
                     var nodes = isDirect ? ['DIRECT'] : (t.actual_node_names || []).slice(0, 4);
                     if (!nodes.length) nodes = isDirect ? ['DIRECT'] : ['auto'];
+                    var pgObj = (state.proxyGroups || []).find(function(g) { return g.name === t.group; });
+                    var pgId = pgObj ? pgObj.id : null;
+                    var escGroupName = t.group.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
 
                     html += '<div id="test-group-' + gi + '" style="margin-bottom:14px;opacity:0.3;transition:opacity 0.4s;">';
                     html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">';
@@ -6036,7 +6150,9 @@
                     html += '<div style="display:flex;align-items:center;padding:0 6px;color:#475569;font-size:10px;">→</div>';
                     html += '<div style="flex:1;display:flex;flex-wrap:wrap;gap:3px;align-content:flex-start;">';
                     (t.domains || []).forEach(function(d, di) {
-                        html += '<span id="test-d-' + gi + '-' + di + '" style="font-size:10px;padding:2px 6px;border-radius:4px;font-family:JetBrains Mono,monospace;background:rgba(255,255,255,0.03);color:#475569;border:1px solid rgba(255,255,255,0.04);transition:all 0.3s;">' + d + '</span>';
+                        var esc = d.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+                        var xBtn = '<span onclick="event.stopPropagation();(function(){var pg=(GatewayApp.state.proxyGroups||[]).find(function(g){return g.name===\'' + escGroupName + '\';});if(pg)GatewayApp.actions.removeDomain(pg.id,\'' + esc + '\');else GatewayApp.actions.fetchGroups().then(function(){var pg2=(GatewayApp.state.proxyGroups||[]).find(function(g){return g.name===\'' + escGroupName + '\';});if(pg2)GatewayApp.actions.removeDomain(pg2.id,\'' + esc + '\');});})()" title="Удалить домен" style="margin-left:3px;cursor:pointer;opacity:0.35;font-size:8px;line-height:1;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.35">✕</span>';
+                        html += '<span id="test-d-' + gi + '-' + di + '" style="font-size:10px;padding:2px 6px;border-radius:4px;font-family:JetBrains Mono,monospace;background:rgba(255,255,255,0.03);color:#475569;border:1px solid rgba(255,255,255,0.04);transition:all 0.3s;display:inline-flex;align-items:center;">' + d + xBtn + '</span>';
                     });
                     html += '</div></div></div>';
                 });
@@ -6366,6 +6482,46 @@
                 if (res) await actions.fetchGroups();
             },
 
+            addAppToGroup: async (appId, groupId) => {
+                const appDomains = APP_DOMAINS[appId] || [];
+                if (!appDomains.length) return;
+                // Remove app domains from all other groups first (including bypass)
+                for (const pg of (state.proxyGroups || [])) {
+                    if (pg.id === groupId) continue;
+                    if (pg.builtin && pg.id !== 'bypass') continue;
+                    const pgDomSet = new Set(appDomains.map(d => d.toLowerCase()));
+                    const filtered = (pg.domains || []).filter(d => !pgDomSet.has(d.trim().toLowerCase()));
+                    if (filtered.length !== (pg.domains || []).length) {
+                        await utils.apiCall('/groups/' + pg.id, { method: 'PUT', body: JSON.stringify({ domains: filtered }) });
+                    }
+                }
+                // Add to target group
+                const target = state.proxyGroups.find(g => g.id === groupId);
+                if (!target) return;
+                const existing = new Set((target.domains || []).map(d => d.trim().toLowerCase()));
+                const toAdd = appDomains.filter(d => !existing.has(d.toLowerCase()));
+                const newDomains = [...(target.domains || []), ...toAdd];
+                await utils.apiCall('/groups/' + groupId, { method: 'PUT', body: JSON.stringify({ domains: newDomains }) });
+                await actions.fetchGroups();
+                const appDef = APPS.find(a => a.id === appId);
+                ui.showToast(`${appDef?.title || appId} → ${target.name} (${toAdd.length} доменов)`, 'success');
+            },
+
+            removeAppFromAllGroups: async (appId) => {
+                const appDomains = new Set((APP_DOMAINS[appId] || []).map(d => d.toLowerCase()));
+                if (!appDomains.size) return;
+                for (const pg of (state.proxyGroups || [])) {
+                    if (pg.builtin && pg.id !== 'bypass') continue;
+                    const filtered = (pg.domains || []).filter(d => !appDomains.has(d.trim().toLowerCase()));
+                    if (filtered.length !== (pg.domains || []).length) {
+                        await utils.apiCall('/groups/' + pg.id, { method: 'PUT', body: JSON.stringify({ domains: filtered }) });
+                    }
+                }
+                await actions.fetchGroups();
+                const appDef = APPS.find(a => a.id === appId);
+                ui.showToast(`${appDef?.title || appId}: домены убраны из всех групп`, 'info');
+            },
+
             deleteGroup: async (groupId) => {
                 if (!confirm('Удалить группу? Домены из неё перестанут маршрутизироваться.')) return;
                 await utils.apiCall(`/groups/${groupId}`, { method: 'DELETE' });
@@ -6530,6 +6686,55 @@
                 }
             });
 
+            // ── routeViz drag-and-drop ──
+            window._vzDragStart = (e) => {
+                const chip = e.currentTarget;
+                e.dataTransfer.setData('text/plain', (chip.dataset.appId || '') + '|' + (chip.dataset.srcBranch || ''));
+                e.dataTransfer.effectAllowed = 'move';
+                chip.style.opacity = '0.45';
+            };
+            window._vzDragEnd = (e) => {
+                e.currentTarget.style.opacity = '';
+            };
+            window._vzDragOver = (e, targetBranch) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                e.currentTarget.style.outline = '1.5px dashed rgba(251,191,36,0.55)';
+                e.currentTarget.style.borderRadius = '8px';
+            };
+            window._vzDragLeave = (e) => {
+                if (!e.currentTarget.contains(e.relatedTarget)) {
+                    e.currentTarget.style.outline = '';
+                }
+            };
+            window._vzDrop = async (e, targetBranch) => {
+                e.preventDefault();
+                e.currentTarget.style.outline = '';
+                const data = e.dataTransfer.getData('text/plain');
+                if (!data) return;
+                const [appId, srcBranch] = data.split('|');
+                if (!appId || srcBranch === targetBranch) return;
+                if (targetBranch === 'direct') {
+                    GatewayApp.ui.showToast('Bypass не поддерживает маршрутизацию доменов', 'error');
+                    return;
+                }
+                const groups = GatewayApp.state.proxyGroups || [];
+                let targetGroup;
+                if (targetBranch === 'ny') {
+                    targetGroup = groups.find(g => g.id === 'ai') ||
+                                  groups.find(g => /ny|ai/i.test(g.id)) ||
+                                  groups.find(g => /ny|ai/i.test(g.name));
+                } else {
+                    targetGroup = groups.find(g => g.id === 'auto') ||
+                                  groups.find(g => g.type !== 'direct' && g.id !== 'bypass' && !/ny|ai/i.test(g.id) && !/ny|ai/i.test(g.name || ''));
+                }
+                if (!targetGroup) {
+                    GatewayApp.ui.showToast('Группа не найдена', 'error');
+                    return;
+                }
+                await GatewayApp.actions.addAppToGroup(appId, targetGroup.id);
+            };
+
             document.addEventListener('click', async (e) => {
                 const btn = e.target.closest('.global-mode-btn');
                 if (!btn) return;
@@ -6631,8 +6836,11 @@
                 const curNode = dev?.assigned_node || 'auto';
 
                 const popup = document.getElementById('app-chip-popup');
-                document.getElementById('app-chip-popup-title').innerHTML =
+                document.getElementById('app-chip-popup-title-text').innerHTML =
                     `<span style="color:${appDef.color};">●</span> ${appDef.title}`;
+                // Reset bypass button — filled in below after groups are loaded
+                const _bypassEl = document.getElementById('app-chip-popup-bypass');
+                if (_bypassEl) _bypassEl.innerHTML = '';
 
                 const statsEl2 = document.getElementById('app-chip-popup-stats');
                 const _connLine = isLive
@@ -6648,26 +6856,38 @@
 
                 const actionsDiv = document.getElementById('app-chip-popup-actions');
                 const nodeLabel = actionsDiv.previousElementSibling;
-                if (appId === 'tiktok') {
-                    // TikTok has dedicated tiktok_node — don't mix with device node
-                    if (nodeLabel) nodeLabel.style.display = 'none';
-                    const ttCur = dev?.tiktok_node || 'auto';
-                    const _pgsTT = [{ tag: 'auto', label: 'Авто' }, ...(state.proxyGroups || []).map(pg => ({ tag: pg.name, label: pg.name }))];
-                    actionsDiv.innerHTML = `<div style="font-size:10px;color:#64748b;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;width:100%;margin-bottom:4px;">Маршрут TikTok</div>`
-                        + _pgsTT.map(n => {
-                            const isCur = n.tag === ttCur;
-                            return `<button onclick="(()=>{const d=GatewayApp.state.devices.find(x=>x.ip==='${ip}');GatewayApp.actions.updateDeviceSettings('${ip}',d?.mode||'smart',d?.assigned_node||'auto','${n.tag}');document.getElementById('app-chip-popup').style.display='none';})()" style="padding:3px 9px;border-radius:6px;font-size:11px;font-weight:600;border:1px solid ${isCur?'#ee1d52':'#334155'};background:${isCur?'rgba(238,29,82,0.12)':'transparent'};color:${isCur?'#ee1d52':'#94a3b8'};cursor:pointer;">${n.label}</button>`;
-                        }).join('');
+                if (nodeLabel) nodeLabel.style.display = 'none';
+
+                const appDomains = APP_DOMAINS[appId] || [];
+                if (appDomains.length && !appDef.ny) {
+                    // Find which group currently has this app's domains
+                    const _domSet = new Set(appDomains.map(d => d.toLowerCase()));
+                    const _curGroup = (state.proxyGroups || []).find(pg =>
+                        (pg.domains || []).some(d => _domSet.has(d.trim().toLowerCase()))
+                    );
+
+                    // Show VPN groups (no bypass — bypass is shown next to the title)
+                    const _groups = (state.proxyGroups || []).filter(g => g.type !== 'direct' && g.id !== 'bypass');
+                    // Bypass button next to app name
+                    const _bypassGroup = (state.proxyGroups || []).find(g => g.id === 'bypass');
+                    if (_bypassEl && _bypassGroup) {
+                        const _isBypass = _curGroup?.id === 'bypass';
+                        const _bEsc = _bypassGroup.id.replace(/'/g,"\\'");
+                        _bypassEl.innerHTML = `<button onclick="document.getElementById('app-chip-popup').style.display='none';GatewayApp.actions.${_isBypass ? `removeAppFromAllGroups('${appId}')` : `addAppToGroup('${appId}','${_bEsc}')`}" title="Маршрутизировать напрямую (без VPN)" style="padding:2px 8px;border-radius:5px;font-size:10px;font-weight:600;border:1px solid ${_isBypass ? '#94a3b855' : '#334155'};background:${_isBypass ? 'rgba(148,163,184,0.15)' : 'transparent'};color:${_isBypass ? '#94a3b8' : '#475569'};cursor:pointer;transition:all 0.15s;white-space:nowrap;">${_isBypass ? '⊘ Напрямую' : 'Напрямую'}</button>`;
+                    }
+                    actionsDiv.innerHTML =
+                        `<div style="font-size:10px;color:#64748b;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;width:100%;margin-bottom:4px;">Маршрут (домены в группу)</div>` +
+                        _groups.map(pg => {
+                            const isCur = _curGroup?.id === pg.id;
+                            const esc = pg.id.replace(/'/g,"\\'");
+                            return `<button onclick="document.getElementById('app-chip-popup').style.display='none';GatewayApp.actions.${isCur ? `removeAppFromAllGroups('${appId}')` : `addAppToGroup('${appId}','${esc}')`}" style="padding:3px 9px;border-radius:6px;font-size:11px;font-weight:600;border:1px solid ${isCur?appDef.color+'88':'#334155'};background:${isCur?appDef.color+'22':'transparent'};color:${isCur?appDef.color:'#94a3b8'};cursor:pointer;transition:all 0.15s;">${pg.name}${isCur?' ✕':''}</button>`;
+                        }).join('') +
+                        (_curGroup ? '' : `<div style="font-size:9px;color:#475569;margin-top:4px;width:100%;">Домены не добавлены ни в одну группу</div>`);
                 } else if (appDef.ny) {
-                    if (nodeLabel) nodeLabel.style.display = 'none';
-                    actionsDiv.innerHTML = '';
+                    nodeLabel.style.display = 'none';
+                    actionsDiv.innerHTML = `<div style="font-size:10px;color:#3b82f6;">🇺🇸 Всегда через NY по правилам Mihomo</div>`;
                 } else {
-                    if (nodeLabel) nodeLabel.style.display = '';
-                    const _pgsOpts = [{ tag: 'auto', label: 'Авто' }, ...(state.proxyGroups || []).map(pg => ({ tag: pg.name, label: pg.name }))];
-                    actionsDiv.innerHTML = _pgsOpts.map(n => {
-                        const isCur = n.tag === curNode;
-                        return `<button onclick="GatewayApp.actions.updateDeviceSettings('${ip}','${dev?.mode||'smart'}','${n.tag}');document.getElementById('app-chip-popup').style.display='none';" style="padding:3px 9px;border-radius:6px;font-size:11px;font-weight:600;border:1px solid ${isCur?'#fbbf24':'#334155'};background:${isCur?'rgba(251,191,36,0.12)':'transparent'};color:${isCur?'#fbbf24':'#94a3b8'};cursor:pointer;">${n.label}</button>`;
-                    }).join('');
+                    actionsDiv.innerHTML = `<div style="font-size:10px;color:#64748b;">Нет доменов для этого приложения</div>`;
                 }
 
                 const rect = chip.getBoundingClientRect();
@@ -6802,6 +7022,9 @@
 
             const historyLoop = async () => { await actions.fetchTrafficHistory(); setTimeout(historyLoop, 30000); };
             setTimeout(historyLoop, 2000);
+
+            const nodesLoop = async () => { await actions.fetchNodes(); setTimeout(nodesLoop, 120000); };
+            setTimeout(nodesLoop, 120000);
 
             const logsLoop = async () => { await actions.fetchLogs(); setTimeout(logsLoop, 3000); };
             logsLoop();
