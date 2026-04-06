@@ -482,7 +482,11 @@ def main():
     if "ai" in existing_group_names:
         geoip_ai_rules.append("GEOIP,google,ai")
         geoip_ai_rules.append("GEOIP,cloudflare,ai")
-        print(f"\n[GSG] GEOIP AI rules: {geoip_ai_rules}", flush=True)
+        # Anthropic (claude.ai, api.anthropic.com) — AS399358, собственный IP-диапазон,
+        # не входит в cloudflare GEOIP. Нужен явный CIDR чтобы ECH/QUIC трафик без SNI шёл через NY.
+        geoip_ai_rules.append("IP-CIDR,160.79.104.0/22,ai,no-resolve")
+        geoip_ai_rules.append("IP-CIDR,160.79.108.0/22,ai,no-resolve")
+        print(f"\n[GSG] GEOIP+CIDR AI rules: {geoip_ai_rules}", flush=True)
     else:
         print("\n[GSG] [WARN] Группа 'ai' не найдена, GEOIP,google и GEOIP,cloudflare не добавлены", flush=True)
 
