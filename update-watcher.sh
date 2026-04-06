@@ -151,9 +151,10 @@ process_trigger() {
     cd "$GSG_DIR"
 
     log "[STAGE:1/6] Загрузка обновлений..."
-    if ! git fetch origin main >> "$LOG" 2>&1; then
+    if ! git -c http.timeout=30 -c http.lowSpeedLimit=0 fetch origin main >> "$LOG" 2>&1; then
         log "ОШИБКА: git fetch не удался"
         rm -f "$TRIGGER"
+        update_post_state "failed_fetch"
         return
     fi
 
@@ -161,6 +162,7 @@ process_trigger() {
     if ! git reset --hard origin/main >> "$LOG" 2>&1; then
         log "ОШИБКА: git reset не удался"
         rm -f "$TRIGGER"
+        update_post_state "failed_reset"
         return
     fi
 
@@ -168,12 +170,19 @@ process_trigger() {
     chmod +x "$GSG_DIR"/*.sh 2>/dev/null || true
 
     log "[STAGE:3/6] Сборка контейнеров..."
-    if ! docker compose build >> "$LOG" 2>&1; then
+    # docker compose v5 может возвращать RC=0 даже при ошибке (баг BuildKit).
+    # Дополнительно проверяем вывод на признаки ошибки.
+    _BUILD_TMP=$(mktemp)
+    docker compose build 2>&1 | tee -a "$LOG" > "$_BUILD_TMP"
+    _BUILD_RC=${PIPESTATUS[0]}
+    if [ "$_BUILD_RC" -ne 0 ] || grep -qiE 'failed to (build|solve)|^ERROR:' "$_BUILD_TMP"; then
+        rm -f "$_BUILD_TMP"
         log "ОШИБКА: docker compose build не удался"
         rm -f "$TRIGGER"
         update_post_state "failed_build"
         return
     fi
+    rm -f "$_BUILD_TMP"
 
     rm -f "$TRIGGER"
     log "[STAGE:4/6] Запуск сервисов..."
@@ -218,6 +227,13 @@ fi
 
 # Ждём новых триггеров через inotifywait
 while true; do
+    # Проверяем триггер который мог появиться пока обрабатывался предыдущий
+    # (inotifywait завершается после первого события, не отслеживает параллельные создания)
+    if [[ -f "$TRIGGER" ]]; then
+        log "Триггер найден в цикле ожидания, обрабатываем..."
+        process_trigger
+        continue
+    fi
     inotifywait -q -e close_write,create,moved_to "$CONFIG_VOL" 2>/dev/null | while read -r path action file; do
         if [[ "$file" == ".update_trigger" ]]; then
             log "Триггер обнаружен ($action)"
