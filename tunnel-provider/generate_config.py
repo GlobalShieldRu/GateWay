@@ -387,13 +387,15 @@ def main():
             device_sub.append(f"GEOSITE,tiktok,{tiktok_target}")
             for td in ["tiktokv.com", "tiktokcdn.com", "tiktokcdn-eu.com", "tiktokcdn-us.com", "bytedance.com", "byteimg.com", "ibytedtos.com", "ipstatp.com", "musical.ly"]:
                 device_sub.append(f"DOMAIN-SUFFIX,{td},{tiktok_target}")
+            # Добавляем domain_rules из proxy_groups ДО rkn-domains,
+            # чтобы AI-домены (gemini, claude и др.) имели приоритет
+            # над rkn-domains где они тоже могут быть прописаны.
+            for dr in domain_rules:
+                device_sub.append(dr)
             if rulesets.get('rkn_bypass', True):
                 for site in ["youtube", "meta", "instagram", "twitter"]:
                     device_sub.append(f"GEOSITE,{site},{target}")
                 device_sub.append(f"RULE-SET,rkn-domains,{target}")
-            # Добавляем domain_rules из proxy_groups в sub-rule
-            for dr in domain_rules:
-                device_sub.append(dr)
             device_sub.append("MATCH,DIRECT")
             sub_rules[sub_name] = device_sub
             ip_rules.append(f"SUB-RULE,(SRC-IP-CIDR,{ip}/32),{sub_name}")
