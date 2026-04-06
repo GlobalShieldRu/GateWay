@@ -2507,21 +2507,47 @@
 
             // --- PROXY GROUPS UI ---
             _getConflicts: () => {
-                // Строим карту домен→[группы] для обнаружения конфликтов
-                const map = {};
-                for (const pg of state.proxyGroups) {
-                    for (const d of (pg.domains || [])) {
-                        const key = d.trim().toLowerCase();
-                        if (!key) continue;
-                        if (!map[key]) map[key] = [];
-                        map[key].push(pg.name);
+                // Возвращает:
+                //   conflicts[key] = [{groupName, groupId, domain}]  — для баннера
+                //   conflicts._domains = Set<string>                  — для подсветки пилюль
+                const conflicts = {};
+                const conflictDomains = new Set();
+
+                const groups = state.proxyGroups.map(pg => ({
+                    id: pg.id, name: pg.name,
+                    entries: (pg.domains || []).map(d => ({
+                        raw: d, key: d.trim().toLowerCase(),
+                        isKeyword: !d.trim().includes('.')
+                    })).filter(e => e.key)
+                }));
+
+                for (let gi = 0; gi < groups.length; gi++) {
+                    for (let gj = gi + 1; gj < groups.length; gj++) {
+                        const gA = groups[gi], gB = groups[gj];
+                        for (const eA of gA.entries) {
+                            for (const eB of gB.entries) {
+                                let ck = null;
+                                if (eA.key === eB.key) {
+                                    ck = eA.key; // Точное совпадение
+                                } else if (eA.isKeyword && eB.key.includes(eA.key)) {
+                                    ck = eA.key + ' (keyword) ↔ ' + eB.key;
+                                } else if (eB.isKeyword && eA.key.includes(eB.key)) {
+                                    ck = eB.key + ' (keyword) ↔ ' + eA.key;
+                                }
+                                if (ck) {
+                                    if (!conflicts[ck]) conflicts[ck] = [];
+                                    if (!conflicts[ck].find(x => x.groupId === gA.id))
+                                        conflicts[ck].push({ groupName: gA.name, groupId: gA.id, domain: eA.raw });
+                                    if (!conflicts[ck].find(x => x.groupId === gB.id))
+                                        conflicts[ck].push({ groupName: gB.name, groupId: gB.id, domain: eB.raw });
+                                    conflictDomains.add(eA.key);
+                                    conflictDomains.add(eB.key);
+                                }
+                            }
+                        }
                     }
                 }
-                // Оставляем только конфликты (>1 группы)
-                const conflicts = {};
-                for (const [domain, groups] of Object.entries(map)) {
-                    if (groups.length > 1) conflicts[domain] = groups;
-                }
+                conflicts._domains = conflictDomains;
                 return conflicts;
             },
 
@@ -2535,23 +2561,21 @@
                 const expanded = state._editingGroupId;
 
                 // Предупреждение о конфликтах
-                const conflictKeys = Object.keys(conflicts);
+                const conflictKeys = Object.keys(conflicts).filter(k => k !== '_domains');
                 let conflictsHtml = '';
                 if (conflictKeys.length > 0) {
-                    const conflictLines = conflictKeys.map(d => {
-                        const groups = conflicts[d];
-                        // Для каждой группы — кнопка удаления домена из неё
-                        const groupBtns = groups.map(gName => {
-                            const gObj = state.proxyGroups.find(g => g.name === gName);
-                            if (!gObj) return gName;
-                            return '<span onclick="GatewayApp.actions.removeDomain(\'' + gObj.id + '\',\'' + d.replace(/'/g,"\\'") + '\')" style="cursor:pointer;padding:1px 6px;border-radius:3px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.15);color:#fca5a5;" onmouseover="this.style.background=\'rgba(239,68,68,0.2)\'" onmouseout="this.style.background=\'rgba(239,68,68,0.08)\'">' + gName + ' ✕</span>';
+                    const conflictLines = conflictKeys.map(ck => {
+                        const groupEntries = conflicts[ck];
+                        const groupBtns = groupEntries.map(g => {
+                            const esc = g.domain.replace(/'/g, "\\'");
+                            return '<span onclick="GatewayApp.actions.removeDomain(\'' + g.groupId + '\',\'' + esc + '\')" style="cursor:pointer;padding:1px 6px;border-radius:3px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.15);color:#fca5a5;" onmouseover="this.style.background=\'rgba(239,68,68,0.2)\'" onmouseout="this.style.background=\'rgba(239,68,68,0.08)\'">удалить из «' + g.groupName + '» ✕</span>';
                         }).join(' ');
-                        return '<div style="margin-bottom:4px;"><code>' + d + '</code> → удалить из: ' + groupBtns + '</div>';
+                        return '<div style="margin-bottom:6px;"><code style="background:rgba(255,255,255,0.06);padding:1px 5px;border-radius:3px;">' + ck + '</code><div style="margin-top:3px;display:flex;flex-wrap:wrap;gap:4px;">' + groupBtns + '</div></div>';
                     }).join('');
                     conflictsHtml = '<div style="padding:12px 16px;border-radius:10px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);margin-bottom:16px;">' +
-                        '<div style="font-size:12px;font-weight:700;color:#fbbf24;margin-bottom:8px;">⚠️ Конфликты доменов</div>' +
+                        '<div style="font-size:12px;font-weight:700;color:#fbbf24;margin-bottom:8px;">⚠️ Конфликты доменов (' + conflictKeys.length + ')</div>' +
                         '<div style="font-size:11px;color:#d4a017;">' + conflictLines + '</div>' +
-                        '<div style="margin-top:6px;font-size:10px;color:#94a3b8;">Нажмите на группу, чтобы удалить домен из неё.</div></div>';
+                        '<div style="margin-top:6px;font-size:10px;color:#94a3b8;">Один домен попадает в две группы с разным маршрутом — применится только первое совпавшее правило.</div></div>';
                 }
 
                 const _renderNodePill = (n) => {
@@ -2561,6 +2585,7 @@
                     const bdr = on ? 'rgba(52,211,153,0.2)' : 'rgba(239,68,68,0.2)';
                     return '<span style="font-size:10px;padding:2px 7px;border-radius:4px;background:' + bg + ';color:' + clr + ';border:1px solid ' + bdr + ';">' + n.tag + '</span>';
                 };
+                const _isDomainConflict = (d) => conflicts._domains?.has(d.trim().toLowerCase());
                 const _renderDomainPill = (d, isConflict, groupId) => {
                     const bg = isConflict ? 'rgba(251,191,36,0.15)' : 'rgba(59,130,246,0.15)';
                     const clr = isConflict ? '#fbbf24' : '#fff';
@@ -2588,7 +2613,7 @@
                     }
 
                     // Конфликтные домены в этой группе
-                    const myConflicts = domains.filter(d => conflicts[d.trim().toLowerCase()]);
+                    const myConflicts = domains.filter(d => _isDomainConflict(d));
 
                     const borderNormal = isExpanded ? 'rgba(96,165,250,0.4)' : 'rgba(255,255,255,0.06)';
                     return `<div class="glass" data-group-id="${pg.id}" style="padding:0;border:2px solid ` + borderNormal + `;transition:border-color 0.2s;" ondragover="event.preventDefault();this.style.borderColor='rgba(52,211,153,0.6)'" ondragleave="this.style.borderColor='` + borderNormal + `'" ondrop="event.preventDefault();this.style.borderColor='` + borderNormal + `';var p=event.dataTransfer.getData('text/plain').split('|');if(p[0]!=='${pg.id}')GatewayApp.actions.moveDomain(p[0],'${pg.id}',p[1])">
@@ -2615,7 +2640,7 @@
                             ${domains.length > 0 ? `<div>
                                 <div style="font-size:10px;color:#64748b;margin-bottom:4px;">Домены (${domains.length}):</div>
                                 <div style="display:flex;flex-wrap:wrap;gap:3px;">
-                                    ${domains.map(d => _renderDomainPill(d, !!conflicts[d.trim().toLowerCase()], pg.id)).join('')}
+                                    ${domains.map(d => _renderDomainPill(d, _isDomainConflict(d), pg.id)).join('')}
                                 </div>
                             </div>` : `<div style="font-size:10px;color:#475569;">Нет доменов</div>`}
                         </div>

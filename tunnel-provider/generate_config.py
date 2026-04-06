@@ -89,9 +89,15 @@ def main():
     server_config["log-level"] = "silent"
     server_config["ipv6"] = False
     server_config["geodata-mode"] = True
+    server_config["geo-auto-update"] = True
+    server_config["geo-update-interval"] = 24  # часов
     server_config["geox-url"] = {
-        "geoip": "file:///etc/mihomo/geoip.dat",
-        "geosite": "file:///etc/mihomo/geosite.dat",
+        # runetfreedom: 1449 звёзд, обновление каждые 6ч, чистые категории.
+        # Категория ru-available-only-inside не содержит YouTube/Telegram.
+        # Mihomo кешируeт файл локально и обновляет каждые geo-update-interval часов.
+        # При недоступности GitHub — использует последний закешированный файл.
+        "geoip":   "https://github.com/runetfreedom/russia-v2ray-rules-dat/releases/latest/download/geoip.dat",
+        "geosite": "https://github.com/runetfreedom/russia-v2ray-rules-dat/releases/latest/download/geosite.dat",
     }
 
     server_config["dns"] = {
@@ -396,8 +402,15 @@ def main():
         clean_d = d.strip().split('://')[-1].split('/')[0]
         domain_rules.append(f"DOMAIN-SUFFIX,{clean_d},DIRECT")
 
-    # ru_direct: GEOSITE,ru отключён — категория ru не включена в geosite.dat Mihomo.
-    # Оставлено место для будущей реализации (кастомный список доменов или обновлённая geodb).
+    # ru_direct: сайты, доступные только внутри России — идут напрямую.
+    # Требует geosite.dat от runetfreedom (маркер /etc/mihomo/.geosite-runetfreedom).
+    # Категория ru-available-only-inside НЕ содержит YouTube/Telegram (отдельные категории).
+    _has_runetfreedom = os.path.exists("/etc/mihomo/.geosite-runetfreedom")
+    if rulesets.get('ru_direct', True) and _has_runetfreedom:
+        domain_rules.append("GEOSITE,ru-available-only-inside,DIRECT")
+        print("[GSG] ru_direct: GEOSITE,ru-available-only-inside → DIRECT", flush=True)
+    elif rulesets.get('ru_direct', True):
+        print("[GSG] ru_direct: пропущен — geosite.dat ещё не обновлён до runetfreedom (перезапустите туннель)", flush=True)
 
     # --- 3. ПРАВИЛА УСТРОЙСТВ ---
     for ip, info in devices.items():

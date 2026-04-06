@@ -13,6 +13,27 @@ if ! grep -q "^nameserver" /etc/resolv.conf 2>/dev/null; then
     printf "nameserver 8.8.8.8\nnameserver 1.1.1.1\n" >> /etc/resolv.conf
 fi
 
+# ── Обновляем geosite.dat (runetfreedom, до запуска Mihomo) ──
+# Маркер-файл означает: в geosite.dat есть категория ru-available-only-inside.
+# Без маркера generate_config.py пропустит GEOSITE,ru-available-only-inside,DIRECT.
+GEOSITE_URL="https://github.com/runetfreedom/russia-v2ray-rules-dat/releases/latest/download/geosite.dat"
+GEOSITE_PATH="/etc/mihomo/geosite.dat"
+GEOSITE_MARKER="/etc/mihomo/.geosite-runetfreedom"
+
+if wget -qO /tmp/geosite.dat.tmp --timeout=20 "$GEOSITE_URL" 2>/dev/null \
+   && [ -s /tmp/geosite.dat.tmp ]; then
+    mv /tmp/geosite.dat.tmp "$GEOSITE_PATH"
+    touch "$GEOSITE_MARKER"
+    echo "[INFO] geosite.dat обновлён (runetfreedom/russia-v2ray-rules-dat)"
+else
+    rm -f /tmp/geosite.dat.tmp
+    if [ -f "$GEOSITE_MARKER" ]; then
+        echo "[INFO] geosite.dat: скачать не удалось, используем предыдущую версию runetfreedom"
+    else
+        echo "[WARN] geosite.dat: bundled версия (ru_direct будет пропущен до успешного скачивания)"
+    fi
+fi
+
 # ── Получаем подписку ДО запуска Mihomo ──────────────────────
 # Проверяем: есть ли URL подписки в конфиге
 HAS_URL=$(python3 -c "
