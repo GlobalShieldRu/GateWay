@@ -17,7 +17,9 @@ RUN ARCH=$(uname -m) && \
     else echo "Unsupported arch: $ARCH" && exit 1; fi && \
     curl -fL "https://github.com/MetaCubeX/mihomo/releases/download/${MIHOMO_VERSION}/mihomo-${PKG}-${MIHOMO_VERSION}.gz" | gzip -d > /usr/local/bin/mihomo && \
     chmod +x /usr/local/bin/mihomo && \
-    mkdir -p /etc/mihomo
+    mkdir -p /etc/mihomo && \
+    curl -fL "https://github.com/MetaCubeX/meta-rules-dat/releases/latest/download/geoip.dat" -o /etc/mihomo/geoip.dat && \
+    curl -fL "https://github.com/MetaCubeX/meta-rules-dat/releases/latest/download/geosite.dat" -o /etc/mihomo/geosite.dat
 
 COPY generate_config.py /usr/local/bin/generate_config.py
 RUN chmod +x /usr/local/bin/generate_config.py

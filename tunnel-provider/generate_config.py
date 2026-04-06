@@ -88,6 +88,11 @@ def main():
     server_config["external-controller"] = "0.0.0.0:9090"
     server_config["log-level"] = "silent"
     server_config["ipv6"] = False
+    server_config["geodata-mode"] = True
+    server_config["geox-url"] = {
+        "geoip": "file:///etc/mihomo/geoip.dat",
+        "geosite": "file:///etc/mihomo/geosite.dat",
+    }
 
     server_config["dns"] = {
         "enable": True,
@@ -321,6 +326,45 @@ def main():
         g_id = pg.get("id", "unknown")
         g_type = pg.get("type", "url-test")
         domains = pg.get("domains", [])
+        exclusions = pg.get("exclusions", [])
+
+        # Exclusions группы: эти домены идут DIRECT для устройств использующих группу.
+        # Добавляем ПЕРЕД правилами самой группы, чтобы иметь приоритет.
+        # Применяем только для не-direct групп (у bypass/direct exclusions бессмысленны).
+        if exclusions and g_type != "direct" and g_id != "bypass":
+            for ex in exclusions:
+                ex = ex.strip()
+                if not ex:
+                    continue
+                # group:ИмяГруппы → раскрываем все домены указанной группы
+                if ex.startswith('group:'):
+                    ref_name = ex[len('group:'):]
+                    ref_group = next((p for p in proxy_groups if p.get('name') == ref_name or p.get('id') == ref_name), None)
+                    if ref_group is None:
+                        print(f"[WARN] exclusions: группа '{ref_name}' не найдена, пропускаем", flush=True)
+                        continue
+                    ref_domains = ref_group.get('domains', [])
+                    print(f"  [{pg.get('name', g_id)}] exclusion group:{ref_name} → {len(ref_domains)} доменов", flush=True)
+                    for rd in ref_domains:
+                        rd = rd.strip()
+                        if not rd:
+                            continue
+                        clean_rd = rd.split('://')[-1].split('/')[0]
+                        if '.' in clean_rd:
+                            domain_rules.append(f"DOMAIN-SUFFIX,{clean_rd},DIRECT")
+                        else:
+                            domain_rules.append(f"DOMAIN-KEYWORD,{clean_rd},DIRECT")
+                    continue
+                clean_ex = ex.split('://')[-1].split('/')[0]
+                # keyword: префикс или содержит * → DOMAIN-KEYWORD
+                if clean_ex.startswith('keyword:'):
+                    clean_ex = clean_ex[len('keyword:'):]
+                    domain_rules.append(f"DOMAIN-KEYWORD,{clean_ex},DIRECT")
+                elif '*' in clean_ex or '.' not in clean_ex:
+                    domain_rules.append(f"DOMAIN-KEYWORD,{clean_ex.replace('*','')},DIRECT")
+                else:
+                    domain_rules.append(f"DOMAIN-SUFFIX,{clean_ex},DIRECT")
+
         if not domains:
             continue
 
@@ -429,7 +473,20 @@ def main():
                 device_ip_rules.append(f"SRC-IP-CIDR,{ip}/32,{target}")
         ip_rules = device_ip_rules
 
-    server_config["rules"] = override_rules + domain_rules + ip_rules + custom_routing_rules + [f"MATCH,{global_node}"]
+    # --- GEOIP правила для AI-сервисов ---
+    # Вставляются ПОСЛЕ domain_rules (чтобы bypass-домены типа yandex.ru не уходили в AI)
+    # но ПЕРЕД ip_rules/SubRules устройств (чтобы QUIC/UDP трафик без SNI правильно маршрутизировался).
+    # Проблема: Safari/Chrome используют QUIC (HTTP/3, UDP), Mihomo не может прочитать SNI из QUIC →
+    # соединения без hostname попадают в auto (Stockholm) вместо AI (NY) → Google видит Швецию → Gemini заблокирован.
+    geoip_ai_rules = []
+    if "ai" in existing_group_names:
+        geoip_ai_rules.append("GEOIP,google,ai")
+        geoip_ai_rules.append("GEOIP,cloudflare,ai")
+        print(f"\n[GSG] GEOIP AI rules: {geoip_ai_rules}", flush=True)
+    else:
+        print("\n[GSG] [WARN] Группа 'ai' не найдена, GEOIP,google и GEOIP,cloudflare не добавлены", flush=True)
+
+    server_config["rules"] = override_rules + domain_rules + geoip_ai_rules + ip_rules + custom_routing_rules + [f"MATCH,{global_node}"]
 
     MIHOMO_CONFIG.parent.mkdir(parents=True, exist_ok=True)
     with open(MIHOMO_CONFIG, 'w') as f:
