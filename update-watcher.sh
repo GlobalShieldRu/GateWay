@@ -172,9 +172,12 @@ process_trigger() {
     log "[STAGE:3/6] Сборка контейнеров..."
     # docker compose v5 может возвращать RC=0 даже при ошибке (баг BuildKit).
     # Дополнительно проверяем вывод на признаки ошибки.
+    # set +e нужен чтобы set -euo pipefail не убил скрипт при RC≠0 до проверки.
     _BUILD_TMP=$(mktemp)
+    set +e
     docker compose build 2>&1 | tee -a "$LOG" > "$_BUILD_TMP"
     _BUILD_RC=${PIPESTATUS[0]}
+    set -e
     if [ "$_BUILD_RC" -ne 0 ] || grep -qiE 'failed to (build|solve)|^ERROR:' "$_BUILD_TMP"; then
         rm -f "$_BUILD_TMP"
         log "ОШИБКА: docker compose build не удался"
