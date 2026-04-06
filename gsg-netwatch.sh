@@ -5,72 +5,114 @@
 
 set -e
 
-IFACE_CONF="/etc/network/interfaces.d/gsg-lan.conf"
-CHECK_INTERVAL=20   # seconds between checks
-FAIL_THRESHOLD=9    # 9 × 20s = 3 minutes before fallback (survives router reboots)
+GSG_NET_CONF="/etc/gsg/network.conf"   # написан install.sh, не зависит от network manager
+CHECK_INTERVAL=20                        # секунд между проверками
+FAIL_THRESHOLD=9                         # 9 × 20s = 3 минуты (переживает перезагрузку роутера)
 INSTALL_DIR="/root/GSG"
 
-log()  { logger -t gsg-netwatch "$*"; echo "[gsg-netwatch] $*"; }
+log() { logger -t gsg-netwatch "$*"; echo "[gsg-netwatch] $*"; }
 
-# ── Read static config ────────────────────────────────────────────────────────
-read_iface() { awk '/^auto /{print $2; exit}' "$IFACE_CONF" 2>/dev/null; }
-read_gw()    { awk '/gateway /{print $2; exit}' "$IFACE_CONF" 2>/dev/null; }
-
-IFACE=$(read_iface)
-GW=$(read_gw)
-
-if [ -z "$IFACE" ] || [ -z "$GW" ]; then
-    log "No static config found in $IFACE_CONF — watchdog not needed, exiting."
+# ── Читаем параметры из GSG network.conf ─────────────────────────────────────
+if [ ! -f "$GSG_NET_CONF" ]; then
+    log "Нет $GSG_NET_CONF — watchdog не нужен, выходим."
     exit 0
 fi
 
-log "Watching gateway $GW on $IFACE (threshold: ${FAIL_THRESHOLD}×${CHECK_INTERVAL}s)"
+IFACE=$(grep '^IFACE=' "$GSG_NET_CONF" | cut -d= -f2)
+GW=$(grep '^GW='    "$GSG_NET_CONF" | cut -d= -f2)
+NM_METHOD=$(grep '^NM_METHOD=' "$GSG_NET_CONF" | cut -d= -f2)   # netplan | networkmanager | ifupdown
 
-# ── Monitor loop ──────────────────────────────────────────────────────────────
+if [ -z "$IFACE" ] || [ -z "$GW" ]; then
+    log "IFACE или GW не задан в $GSG_NET_CONF — выходим."
+    exit 0
+fi
+
+log "Слежу за шлюзом $GW на $IFACE (метод: ${NM_METHOD:-auto}, порог: ${FAIL_THRESHOLD}×${CHECK_INTERVAL}s)"
+
+# ── Функция DHCP-fallback ────────────────────────────────────────────────────
+do_dhcp_fallback() {
+    log "Шлюз потерян — останавливаем GSG и переходим на DHCP..."
+
+    # Останавливаем контейнеры (наш DHCP не должен конфликтовать с новым роутером)
+    cd "$INSTALL_DIR" && docker compose stop 2>/dev/null || true
+
+    # Переходим на DHCP в зависимости от network manager
+    if [ "$NM_METHOD" = "netplan" ] || command -v netplan &>/dev/null; then
+        log "Переключаемся на DHCP через netplan..."
+        # Удаляем наш статический конфиг, восстанавливаем DHCP
+        rm -f /etc/netplan/01-gsg-lan.yaml
+        # Определяем renderer из оставшихся конфигов
+        _RENDERER=$(grep -rh 'renderer:' /etc/netplan/ 2>/dev/null | head -1 | awk '{print $2}')
+        [ -z "$_RENDERER" ] && _RENDERER="networkd"
+        cat > /etc/netplan/90-dhcp-restore.yaml << EOF
+network:
+  version: 2
+  renderer: ${_RENDERER}
+  ethernets:
+    ${IFACE}:
+      dhcp4: true
+EOF
+        chmod 600 /etc/netplan/90-dhcp-restore.yaml
+        netplan apply 2>/dev/null || true
+
+    elif [ "$NM_METHOD" = "networkmanager" ] && command -v nmcli &>/dev/null; then
+        log "Переключаемся на DHCP через nmcli..."
+        CONN=$(nmcli -t -f NAME,DEVICE con show --active 2>/dev/null | grep ":${IFACE}$" | cut -d: -f1 | head -1)
+        if [ -n "$CONN" ]; then
+            nmcli connection modify "$CONN" ipv4.method auto ipv4.addresses "" ipv4.gateway "" ipv4.dns "" 2>/dev/null || true
+            nmcli connection up "$CONN" 2>/dev/null || true
+        else
+            ip addr flush dev "$IFACE" 2>/dev/null || true
+            dhclient -v "$IFACE" 2>/dev/null || dhcpcd -k "$IFACE" 2>/dev/null || true
+        fi
+
+    elif [ "$NM_METHOD" = "dhcpcd" ] || (systemctl is-active --quiet dhcpcd 2>/dev/null && [ -f /etc/dhcpcd.conf ]); then
+        log "Переключаемся на DHCP через dhcpcd..."
+        sed -i "/^# GSG static IP/,/^$/d" /etc/dhcpcd.conf 2>/dev/null || true
+        sed -i "/^interface ${IFACE}/,/^$/d" /etc/dhcpcd.conf 2>/dev/null || true
+        systemctl restart dhcpcd 2>/dev/null || true
+
+    elif command -v dhclient &>/dev/null; then
+        log "Переключаемся на DHCP через dhclient..."
+        ip addr flush dev "$IFACE" 2>/dev/null || true
+        dhclient -v "$IFACE" 2>/dev/null || true
+
+    elif command -v udhcpc &>/dev/null; then
+        ip addr flush dev "$IFACE" 2>/dev/null || true
+        udhcpc -i "$IFACE" -q 2>/dev/null || true
+    fi
+
+    # Ждём получения IP
+    sleep 5
+    NEW_IP=$(ip -4 addr show "$IFACE" | awk '/inet /{print $2}' | cut -d/ -f1 | head -1)
+    log "Новый IP через DHCP: ${NEW_IP:-не получен}"
+
+    # Убираем наш network.conf чтобы не зациклиться при перезапуске watchdog
+    mv "$GSG_NET_CONF" "${GSG_NET_CONF}.bak" 2>/dev/null || true
+
+    # Записываем подсказку для восстановления
+    cat > /tmp/gsg-recovery.txt << EOF
+GSG перемещён в новую сеть.
+Новый IP (DHCP): ${NEW_IP:-не получен}
+Для переконфигурации: ssh root@${NEW_IP:-<new-ip>}
+                      bash $INSTALL_DIR/install.sh
+EOF
+
+    log "Готово. Подключайтесь к ${NEW_IP:-новому IP} и запустите install.sh"
+    exit 0
+}
+
+# ── Основной цикл мониторинга ────────────────────────────────────────────────
 fail=0
 while true; do
     if ping -c 2 -W 3 -I "$IFACE" "$GW" >/dev/null 2>&1; then
         fail=0
     else
         fail=$((fail + 1))
-        log "Gateway $GW unreachable ($fail/$FAIL_THRESHOLD)"
-
+        log "Шлюз $GW недоступен ($fail/$FAIL_THRESHOLD)"
         if [ "$fail" -ge "$FAIL_THRESHOLD" ]; then
-            log "Gateway lost — stopping GSG and switching to DHCP..."
-
-            # Stop GSG containers so our DHCP server doesn't conflict with new router
-            cd "$INSTALL_DIR" && docker compose stop 2>/dev/null || true
-
-            # Flush static IP
-            ip addr flush dev "$IFACE" 2>/dev/null || true
-
-            # Get IP from new router via DHCP
-            if command -v dhclient >/dev/null 2>&1; then
-                dhclient -v "$IFACE" 2>/dev/null || true
-            elif command -v udhcpc >/dev/null 2>&1; then
-                udhcpc -i "$IFACE" -q 2>/dev/null || true
-            fi
-
-            NEW_IP=$(ip -4 addr show "$IFACE" | awk '/inet /{print $2}' | cut -d/ -f1 | head -1)
-
-            log "New IP via DHCP: ${NEW_IP:-not obtained}"
-            log "To reconfigure GSG run: bash $INSTALL_DIR/install.sh"
-
-            # Write recovery hint to a file (readable even without SSH)
-            cat > /tmp/gsg-recovery.txt << EOF
-GSG moved to new network.
-New IP (DHCP): ${NEW_IP:-not obtained}
-Reconfigure:  ssh root@${NEW_IP:-<new-ip>}
-              bash $INSTALL_DIR/install.sh
-EOF
-
-            # Rename static config so we don't loop after service restart
-            mv "$IFACE_CONF" "${IFACE_CONF}.bak" 2>/dev/null || true
-
-            log "Done. Connect to ${NEW_IP:-new IP} and run install.sh"
-            exit 0
+            do_dhcp_fallback
         fi
     fi
-
     sleep $CHECK_INTERVAL
 done

@@ -322,9 +322,28 @@ info "Установка сетевого watchdog..."
 cp "${INSTALL_DIR}/gsg-netwatch.sh" /usr/local/bin/gsg-netwatch
 chmod +x /usr/local/bin/gsg-netwatch
 
-# Restore static config if it was renamed by a previous recovery
-IFACE_CONF="/etc/network/interfaces.d/gsg-lan.conf"
-[ -f "${IFACE_CONF}.bak" ] && mv "${IFACE_CONF}.bak" "${IFACE_CONF}" 2>/dev/null || true
+# Сохраняем параметры сети в GSG-конфиг (независимо от network manager)
+# Watchdog читает отсюда — не из ifupdown/netplan напрямую
+mkdir -p /etc/gsg
+if command -v netplan &>/dev/null; then
+    _NM_METHOD="netplan"
+elif systemctl is-active --quiet NetworkManager 2>/dev/null && command -v nmcli &>/dev/null; then
+    _NM_METHOD="networkmanager"
+elif systemctl is-active --quiet dhcpcd 2>/dev/null && [ -f /etc/dhcpcd.conf ]; then
+    _NM_METHOD="dhcpcd"
+else
+    _NM_METHOD="ifupdown"
+fi
+cat > /etc/gsg/network.conf << EOF
+IFACE=${LAN_IFACE}
+GW=${UPSTREAM_GW}
+STATIC_IP=${GATEWAY_IP}
+NM_METHOD=${_NM_METHOD}
+EOF
+success "Сохранены сетевые параметры: /etc/gsg/network.conf"
+
+# Восстанавливаем network.conf если watchdog делал fallback ранее
+[ -f "/etc/gsg/network.conf.bak" ] && mv "/etc/gsg/network.conf.bak" "/etc/gsg/network.conf" 2>/dev/null || true
 
 cat > /etc/systemd/system/gsg-netwatch.service << EOF
 [Unit]
@@ -490,33 +509,53 @@ echo ""
 
 # ── Применяем сетевую конфигурацию в последнюю очередь ───────────────────────
 # Только сейчас — когда контейнеры уже запущены — меняем сеть
+#
+# Поддерживаемые платформы:
+#   Netplan (Ubuntu, Armbian): netplan + networkd/NetworkManager
+#   NetworkManager без netplan (Raspberry Pi OS Bookworm, некоторые Armbian)
+#   dhcpcd (Raspberry Pi OS Bullseye и старше)
+#   ifupdown (классический Debian)
+#
+# DNS: используем шлюз как первый DNS (роутер обычно резолвит) + 8.8.8.8 как fallback.
 
-# Метод 1: /etc/network/interfaces.d/ (Debian / Raspberry Pi OS)
-if [ -d /etc/network/interfaces.d ] || [ -f /etc/network/interfaces ]; then
-    mkdir -p /etc/network/interfaces.d
-    if [ -f /etc/network/interfaces ]; then
-        sed -i "/^auto ${LAN_IFACE}/d" /etc/network/interfaces
-        sed -i "/^allow-hotplug ${LAN_IFACE}/d" /etc/network/interfaces
-        sed -i "/^iface ${LAN_IFACE} inet/d" /etc/network/interfaces
-    fi
-    cat > /etc/network/interfaces.d/gsg-lan.conf << EOF
-auto ${LAN_IFACE}
-iface ${LAN_IFACE} inet static
-    address ${GATEWAY_IP}/24
-    gateway ${UPSTREAM_GW}
-    dns-nameservers 8.8.8.8 1.1.1.1
-EOF
-    success "Записано: /etc/network/interfaces.d/gsg-lan.conf"
-fi
+_apply_ip_immediately() {
+    # Немедленно применяет IP через ip-команды (без перезагрузки)
+    ip addr flush dev "${LAN_IFACE}" 2>/dev/null || true
+    ip addr add "${GATEWAY_IP}/24" dev "${LAN_IFACE}"
+    ip link set "${LAN_IFACE}" up
+    ip route del default 2>/dev/null || true
+    ip route add default via "${UPSTREAM_GW}" 2>/dev/null || true
+}
 
-# Метод 2: Netplan (Ubuntu 20.04+, Armbian)
 if command -v netplan &>/dev/null; then
-    # Удаляем DHCP-restore от предыдущей деинсталляции
+    # ── Метод: Netplan (Ubuntu, Armbian) ──────────────────────────────────────
     rm -f /etc/netplan/90-dhcp-restore.yaml
 
     # Определяем renderer из существующего конфига (NetworkManager или networkd)
     NETPLAN_RENDERER=$(grep -rh 'renderer:' /etc/netplan/ 2>/dev/null | head -1 | awk '{print $2}')
     [ -z "$NETPLAN_RENDERER" ] && NETPLAN_RENDERER="networkd"
+
+    # Удаляем ifupdown-конфиг для этого интерфейса чтобы не было конфликта
+    rm -f /etc/network/interfaces.d/gsg-lan.conf
+    if [ -f /etc/network/interfaces ]; then
+        sed -i "/^auto ${LAN_IFACE}/d" /etc/network/interfaces
+        sed -i "/^allow-hotplug ${LAN_IFACE}/d" /etc/network/interfaces
+        sed -i "/^iface ${LAN_IFACE} inet/,/^$/d" /etc/network/interfaces
+    fi
+
+    # Удаляем wildcard DHCP конфиги которые конфликтуют с нашим статическим IP.
+    # Armbian ставит 10-dhcp-all-interfaces.yaml (match: name: "e*") — он генерирует
+    # 10-netplan-all-eth-interfaces.network, который алфавитно идёт РАНЬШЕ
+    # 10-netplan-${LAN_IFACE}.network → DHCP побеждает над нашим статическим IP.
+    for _f in /etc/netplan/*.yaml; do
+        [ "$_f" = "/etc/netplan/01-gsg-lan.yaml" ] && continue
+        # Удаляем если содержит wildcard DHCP на ethernet-интерфейсы
+        if grep -qE 'dhcp4: yes' "$_f" 2>/dev/null && \
+           grep -qE 'name: "?(e\*|eth\*|en\*|lan\*|wan\*)' "$_f" 2>/dev/null; then
+            rm -f "$_f"
+            warn "Удалён конфликтующий DHCP конфиг: $_f"
+        fi
+    done
 
     cat > /etc/netplan/01-gsg-lan.yaml << EOF
 network:
@@ -532,20 +571,117 @@ network:
       nameservers:
         addresses: [8.8.8.8, 1.1.1.1]
 EOF
+    # Права 600 обязательны — netplan отказывается читать файлы с open permissions
+    chmod 600 /etc/netplan/01-gsg-lan.yaml
     success "Netplan: конфигурация записана (renderer: ${NETPLAN_RENDERER})"
-fi
 
-if [ "${GATEWAY_IP}" != "${CURRENT_IP}" ]; then
-    echo ""
-    warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    warn "  Сейчас IP сменится: ${CURRENT_IP} → ${GATEWAY_IP}"
-    warn "  SSH-сессия прервётся — это нормально."
-    warn "  Подключайтесь к новому адресу: ssh root@${GATEWAY_IP}"
-    warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    sleep 3
-    ip addr flush dev "${LAN_IFACE}" 2>/dev/null || true
-    ip addr add "${GATEWAY_IP}/24" dev "${LAN_IFACE}"
-    ip link set "${LAN_IFACE}" up
-    ip route del default 2>/dev/null || true
-    ip route add default via "${UPSTREAM_GW}" 2>/dev/null || true
+    if [ "${GATEWAY_IP}" != "${CURRENT_IP}" ]; then
+        warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        warn "  Сейчас IP сменится: ${CURRENT_IP} → ${GATEWAY_IP}"
+        warn "  SSH-сессия прервётся — это нормально."
+        warn "  Подключайтесь к новому адресу: ssh root@${GATEWAY_IP}"
+        warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        sleep 3
+    fi
+    # netplan apply генерирует конфиги networkd/NM и активирует их.
+    # Если IP меняется — SSH сессия прервётся, это нормально.
+    netplan apply 2>/dev/null || _apply_ip_immediately
+
+elif systemctl is-active --quiet NetworkManager 2>/dev/null && command -v nmcli &>/dev/null; then
+    # ── Метод: NetworkManager без netplan (Raspberry Pi OS Bookworm) ───────────
+    # Удаляем dhcpcd и ifupdown конфиги для этого интерфейса
+    sed -i "/^interface ${LAN_IFACE}/,/^$/d" /etc/dhcpcd.conf 2>/dev/null || true
+    rm -f /etc/network/interfaces.d/gsg-lan.conf
+
+    # Ищем активное соединение для нашего интерфейса
+    _NM_CONN=$(nmcli -t -f NAME,DEVICE con show --active 2>/dev/null | grep ":${LAN_IFACE}$" | cut -d: -f1 | head -1)
+    if [ -z "$_NM_CONN" ]; then
+        # Нет активного — создаём новое
+        _NM_CONN="gsg-static"
+        nmcli con add type ethernet ifname "${LAN_IFACE}" con-name "${_NM_CONN}" \
+            ipv4.method manual \
+            ipv4.addresses "${GATEWAY_IP}/24" \
+            ipv4.gateway "${UPSTREAM_GW}" \
+            ipv4.dns "8.8.8.8 1.1.1.1" \
+            connection.autoconnect yes 2>/dev/null || true
+    else
+        nmcli con modify "${_NM_CONN}" \
+            ipv4.method manual \
+            ipv4.addresses "${GATEWAY_IP}/24" \
+            ipv4.gateway "${UPSTREAM_GW}" \
+            ipv4.dns "8.8.8.8 1.1.1.1" \
+            connection.autoconnect yes 2>/dev/null || true
+    fi
+    success "NetworkManager: соединение '${_NM_CONN}' настроено на статический IP"
+
+    if [ "${GATEWAY_IP}" != "${CURRENT_IP}" ]; then
+        warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        warn "  Сейчас IP сменится: ${CURRENT_IP} → ${GATEWAY_IP}"
+        warn "  SSH-сессия прервётся — это нормально."
+        warn "  Подключайтесь к новому адресу: ssh root@${GATEWAY_IP}"
+        warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        sleep 3
+    fi
+    nmcli con up "${_NM_CONN}" 2>/dev/null || _apply_ip_immediately
+
+elif systemctl is-active --quiet dhcpcd 2>/dev/null && [ -f /etc/dhcpcd.conf ]; then
+    # ── Метод: dhcpcd (Raspberry Pi OS Bullseye и старше) ─────────────────────
+    # Удаляем предыдущую GSG-конфигурацию для этого интерфейса
+    sed -i "/^# GSG static IP/,/^$/d" /etc/dhcpcd.conf 2>/dev/null || true
+    sed -i "/^interface ${LAN_IFACE}/,/^$/d" /etc/dhcpcd.conf 2>/dev/null || true
+    cat >> /etc/dhcpcd.conf << EOF
+
+# GSG static IP — добавлено install.sh
+interface ${LAN_IFACE}
+static ip_address=${GATEWAY_IP}/24
+static routers=${UPSTREAM_GW}
+static domain_name_servers=8.8.8.8 1.1.1.1
+EOF
+    success "dhcpcd: статический IP добавлен в /etc/dhcpcd.conf"
+
+    if [ "${GATEWAY_IP}" != "${CURRENT_IP}" ]; then
+        warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        warn "  Сейчас IP сменится: ${CURRENT_IP} → ${GATEWAY_IP}"
+        warn "  SSH-сессия прервётся — это нормально."
+        warn "  Подключайтесь к новому адресу: ssh root@${GATEWAY_IP}"
+        warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        sleep 3
+    fi
+    systemctl restart dhcpcd 2>/dev/null || _apply_ip_immediately
+
+elif [ -d /etc/network/interfaces.d ] || [ -f /etc/network/interfaces ]; then
+    # ── Метод: ifupdown (классический Debian) ─────────────────────────────────
+    mkdir -p /etc/network/interfaces.d
+    if [ -f /etc/network/interfaces ]; then
+        sed -i "/^auto ${LAN_IFACE}/d" /etc/network/interfaces
+        sed -i "/^allow-hotplug ${LAN_IFACE}/d" /etc/network/interfaces
+        sed -i "/^iface ${LAN_IFACE} inet/,/^$/d" /etc/network/interfaces
+    fi
+    cat > /etc/network/interfaces.d/gsg-lan.conf << EOF
+auto ${LAN_IFACE}
+iface ${LAN_IFACE} inet static
+    address ${GATEWAY_IP}/24
+    gateway ${UPSTREAM_GW}
+    dns-nameservers 8.8.8.8 1.1.1.1
+EOF
+    success "ifupdown: конфигурация записана в /etc/network/interfaces.d/gsg-lan.conf"
+
+    if [ "${GATEWAY_IP}" != "${CURRENT_IP}" ]; then
+        warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        warn "  Сейчас IP сменится: ${CURRENT_IP} → ${GATEWAY_IP}"
+        warn "  SSH-сессия прервётся — это нормально."
+        warn "  Подключайтесь к новому адресу: ssh root@${GATEWAY_IP}"
+        warn "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        sleep 3
+    fi
+    _apply_ip_immediately
+
+else
+    warn "Неизвестный менеджер сети — применяем через ip-команды"
+    if [ "${GATEWAY_IP}" != "${CURRENT_IP}" ]; then
+        warn "  IP сменится: ${CURRENT_IP} → ${GATEWAY_IP}"
+        warn "  Подключайтесь: ssh root@${GATEWAY_IP}"
+        sleep 3
+    fi
+    _apply_ip_immediately
 fi

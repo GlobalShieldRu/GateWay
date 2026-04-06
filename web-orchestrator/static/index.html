@@ -7,7 +7,6 @@
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <link rel="alternate icon" type="image/png" href="/static/logo.png">
     <link rel="apple-touch-icon" href="/static/logo.png">
-    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -717,6 +716,21 @@
             .dev-row-mobile-body { display: contents; }
             .dev-row-mobile-right { display: contents; }
         }
+
+        /* ─── Connection row hover ─────────────────────────── */
+        .conn-row { transition: background 0.1s; }
+        .conn-row:hover { background: rgba(255,255,255,0.04) !important; }
+
+        /* ─── Tailwind utility replacements (removed CDN) ── */
+        .flex { display: flex; }
+        .flex-col { flex-direction: column; }
+        .items-center { align-items: center; }
+        .shrink-0 { flex-shrink: 0; }
+        .gap-4 { gap: 1rem; }
+        .p-8 { padding: 2rem; }
+        .mx-4 { margin-left: 1rem; margin-right: 1rem; }
+        .max-w-sm { max-width: 24rem; }
+        .text-center { text-align: center; }
     </style>
 </head>
 <body>
@@ -1082,10 +1096,10 @@
                     <!-- Legend -->
                     <div style="padding:10px 20px;border-top:1px solid rgba(255,255,255,0.04);display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
                         <span class="section-label" style="margin-right:4px;font-family:'JetBrains Mono',monospace;font-size:10px;">Легенда</span>
-                        <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.3);font-size:9px;font-weight:700;color:#c9a84c;white-space:nowrap;">Smart — обход блокировок</span>
-                        <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);font-size:9px;font-weight:700;color:#3b82f6;white-space:nowrap;">Global — весь трафик через узел</span>
-                        <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;background:rgba(148,163,184,0.12);border:1px solid rgba(148,163,184,0.3);font-size:9px;font-weight:700;color:#94a3b8;white-space:nowrap;">Bypass — напрямую</span>
-                        <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);font-size:9px;font-weight:700;color:#ef4444;white-space:nowrap;">Block — блокировка</span>
+                        <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.3);font-size:9px;font-weight:700;color:#c9a84c;white-space:nowrap;">Умный — заблокированные через VPN, остальное напрямую</span>
+                        <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);font-size:9px;font-weight:700;color:#3b82f6;white-space:nowrap;">Весь трафик — всё через VPN</span>
+                        <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;background:rgba(148,163,184,0.12);border:1px solid rgba(148,163,184,0.3);font-size:9px;font-weight:700;color:#94a3b8;white-space:nowrap;">Напрямую — VPN отключён</span>
+                        <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);font-size:9px;font-weight:700;color:#ef4444;white-space:nowrap;">Блокировать — нет доступа к сети</span>
                     </div>
                 </div>
             </div>
@@ -1100,20 +1114,41 @@
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                             Базы правил
                         </div>
-                        <div style="display:flex;gap:12px;flex-wrap:wrap;">
-                            <label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);cursor:pointer;flex:1;min-width:180px;" onmouseover="this.style.background='rgba(255,255,255,0.04)'" onmouseout="this.style.background='rgba(255,255,255,0.02)'">
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                            <label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);cursor:pointer;flex:1;min-width:200px;">
                                 <input type="checkbox" id="rulesetRkn" class="gsg-check" onchange="GatewayApp.actions.saveRulesets()">
-                                <div><div style="font-size:11px;font-weight:700;color:#f1f5f9;">Обход блокировок РКН</div><div style="font-size:9px;color:var(--muted);">AntiFilter</div></div>
+                                <div>
+                                    <div style="font-size:11px;font-weight:700;color:#f1f5f9;">Разблокировка РКН</div>
+                                    <div style="font-size:9px;color:var(--muted);">antifilter.download · ~200 000 доменов, обновляется ежесуточно</div>
+                                    <div style="font-size:9px;color:#64748b;margin-top:2px;">Только для режима «Умный»</div>
+                                </div>
                             </label>
-                            <label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);cursor:pointer;flex:1;min-width:180px;" onmouseover="this.style.background='rgba(255,255,255,0.04)'" onmouseout="this.style.background='rgba(255,255,255,0.02)'">
+                            <label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);cursor:pointer;flex:1;min-width:200px;">
                                 <input type="checkbox" id="rulesetRuDirect" class="gsg-check" onchange="GatewayApp.actions.saveRulesets()">
-                                <div><div style="font-size:11px;font-weight:700;color:#f1f5f9;">Прямой доступ к .RU</div><div style="font-size:9px;color:var(--muted);">Мимо прокси</div></div>
+                                <div>
+                                    <div style="font-size:11px;font-weight:700;color:#f1f5f9;">Российские сайты напрямую</div>
+                                    <div style="font-size:9px;color:var(--muted);">Все .ru домены без VPN</div>
+                                    <div style="font-size:9px;color:#64748b;margin-top:2px;">Применяется ко всем режимам, включая «Весь трафик»</div>
+                                </div>
                             </label>
+                            <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;border:1px solid rgba(52,211,153,0.15);background:rgba(52,211,153,0.04);flex:1;min-width:200px;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2" style="flex-shrink:0;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                                <div>
+                                    <div style="font-size:11px;font-weight:700;color:#34d399;">Telegram — всегда через VPN</div>
+                                    <div style="font-size:9px;color:var(--muted);">IP-адреса серверов Telegram, обновляется ежесуточно</div>
+                                    <div style="font-size:9px;color:#64748b;margin-top:2px;">Только для режима «Умный», нельзя отключить</div>
+                                </div>
+                            </div>
                         </div>
                         <!-- Маршруты внутри левой панели -->
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
                             <div style="font-size:13px;font-weight:800;color:#f1f5f9;">Маршруты</div>
                             <button class="btn-primary" style="font-size:10px;padding:4px 12px;" onclick="GatewayApp.ui.showGroupEditor()">+ Создать</button>
+                        </div>
+                        <div style="padding:8px 12px;border-radius:8px;background:rgba(201,168,76,0.06);border:1px solid rgba(201,168,76,0.2);font-size:10px;color:#94a3b8;line-height:1.5;">
+                            <span style="color:#c9a84c;font-weight:700;">Маршруты применяются ко всем устройствам</span>, независимо от режима.<br>
+                            Домены из группы «AI-сервисы» всегда идут через NY-узел, «Напрямую» — без VPN — даже если устройство в режиме «Весь трафик».<br>
+                            Режим устройства определяет только что делать с трафиком, <em>не попавшим</em> ни в одну группу.
                         </div>
                         <div id="groups-list" style="display:flex;flex-direction:column;gap:10px;"></div>
                     </div>
@@ -1129,7 +1164,7 @@
                 <!-- Inline editor for new group -->
                 <div id="group-editor" class="glass" style="padding:20px;margin-top:16px;display:none;">
                     <div style="font-size:14px;font-weight:700;color:#f1f5f9;margin-bottom:14px;" id="group-editor-title">Новая группа</div>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
                         <div>
                             <div class="section-label" style="margin-bottom:6px;">Название</div>
                             <input type="text" id="groupEditName_new" class="gsg-input" placeholder="Например: Видео" style="width:100%;">
@@ -1146,6 +1181,11 @@
                             <textarea id="groupEditDomains_new" class="gsg-textarea" rows="7" placeholder="youtube.com&#10;netflix.com&#10;speedtest.net"></textarea>
                             <div style="font-size:10px;color:var(--muted);margin-top:4px;">Без точки → KEYWORD (все поддомены). С точкой → SUFFIX.</div>
                         </div>
+                        <div>
+                            <div class="section-label" style="margin-bottom:6px;">Исключения (DIRECT)</div>
+                            <textarea id="groupEditExclusions_new" class="gsg-textarea" rows="7" placeholder="gosuslugi.ru&#10;sberbank.ru&#10;vtb.ru&#10;group:Bypass"></textarea>
+                            <div style="font-size:10px;color:var(--muted);margin-top:4px;">Эти домены пойдут напрямую. Напишите <code style="background:rgba(255,255,255,0.08);padding:1px 4px;border-radius:3px;">group:Bypass</code> чтобы исключить все домены другой группы.</div>
+                        </div>
                     </div>
                     <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end;">
                         <button onclick="GatewayApp.ui.hideGroupEditor()" style="padding:8px 16px;border-radius:8px;background:rgba(255,255,255,0.06);color:#94a3b8;border:1px solid rgba(255,255,255,0.1);cursor:pointer;">Отмена</button>
@@ -1156,29 +1196,7 @@
 
             <!-- Routing tab -->
             <div id="tab-routing" class="tab-content expert-item reveal reveal-2">
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
-                    <div class="glass" style="padding:24px;">
-                        <div style="font-size:15px;font-weight:800;color:#f1f5f9;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                            Базы Rule-sets
-                        </div>
-                        <div style="display:flex;flex-direction:column;gap:8px;">
-                            <label style="display:flex;align-items:flex-start;gap:12px;padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);cursor:pointer;transition:background 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.04)'" onmouseout="this.style.background='rgba(255,255,255,0.02)'">
-                                <input type="checkbox" checked class="gsg-check" style="margin-top:1px;">
-                                <div>
-                                    <div style="font-size:13px;font-weight:700;color:#f1f5f9;margin-bottom:2px;">Обход блокировок РКН</div>
-                                    <div style="font-size:11px;color:var(--muted);">Автообновляемый список AntiFilter</div>
-                                </div>
-                            </label>
-                            <label style="display:flex;align-items:flex-start;gap:12px;padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);cursor:pointer;transition:background 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.04)'" onmouseout="this.style.background='rgba(255,255,255,0.02)'">
-                                <input type="checkbox" checked class="gsg-check" style="margin-top:1px;">
-                                <div>
-                                    <div style="font-size:13px;font-weight:700;color:#f1f5f9;margin-bottom:2px;">Прямой доступ к .RU</div>
-                                    <div style="font-size:11px;color:var(--muted);">Маршрутизация мимо прокси</div>
-                                </div>
-                            </label>
-                        </div>
-                    </div>
+                <div style="display:grid;grid-template-columns:1fr;gap:20px;">
                     <div class="glass" style="padding:24px;">
                         <div style="font-size:15px;font-weight:800;color:#f1f5f9;margin-bottom:16px;">Пользовательские правила</div>
                         <div style="display:flex;flex-direction:column;gap:14px;">
@@ -1443,8 +1461,8 @@
 <!-- Context menu -->
 <div id="ctxMenu">
     <div class="ctx-item" id="ctxRename">✏️ Переименовать</div>
-    <div class="ctx-item" id="ctxVPN">🌐 Через VPN</div>
-    <div class="ctx-item" id="ctxSmart">⚡ Smart</div>
+    <div class="ctx-item" id="ctxVPN">🌐 Весь трафик через VPN</div>
+    <div class="ctx-item" id="ctxSmart">⚡ Умный режим</div>
     <div class="ctx-item" id="ctxDirect">🔓 Напрямую</div>
     <div class="ctx-sep"></div>
     <div class="ctx-item" id="ctxBlock" style="color:#ef4444;">🚫 Блокировать</div>
@@ -1909,7 +1927,10 @@
                 const trafficKeys = devices.map(d => { const t = state.traffic?.[d.ip]; return t ? `${d.ip}:${(t.speed_down||0)>0||(t.speed_up||0)>0?1:0}` : ''; }).join(',');
                 const _adKey = Object.entries(state._activeDeviceApps || {}).map(([ip,apps]) => ip + ':' + Object.keys(apps).sort().join('+')).sort().join('|');
                 const _timeBucket = Math.floor(Date.now() / 30000); // forces re-render every 30s for chip cooldown
-                const newHash = JSON.stringify(devices) + JSON.stringify(state.nodes) + JSON.stringify(state.deviceApps) + (state._modeStyle||'emoji') + trafficKeys + (state._devSearch||'') + _adKey + _timeBucket;
+                const _nodesKey = (state.nodes.length || 0) + '|' + (state.nodes[0]?.tag || '') + '|' + (state.nodes[state.nodes.length-1]?.tag || '');
+                const _devsKey = (devices||[]).map(d=>`${d.ip}:${d.mode}:${d.hostname||''}:${d.custom_name||''}:${d.blocked||''}`).join('|');
+                const _appsKey = Object.entries(state.deviceApps||{}).map(([ip,apps])=>ip+':'+Object.keys(apps||{}).sort().join('+')).sort().join('|');
+                const newHash = _devsKey + _nodesKey + _appsKey + (state._modeStyle||'emoji') + trafficKeys + (state._devSearch||'') + _timeBucket;
                 if (state._devicesHash === newHash) return;
                 state._devicesHash = newHash;
 
@@ -1983,7 +2004,7 @@
                         : '';
 
                     const modeColors = {smart:'#3b82f6',global:'#a855f7',bypass:'#94a3b8',block:'#ef4444'};
-                    const modeLabels = {smart:'Smart',global:'Global',bypass:'Bypass',block:'Block'};
+                    const modeLabels = {smart:'Умный',global:'Весь трафик',bypass:'Напрямую',block:'Блокировать'};
                     const modeBadge = `<span style="display:inline-flex;align-items:center;padding:1px 6px;border-radius:4px;background:${modeColors[dev.mode]||'#64748b'}18;border:1px solid ${modeColors[dev.mode]||'#64748b'}33;font-size:9px;font-weight:700;color:${modeColors[dev.mode]||'#64748b'};margin-top:4px;letter-spacing:0.04em;text-transform:uppercase;">${modeLabels[dev.mode]||dev.mode}</span>`;
 
                     const devApps = state.deviceApps[dev.ip] || {};
@@ -2000,7 +2021,8 @@
                     const _visNonNY = APPS.filter(a => !a.ny && (!!_liveApps[a.id] || _isRecent(a.id)));
                     const _visNY    = APPS.filter(a =>  a.ny && (!!_liveApps[a.id] || _isRecent(a.id)));
                     const _anyChips = _visNonNY.length > 0 || _visNY.length > 0;
-                    const appsHtml = _anyChips ? `<div style="display:flex;flex-direction:column;gap:4px;">
+                    const _chipIds = [..._visNonNY, ..._visNY].map(a => a.id).join(',');
+                    const appsHtml = _anyChips ? `<div data-apps-for="${dev.ip}" data-app-ids="${_chipIds}" style="display:flex;flex-direction:column;gap:4px;">
                         <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;max-width:216px;">
                         ${[..._visNonNY, ..._visNY].map(app => {
                             const isNY = app.ny;
@@ -2137,10 +2159,10 @@
                             <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;">
                                 ${['smart','global','bypass','block'].map(m => {
                                     const pillColors = {smart:'#c9a84c',global:'#3b82f6',bypass:'#94a3b8',block:'#ef4444'};
-                                    const pillLabels = {smart:'Smart',global:'Global',bypass:'Bypass',block:'Block'};
+                                    const pillLabels = {smart:'Умный',global:'Весь трафик',bypass:'Напрямую',block:'Блокировать'};
                                     const c = pillColors[m];
                                     const active = dev.mode === m;
-                                    return `<span class="mode-pill" data-ip="${dev.ip}" data-mode="${m}" title="${{smart:'Smart',global:'Global',bypass:'Bypass',block:'Block'}[m]}" style="padding:2px 4px;border-radius:5px;font-size:9px;font-weight:700;cursor:pointer;transition:all 0.15s;text-align:center;${active ? `background:${c}22;border:1px solid ${c};color:${c};` : `background:transparent;border:1px solid rgba(255,255,255,0.08);color:rgba(148,163,184,0.5);`}">${pillLabels[m]}</span>`;
+                                    return `<span class="mode-pill" data-ip="${dev.ip}" data-mode="${m}" title="${{smart:'Умный',global:'Весь трафик',bypass:'Напрямую',block:'Блокировать'}[m]}" style="padding:2px 4px;border-radius:5px;font-size:9px;font-weight:700;cursor:pointer;transition:all 0.15s;text-align:center;${active ? `background:${c}22;border:1px solid ${c};color:${c};` : `background:transparent;border:1px solid rgba(255,255,255,0.08);color:rgba(148,163,184,0.5);`}">${pillLabels[m]}</span>`;
                                 }).join('')}
                             </div>
                         </div>
@@ -2184,6 +2206,50 @@
                 if (elActive) elActive.textContent = activeCount + ' активных';
 
                 ui.updateTrafficDOM();
+            },
+
+            // Патчим классы/стили app chips прямо на существующих элементах — без перестройки строк устройств.
+            // Вызывается каждые 2с из fetchConnections вместо полного renderDevices.
+            updateDeviceAppChips: () => {
+                const _now = Date.now();
+                const _CHIP_CD = 30000;
+                (state.devices || []).forEach(dev => {
+                    const container = document.querySelector(`[data-apps-for="${dev.ip}"]`);
+                    const _liveApps   = (state._activeDeviceApps || {})[dev.ip] || {};
+                    const _recentApps = (state._lastSeenApps     || {})[dev.ip] || {};
+                    const _isRecent   = (aid) => !!_recentApps[aid] && (_now - _recentApps[aid] < _CHIP_CD);
+                    const _visNonNY   = APPS.filter(a => !a.ny && (!!_liveApps[a.id] || _isRecent(a.id)));
+                    const _visNY      = APPS.filter(a =>  a.ny && (!!_liveApps[a.id] || _isRecent(a.id)));
+                    const _anyChips   = _visNonNY.length > 0 || _visNY.length > 0;
+                    const newIds      = [..._visNonNY, ..._visNY].map(a => a.id).join(',');
+
+                    if (!container || container.dataset.appIds !== newIds) {
+                        // Набор видимых чипов изменился — нужен полный перерендер строки
+                        state._devicesHash = null;
+                        return;
+                    }
+
+                    // Набор тот же — только патчим классы и CSS-переменные
+                    [..._visNonNY, ..._visNY].forEach(app => {
+                        const chip = container.querySelector(`[data-app="${app.id}"]`);
+                        if (!chip) return;
+                        const isLive   = !!_liveApps[app.id];
+                        const isRecent = !isLive && _isRecent(app.id);
+                        chip.classList.toggle('active', isLive || isRecent);
+                        chip.classList.toggle('live',   isLive);
+                        if (isLive || isRecent) {
+                            chip.style.setProperty('--chip-bg',     app.color + (isLive ? '22' : '15'));
+                            chip.style.setProperty('--chip-border',  app.color + (isLive ? '55' : '40'));
+                            chip.style.setProperty('--chip-color',   app.color);
+                            chip.style.opacity = isRecent ? '0.5' : '';
+                        } else {
+                            chip.style.removeProperty('--chip-bg');
+                            chip.style.removeProperty('--chip-border');
+                            chip.style.removeProperty('--chip-color');
+                            chip.style.opacity = '';
+                        }
+                    });
+                });
             },
 
             updateTrafficDOM: () => {
@@ -2555,7 +2621,7 @@
                         </div>
                         <!-- Inline editor -->
                         ${isExpanded ? `<div style="padding:0 20px 20px;border-top:1px solid rgba(255,255,255,0.06);">
-                            <div style="padding-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                            <div style="padding-top:16px;display:grid;grid-template-columns:1fr 1fr ${(pg.type !== 'direct' && pg.id !== 'bypass') ? '1fr' : ''};gap:16px;">
                                 <div>
                                     <div class="section-label" style="margin-bottom:6px;">Название</div>
                                     <input type="text" id="groupEditName" class="gsg-input" value="${pg.name}" ${isBuiltin ? 'disabled' : ''} style="width:100%;">
@@ -2579,6 +2645,11 @@
                                     <textarea id="groupEditDomains" class="gsg-textarea" rows="8" placeholder="youtube.com&#10;netflix.com">${domains.join('\n')}</textarea>
                                     <div style="font-size:10px;color:var(--muted);margin-top:4px;">Без точки → KEYWORD (все поддомены). С точкой → SUFFIX.</div>
                                 </div>
+                                ${(pg.type !== 'direct' && pg.id !== 'bypass') ? `<div>
+                                    <div class="section-label" style="margin-bottom:6px;">Исключения (DIRECT)</div>
+                                    <textarea id="groupEditExclusions" class="gsg-textarea" rows="8" placeholder="gosuslugi.ru&#10;sberbank.ru&#10;vtb.ru&#10;group:Bypass">${(pg.exclusions || []).join('\n')}</textarea>
+                                    <div style="font-size:10px;color:var(--muted);margin-top:4px;">Эти домены пойдут напрямую. Напишите <code style="background:rgba(255,255,255,0.08);padding:1px 4px;border-radius:3px;">group:Bypass</code> чтобы исключить все домены другой группы.</div>
+                                </div>` : ''}
                             </div>
                             <div style="margin-top:14px;display:flex;gap:8px;justify-content:space-between;">
                                 <div>${!isBuiltin ? `<button onclick="GatewayApp.actions.deleteGroup('${pg.id}')" style="padding:8px 14px;border-radius:8px;background:rgba(239,68,68,0.08);color:#ef4444;border:1px solid rgba(239,68,68,0.15);cursor:pointer;font-size:12px;">Удалить группу</button>` : ''}</div>
@@ -2611,6 +2682,8 @@
                 document.getElementById('groupEditFilter_new').value = '';
                 document.getElementById('groupEditType_new').value = 'url-test';
                 document.getElementById('groupEditDomains_new').value = '';
+                const excEl = document.getElementById('groupEditExclusions_new');
+                if (excEl) excEl.value = '';
                 editor.style.display = 'block';
             },
 
@@ -3511,6 +3584,14 @@
                             }
                             box._vizRaf = requestAnimationFrame(tick);
 
+                            // Pause when tab is hidden
+                            if (document.hidden) { lastTs = null; return; }
+
+                            // Throttle to ~30fps
+                            if (!box._rafThrottleTs) box._rafThrottleTs = ts;
+                            if (ts - box._rafThrottleTs < 30) return;
+                            box._rafThrottleTs = ts;
+
                             if (!lastTs) { lastTs = ts; return; }
                             const dt = Math.min((ts - lastTs) / 1000, 0.05);
                             lastTs = ts;
@@ -4061,9 +4142,9 @@
                 }
 
                 const last = hist[N - 1] || {};
-                const autoSpd   = (last.autoDown||0) + (last.autoUp||0);
-                const nySpd     = (last.nyDown||0)   + (last.nyUp||0);
-                const directSpd = (last.directDown||0) + (last.directUp||0);
+                const autoSpd   = last.autoDown   || 0;
+                const nySpd     = last.nyDown     || 0;
+                const directSpd = last.directDown || 0;
                 const el = (id) => document.getElementById(id);
                 if (el('chartSpeedAuto')) el('chartSpeedAuto').textContent = utils.formatBytes(autoSpd)   + '/s';
                 if (el('chartSpeedNy'))   el('chartSpeedNy').textContent   = utils.formatBytes(nySpd)     + '/s';
@@ -4978,43 +5059,78 @@
                     </div>`;
                     return;
                 }
+                // Clear empty-state placeholder if present
+                if (box.querySelector('svg')) box.innerHTML = '';
+
                 const devNames = {};
                 (state.devices || []).forEach(d => { devNames[d.ip] = d.custom_name || d.hostname || d.ip; });
-                box.innerHTML = conns.map(c => {
-                    const srcName = devNames[c.src] || c.src;
+
+                // Diff-based update: only add/remove changed rows, patch bytes in-place
+                const existingRows = new Map();
+                box.querySelectorAll('.conn-row[data-conn-key]').forEach(r => existingRows.set(r.dataset.connKey, r));
+
+                const seen = new Set();
+                let rowIdx = 0;
+                conns.forEach(c => {
                     const chain   = c.chain || 'DIRECT';
-                    const isDirect = chain === 'DIRECT';
-                    const chainColor = isDirect ? '#94a3b8' : '#60a5fa';
-                    const rawHost = c.host || '';
-                    const host = c.host ? (c.dst_port ? `${c.host}:${c.dst_port}` : c.host) : (c.dst_port || '—');
+                    const rawHost = c.host  || '';
+                    const key     = `${c.src}|${rawHost}|${chain}|${c.network}`;
+                    seen.add(key);
                     const upFmt   = utils.formatBytes(c.upload);
                     const downFmt = utils.formatBytes(c.download);
-                    const netBadge = `<span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;background:rgba(100,116,139,0.12);border:1px solid rgba(100,116,139,0.2);color:#64748b;">${c.network}</span>`;
-                    const checked = state._selectedHosts.has(rawHost) ? 'checked' : '';
-                    return `<div class="conn-row" data-host="${rawHost}" data-src="${c.src}" data-chain="${chain}" style="display:grid;grid-template-columns:28px 170px 1fr 90px 100px;gap:10px;padding:7px 10px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);margin-bottom:3px;align-items:center;" onmouseover="this.style.background='rgba(255,255,255,0.04)'" onmouseout="this.style.background='rgba(255,255,255,0.02)'">
-                        <div style="display:flex;align-items:center;"><input type="checkbox" class="conn-checkbox" data-host="${rawHost}" ${checked} style="accent-color:#FBBF24;cursor:pointer;"></div>
-                        <div style="min-width:0;">
-                            <div style="font-size:12px;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${srcName}</div>
-                            <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);margin-top:1px;">${c.src}</div>
-                        </div>
-                        <div style="min-width:0;display:flex;align-items:center;gap:6px;">
-                            ${netBadge}
-                            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${host}">${host}</span>
-                        </div>
-                        <div style="font-size:11px;font-weight:700;color:${chainColor};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${chain}">${(() => {
-                            const grp = ui._findGroupForDomain(rawHost);
-                            if (grp) {
-                                const gc = grp.type === 'direct' ? '#34d399' : grp.id === 'ai' ? '#a78bfa' : '#60a5fa';
-                                return '<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:' + gc + '22;color:' + gc + ';border:1px solid ' + gc + '44;margin-right:4px;">' + grp.name + '</span>';
-                            }
-                            return '';
-                        })()}${chain}</div>
-                        <div style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:10px;">
-                            <div style="color:#34d399;">↓${downFmt}</div>
-                            <div style="color:#60a5fa;">↑${upFmt}</div>
-                        </div>
-                    </div>`;
-                }).join('');
+
+                    if (existingRows.has(key)) {
+                        // Patch bytes and checkbox — no DOM recreation
+                        const row = existingRows.get(key);
+                        const downEl = row.querySelector('[data-role="down"]');
+                        const upEl   = row.querySelector('[data-role="up"]');
+                        if (downEl) downEl.textContent = '↓' + downFmt;
+                        if (upEl)   upEl.textContent   = '↑' + upFmt;
+                        const cb = row.querySelector('.conn-checkbox');
+                        if (cb) cb.checked = state._selectedHosts.has(rawHost);
+                        // Only reorder if not already in the right position
+                        if (box.children[rowIdx] !== row) box.insertBefore(row, box.children[rowIdx] || null);
+                        rowIdx++;
+                    } else {
+                        // Create new row element
+                        const isDirect   = chain === 'DIRECT';
+                        const chainColor = isDirect ? '#94a3b8' : '#60a5fa';
+                        const srcName    = devNames[c.src] || c.src;
+                        const host       = c.host ? (c.dst_port ? `${c.host}:${c.dst_port}` : c.host) : (c.dst_port || '—');
+                        const checked    = state._selectedHosts.has(rawHost) ? 'checked' : '';
+                        const grp        = ui._findGroupForDomain(rawHost);
+                        let grpBadge = '';
+                        if (grp) {
+                            const gc = grp.type === 'direct' ? '#34d399' : grp.id === 'ai' ? '#a78bfa' : '#60a5fa';
+                            grpBadge = `<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:${gc}22;color:${gc};border:1px solid ${gc}44;margin-right:4px;">${grp.name}</span>`;
+                        }
+                        const div = document.createElement('div');
+                        div.className = 'conn-row';
+                        div.dataset.connKey = key;
+                        div.dataset.host    = rawHost;
+                        div.dataset.src     = c.src;
+                        div.dataset.chain   = chain;
+                        div.style.cssText   = 'display:grid;grid-template-columns:28px 170px 1fr 90px 100px;gap:10px;padding:7px 10px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);margin-bottom:3px;align-items:center;';
+                        div.innerHTML = `<div style="display:flex;align-items:center;"><input type="checkbox" class="conn-checkbox" data-host="${rawHost}" ${checked} style="accent-color:#FBBF24;cursor:pointer;"></div>
+                            <div style="min-width:0;">
+                                <div style="font-size:12px;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${srcName}</div>
+                                <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);margin-top:1px;">${c.src}</div>
+                            </div>
+                            <div style="min-width:0;display:flex;align-items:center;gap:6px;">
+                                <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;background:rgba(100,116,139,0.12);border:1px solid rgba(100,116,139,0.2);color:#64748b;">${c.network}</span>
+                                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${host}">${host}</span>
+                            </div>
+                            <div style="font-size:11px;font-weight:700;color:${chainColor};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${chain}">${grpBadge}${chain}</div>
+                            <div style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:10px;">
+                                <div data-role="down" style="color:#34d399;">↓${downFmt}</div>
+                                <div data-role="up" style="color:#60a5fa;">↑${upFmt}</div>
+                            </div>`;
+                        box.insertBefore(div, box.children[rowIdx] || null);
+                        rowIdx++;
+                    }
+                });
+                // Remove stale rows
+                existingRows.forEach((row, key) => { if (!seen.has(key)) row.remove(); });
                 // Update select-all checkbox state
                 const selAll = document.getElementById('conn-select-all');
                 if (selAll) {
@@ -5895,13 +6011,9 @@
                         if (!state._lastSeenApps[ip]) state._lastSeenApps[ip] = {};
                         Object.keys(apps).forEach(aid => { state._lastSeenApps[ip][aid] = _now; });
                     });
-                    const _prevAdKey = JSON.stringify(state._activeDeviceApps || {});
                     state._activeDeviceApps = _adApps;
-                    // Trigger immediate device re-render when active apps change
-                    if (JSON.stringify(_adApps) !== _prevAdKey && state.devices?.length) {
-                        ui.renderDevices(state.devices);
-                        ui.updateTrafficDOM();
-                    }
+                    // Патч только классов чипов — без перестройки всей таблицы устройств
+                    if (state.devices?.length) ui.updateDeviceAppChips();
                     ui.applyConnFilter();
                 } catch (e) {
                     if (box) box.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ef4444;font-size:13px;">${e.message}</div>`;
@@ -6062,11 +6174,13 @@
                 const filterEl = document.getElementById('groupEditFilter' + suffix);
                 const typeEl = document.getElementById('groupEditType' + suffix);
                 const domainsEl = document.getElementById('groupEditDomains' + suffix);
+                const exclusionsEl = document.getElementById('groupEditExclusions' + suffix);
 
                 const name = (nameEl?.value || '').trim();
                 const node_filter = (filterEl?.value || '').trim();
                 const type = typeEl?.value || 'url-test';
                 const domains = (domainsEl?.value || '').split('\n').map(d => d.trim()).filter(d => d);
+                const exclusions = (exclusionsEl?.value || '').split('\n').map(d => d.trim()).filter(d => d);
 
                 if (!name && !editId) { alert('Введите название группы'); return; }
 
@@ -6091,13 +6205,13 @@
 
                 let res;
                 if (editId) {
-                    const payload = { node_filter, type, domains };
+                    const payload = { node_filter, type, domains, exclusions };
                     // Имя можно менять только для не-builtin
                     const pg = state.proxyGroups.find(g => g.id === editId);
                     if (!pg?.builtin && name) payload.name = name;
                     res = await utils.apiCall(`/groups/${editId}`, { method: 'PUT', body: JSON.stringify(payload) });
                 } else {
-                    res = await utils.apiCall('/groups', { method: 'POST', body: JSON.stringify({ name, node_filter, type, domains }) });
+                    res = await utils.apiCall('/groups', { method: 'POST', body: JSON.stringify({ name, node_filter, type, domains, exclusions }) });
                 }
                 if (res) {
                     ui.hideGroupEditor();
@@ -6169,7 +6283,7 @@
                     html += '<div style="display:flex;flex-wrap:wrap;gap:4px;">';
                     devices.forEach(function(d, di) {
                         var mc = {smart:'#60a5fa',global:'#a78bfa',bypass:'#34d399',block:'#ef4444'}[d.mode] || '#94a3b8';
-                        var ml = {smart:'Smart',global:'Global',bypass:'Bypass',block:'Block'}[d.mode] || d.mode;
+                        var ml = {smart:'Умный',global:'Весь трафик',bypass:'Напрямую',block:'Блокировать'}[d.mode] || d.mode;
                         html += '<div id="test-dev-' + di + '" style="padding:4px 8px;border-radius:6px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);transition:all 0.3s;display:flex;align-items:center;gap:4px;">';
                         html += '<span id="test-dev-icon-' + di + '" style="font-size:10px;width:12px;text-align:center;">○</span>';
                         html += '<span style="font-size:10px;font-weight:700;color:#f1f5f9;">' + d.display_name + '</span>';
@@ -6308,7 +6422,7 @@
                     html += '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
                     devices.forEach(function(d, di) {
                         var modeColors = {smart:'#60a5fa',global:'#a78bfa',bypass:'#34d399',block:'#ef4444'};
-                        var modeLabels = {smart:'Smart',global:'Global',bypass:'Bypass',block:'Block'};
+                        var modeLabels = {smart:'Умный',global:'Весь трафик',bypass:'Напрямую',block:'Блокировать'};
                         var mc = modeColors[d.mode] || '#94a3b8';
                         html += '<div id="test-dev-' + di + '" style="padding:6px 10px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);transition:all 0.3s;display:flex;align-items:center;gap:6px;">';
                         html += '<span id="test-dev-icon-' + di + '" style="font-size:11px;width:14px;text-align:center;">○</span>';

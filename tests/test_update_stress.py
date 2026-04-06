@@ -319,6 +319,22 @@ def _wait_for_update_to_settle(ssh: SSH, timeout: int = 300):
             time.sleep(5)
             continue
 
+        # Проверяем лог на незавершённый откат (для ручных откатов):
+        # state переходит "healthy" → "rolled_back", но между этим docker compose up-d
+        # ещё работает. Если в хвосте лога "===== ОТКАТ" без "Откат завершён" — ждём.
+        log_tail = ssh.log_tail(30)
+        lines = log_tail.split("\n")
+        last_rollback_start = -1
+        last_rollback_end = -1
+        for i, line in enumerate(lines):
+            if "===== ОТКАТ" in line:
+                last_rollback_start = i
+            if "Откат завершён" in line:
+                last_rollback_end = i
+        if last_rollback_start > last_rollback_end:
+            time.sleep(5)
+            continue
+
         return  # Settled
 
 

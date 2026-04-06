@@ -396,6 +396,17 @@ def main():
         clean_d = d.strip().split('://')[-1].split('/')[0]
         domain_rules.append(f"DOMAIN-SUFFIX,{clean_d},DIRECT")
 
+    # ru_direct: российские домены (GEOSITE,ru) идут напрямую.
+    # Добавляем в конец domain_rules — после явных правил групп (youtube→auto, ai→ai),
+    # чтобы не перекрывать намеренно заданные маршруты.
+    # Для Smart-устройств это правило попадёт в sub-rules ДО rkn-domains,
+    # то есть .ru домены из списка RКН всё равно пойдут DIRECT, а не через VPN.
+    # Для Global-устройств domain_rules проверяются раньше SRC-IP-CIDR,
+    # значит .ru домены будут DIRECT даже при Global-режиме.
+    if rulesets.get('ru_direct', True):
+        domain_rules.append("GEOSITE,ru,DIRECT")
+        print("[GSG] ru_direct: GEOSITE,ru → DIRECT", flush=True)
+
     # --- 3. ПРАВИЛА УСТРОЙСТВ ---
     for ip, info in devices.items():
         mode = info.get('mode', 'smart')

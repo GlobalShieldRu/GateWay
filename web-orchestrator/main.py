@@ -1333,12 +1333,14 @@ class ProxyGroupCreate(BaseModel):
     node_filter: str = ""
     type: str = "url-test"
     domains: List[str] = []
+    exclusions: List[str] = []
 
 class ProxyGroupUpdate(BaseModel):
     name: Optional[str] = None
     node_filter: Optional[str] = None
     type: Optional[str] = None
     domains: Optional[List[str]] = None
+    exclusions: Optional[List[str]] = None
 
 # --- ROUTE TESTS API ---
 
@@ -1660,7 +1662,8 @@ async def create_group(req: ProxyGroupCreate):
     new_group = {
         "id": new_id, "name": req.name, "node_filter": req.node_filter,
         "type": req.type, "builtin": False,
-        "domains": [d.strip() for d in req.domains if d.strip()]
+        "domains": [d.strip() for d in req.domains if d.strip()],
+        "exclusions": [d.strip() for d in req.exclusions if d.strip()]
     }
     rules["proxy_groups"].append(new_group)
 
@@ -1696,6 +1699,8 @@ async def update_group(group_id: str, req: ProxyGroupUpdate):
         found["type"] = req.type
     if req.domains is not None:
         found["domains"] = [d.strip() for d in req.domains if d.strip()]
+    if req.exclusions is not None:
+        found["exclusions"] = [d.strip() for d in req.exclusions if d.strip()]
 
     await _backup_rules()
     async with aiofiles.open(GSG_RULES_FILE, 'w') as f:
@@ -1974,10 +1979,16 @@ async def check_update():
 @app.post("/api/update")
 async def trigger_update():
     """Создаёт триггер-файл для обновления на хосте."""
-    if UPDATE_TRIGGER.exists():
-        return {"ok": False, "error": "Обновление уже запущено"}
-    UPDATE_TRIGGER.write_text(f"update_requested_at={datetime.now().isoformat()}\n")
-    return {"ok": True, "message": "Обновление запущено. Система перезапустится через 1-2 минуты."}
+    import os as _os
+    try:
+        # O_CREAT | O_EXCL гарантирует атомарность: если файл уже существует — FileExistsError.
+        # Это исключает race condition при конкурентных запросах.
+        fd = _os.open(str(UPDATE_TRIGGER), _os.O_CREAT | _os.O_EXCL | _os.O_WRONLY, 0o644)
+        with _os.fdopen(fd, 'w') as f:
+            f.write(f"update_requested_at={datetime.now().isoformat()}\n")
+        return {"ok": True, "message": "Обновление запущено. Система перезапустится через 1-2 минуты."}
+    except FileExistsError:
+        return {"ok": False, "error": "Обновление или откат уже запущен"}
 
 @app.get("/api/update/status")
 async def update_status():
@@ -2060,16 +2071,19 @@ async def rollback_state():
 @app.post("/api/rollback")
 async def trigger_rollback():
     """Запускает ручной откат к предыдущей версии."""
+    import os as _os
     if not UPDATE_STATE_FILE.exists():
         raise HTTPException(status_code=400, detail="Нет данных о предыдущем обновлении")
-    if UPDATE_TRIGGER.exists():
+    try:
+        fd = _os.open(str(UPDATE_TRIGGER), _os.O_CREAT | _os.O_EXCL | _os.O_WRONLY, 0o644)
+        with _os.fdopen(fd, 'w') as f:
+            f.write(
+                f"rollback_requested=true\n"
+                f"rollback_requested_at={datetime.now().isoformat()}\n"
+            )
+        return {"ok": True, "message": "Откат запущен. Система перезапустится через 1-2 минуты."}
+    except FileExistsError:
         raise HTTPException(status_code=409, detail="Операция уже выполняется")
-    async with aiofiles.open(UPDATE_TRIGGER, 'w') as f:
-        await f.write(
-            f"rollback_requested=true\n"
-            f"rollback_requested_at={datetime.now().isoformat()}\n"
-        )
-    return {"ok": True, "message": "Откат запущен. Система перезапустится через 1-2 минуты."}
 
 @app.get("/api/traffic/device-chains")
 async def get_device_chains():
