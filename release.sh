@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # GSG Smart Gateway — Release Script
 # Использование:
-#   ./release.sh 1.2.0              — полный релиз: тег + GitHub Release + деплой + Telegram
-#   ./release.sh 1.2.0 --no-deploy  — без деплоя на сервер
+#   ./release.sh 1.2.0              — тег + GitHub Release + Telegram (без деплоя на устройство)
+#   ./release.sh 1.2.0 --deploy     — с деплоем на сервер (не нужно: GSG обновляется через веб OTA)
 #   ./release.sh 1.2.0 --dry-run    — показать что будет сделано, ничего не менять
 
 set -euo pipefail
@@ -33,12 +33,12 @@ die()  { echo -e "${RED}[error]${NC} $*" >&2; exit 1; }
 
 # ─── Аргументы ───────────────────────────────────────────────────────────────
 VERSION="${1:-}"
-DEPLOY=true
+DEPLOY=false   # GSG обновляется через веб OTA, не через SSH
 DRY_RUN=false
 
 for arg in "${@:2}"; do
   case "$arg" in
-    --no-deploy) DEPLOY=false ;;
+    --deploy)    DEPLOY=true ;;
     --dry-run)   DRY_RUN=true ;;
     *) die "Неизвестный аргумент: $arg" ;;
   esac
