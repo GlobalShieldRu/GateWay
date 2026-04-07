@@ -1943,11 +1943,11 @@
             renderDevices: (devices) => {
                 const trafficKeys = devices.map(d => { const t = state.traffic?.[d.ip]; return t ? `${d.ip}:${(t.speed_down||0)>0||(t.speed_up||0)>0?1:0}` : ''; }).join(',');
                 const _adKey = Object.entries(state._activeDeviceApps || {}).map(([ip,apps]) => ip + ':' + Object.keys(apps).sort().join('+')).sort().join('|');
-                const _timeBucket = Math.floor(Date.now() / 30000); // forces re-render every 30s for chip cooldown
+                // NOTE: _timeBucket removed — chip cooldown handled by updateDeviceAppChips (no full rebuild needed)
                 const _nodesKey = (state.nodes.length || 0) + '|' + (state.nodes[0]?.tag || '') + '|' + (state.nodes[state.nodes.length-1]?.tag || '');
                 const _devsKey = (devices||[]).map(d=>`${d.ip}:${d.mode}:${d.hostname||''}:${d.custom_name||''}:${d.blocked||''}`).join('|');
                 const _appsKey = Object.entries(state.deviceApps||{}).map(([ip,apps])=>ip+':'+Object.keys(apps||{}).sort().join('+')).sort().join('|');
-                const newHash = _devsKey + _nodesKey + _appsKey + (state._modeStyle||'emoji') + trafficKeys + (state._devSearch||'') + _timeBucket;
+                const newHash = _devsKey + _nodesKey + _appsKey + (state._modeStyle||'emoji') + trafficKeys + (state._devSearch||'');
                 if (state._devicesHash === newHash) return;
                 state._devicesHash = newHash;
 
@@ -3541,38 +3541,25 @@
                             const fallback = br === 'direct' ? '<div data-dom-key="__globe__" title="Интернет напрямую" style="width:34px;height:34px;border-radius:8px;background:rgba(148,163,184,0.07);border:1px solid rgba(148,163,184,0.2);display:flex;align-items:center;justify-content:center;font-size:18px;">🌐</div>' : '';
                             const desired = newHtml || fallback;
 
-                            const tmp = document.createElement('div');
-                            tmp.innerHTML = desired;
-                            const newItems = new Map();
-                            [...tmp.children].forEach(c => {
-                                const key = c.dataset.domKey || c.textContent.trim();
-                                newItems.set(key, c);
-                            });
+                            // Build key sets from desired HTML without creating detached DOM
+                            const desiredKeys = new Set();
+                            const _keyRe = /data-dom-key="([^"]+)"/g;
+                            let _m;
+                            while ((_m = _keyRe.exec(desired)) !== null) desiredKeys.add(_m[1]);
+                            if (!desiredKeys.size && desired) desiredKeys.add('__fallback__');
 
                             const curItems = new Map();
                             [...container.children].forEach(c => {
-                                const key = c.dataset.domKey || c.textContent.trim();
+                                const key = c.dataset.domKey || '__fallback__';
                                 curItems.set(key, c);
                             });
 
-                            for (const [key, el] of curItems) {
-                                if (!newItems.has(key)) {
-                                    el.style.opacity = '0';
-                                    el.style.transform = 'scale(0.85)';
-                                    setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 300);
-                                }
-                            }
-
-                            for (const [key, newEl] of newItems) {
-                                if (!curItems.has(key)) {
-                                    newEl.style.opacity = '0';
-                                    newEl.style.transform = 'scale(0.85)';
-                                    container.appendChild(newEl);
-                                    requestAnimationFrame(() => {
-                                        newEl.style.opacity = '1';
-                                        newEl.style.transform = 'scale(1)';
-                                    });
-                                }
+                            // Check if content actually changed
+                            const curKeys = new Set(curItems.keys());
+                            const sameKeys = desiredKeys.size === curKeys.size && [...desiredKeys].every(k => curKeys.has(k));
+                            if (!sameKeys) {
+                                // Replace entire container — simpler, no detached DOM
+                                container.innerHTML = desired;
                             }
                         }
                     }
@@ -3814,7 +3801,9 @@
                                 const _bd = vp.branchDur || { auto: vp.globalDur, ny: vp.globalDur, direct: vp.globalDur };
                                 return vp.outW / (_bd[br] || vp.globalDur);
                             };
+                            const _MAX_PKTS = 60; // hard cap — prevents unbounded growth
                             const _spawnDot = (br, dir) => {
+                                if (pkts.length >= _MAX_PKTS) return; // safety cap
                                 const spawnSpeed = _branchPxS(br);
                                 if (dir === 1) {
                                     const el = document.getElementById('rl-in');
@@ -6004,7 +5993,7 @@
                         return;
                     }
                     const data = await r.json();
-                    state.allConnections = data.connections || [];
+                    state.allConnections = (data.connections || []).slice(0, 500); // cap — prevents unbounded memory
                     // Track per-connection speed by diffing cumulative bytes between polls.
                     // Group by (src|host|chain) and SUM bytes — multiple conns sharing the same
                     // key would otherwise cause huge delta spikes (prev set by conn B, delta vs conn A).
@@ -7233,20 +7222,51 @@
             const pollingLoop = async () => { if (_tabVisible) await actions.fetchData(); setTimeout(pollingLoop, 5000); };
             setTimeout(pollingLoop, 300);
 
-            const trafficLoop = async () => { if (_tabVisible) await actions.fetchTraffic(); setTimeout(trafficLoop, 2000); };
+            const trafficLoop = async () => { if (_tabVisible) await actions.fetchTraffic(); setTimeout(trafficLoop, 3000); };
             setTimeout(trafficLoop, 1000);
 
-            const historyLoop = async () => { if (_tabVisible) await actions.fetchTrafficHistory(); setTimeout(historyLoop, 30000); };
-            setTimeout(historyLoop, 2000);
+            const historyLoop = async () => { if (_tabVisible) await actions.fetchTrafficHistory(); setTimeout(historyLoop, 60000); };
+            setTimeout(historyLoop, 5000);
 
             const nodesLoop = async () => { if (_tabVisible) await actions.fetchNodes(); setTimeout(nodesLoop, 120000); };
             setTimeout(nodesLoop, 120000);
 
-            const logsLoop = async () => { await actions.fetchLogs(); setTimeout(logsLoop, 3000); };
+            const logsLoop = async () => { if (_tabVisible) await actions.fetchLogs(); setTimeout(logsLoop, 3000); };
             logsLoop();
 
-            const connLoop = async () => { if (_tabVisible) await actions.fetchConnections(); setTimeout(connLoop, 2000); };
+            const connLoop = async () => { if (_tabVisible) await actions.fetchConnections(); setTimeout(connLoop, 3000); };
             setTimeout(connLoop, 1500);
+
+            // Periodic state cleanup — prune stale IPs from history objects every 10 minutes
+            setInterval(() => {
+                const activeIPs = new Set((state.devices || []).map(d => d.ip));
+                const STALE_THRESHOLD = 10 * 60 * 1000; // 10 min
+                const _now = Date.now();
+                // Prune _lastSeenApps for IPs not seen recently
+                if (state._lastSeenApps) {
+                    Object.keys(state._lastSeenApps).forEach(ip => {
+                        if (!activeIPs.has(ip)) {
+                            const apps = state._lastSeenApps[ip];
+                            const anyRecent = Object.values(apps || {}).some(ts => _now - ts < STALE_THRESHOLD);
+                            if (!anyRecent) delete state._lastSeenApps[ip];
+                        }
+                    });
+                }
+                // Prune device history for IPs never seen (no traffic for a long time)
+                ['deviceTrafficHistory','deviceChainHistory','_deviceUpHistory','deviceSparklines'].forEach(key => {
+                    if (!state[key]) return;
+                    Object.keys(state[key]).forEach(ip => {
+                        if (!activeIPs.has(ip)) delete state[key][ip];
+                    });
+                });
+                // Prune vendorCache — keep only active IPs' MACs
+                if (state.vendorCache && Object.keys(state.vendorCache).length > 200) {
+                    const activeMacs = new Set((state.devices || []).map(d => d.mac).filter(Boolean));
+                    Object.keys(state.vendorCache).forEach(mac => {
+                        if (!activeMacs.has(mac)) delete state.vendorCache[mac];
+                    });
+                }
+            }, 10 * 60 * 1000);
 
             // Keyboard shortcuts
             document.addEventListener('keydown', (e) => {
