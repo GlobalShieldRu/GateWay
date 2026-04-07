@@ -1717,10 +1717,14 @@
             else if (v.includes('sonos')) slug = 'sonos';
             else if (v.includes('netgear')) slug = 'netgear';
             else if (v.includes('espressif')) slug = 'espressif';
-            else if (/yandex/.test(v) || /yandex/.test(h)) slug = 'yandex';
+            else if (/yandex/.test(v) || /yandex/.test(h)) {
+                const hex2 = color.replace('#','');
+                return `<svg width="20" height="20" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="display:block;flex-shrink:0;"><path d="M14.587 0h-2.32C9.35 0 7.295 1.528 7.295 4.73c0 2.628 1.264 4.09 3.514 5.618L7.03 17.042H4.687L2.344 24h3.45l2.343-6.958h1.516L7.31 24h3.45l6.958-20.858h-3.12zM12 14.19l-2.343-3.516c-1.516-2.277-1.78-3.384-1.78-4.944 0-1.78.923-2.87 2.476-2.87h1.647z" fill="${color}"/></svg>`;
+            }
             if (!slug) return null;
+            if (window._simpleIconsFailed && window._simpleIconsFailed.has(slug)) return null;
             const hex = color.replace('#', '');
-            return `<img src="https://cdn.simpleicons.org/${slug}/${hex}" width="20" height="20" style="display:block;object-fit:contain;flex-shrink:0;" onerror="this.style.display='none';this.parentElement.querySelector('span')?.style.setProperty('display','flex');" />`;
+            return `<img src="https://cdn.simpleicons.org/${slug}/${hex}" width="20" height="20" style="display:block;object-fit:contain;flex-shrink:0;" onerror="if(!window._simpleIconsFailed)window._simpleIconsFailed=new Set();window._simpleIconsFailed.add('${slug}');this.style.display='none';this.parentElement.querySelector('span')?.style.setProperty('display','flex');" />`;
         };
 
         const state = {
@@ -3630,6 +3634,15 @@
                             const vp = box._vizParams;
                             if (!vp || vp.inW <= 0 || vp.outW <= 0) return;
 
+                            const pkts = box._vizPackets;
+
+                            // Pause RAF when no traffic and no active dots — saves CPU/memory
+                            const _hasTraffic = (vp.rate_auto_down + vp.rate_auto_up + vp.rate_ny_down + vp.rate_ny_up + vp.rate_direct_down + vp.rate_direct_up) > 0;
+                            if (!_hasTraffic && pkts.length === 0 && (vp.rn_auto + vp.rn_ny + vp.rn_direct) === 0) {
+                                // No traffic — suspend RAF, restart on next renderRouteViz call
+                                box._vizRaf = null; return;
+                            }
+
                             // Per-branch pixel speed (used only for pre-seeded dots that lack pk.speed)
                             const _brDur = vp.branchDur || { auto: vp.globalDur, ny: vp.globalDur, direct: vp.globalDur };
                             const pixPerSecBranch = {
@@ -3637,7 +3650,6 @@
                                 ny:     vp.outW / _brDur.ny,
                                 direct: vp.outW / _brDur.direct,
                             };
-                            const pkts = box._vizPackets;
 
                             // Pre-seed on first tick so there's no startup blank period
                             if (!box._vizSeeded && (vp.rn_auto + vp.rn_ny + vp.rn_direct) > 0) {
@@ -7237,6 +7249,30 @@
             const connLoop = async () => { if (_tabVisible) await actions.fetchConnections(); setTimeout(connLoop, 3000); };
             setTimeout(connLoop, 1500);
 
+            // Auto-reload after 6 hours to prevent memory accumulation in long-running tabs
+            setTimeout(() => {
+                if (!document.hidden) {
+                    // Only reload if no active user interaction (no focused inputs)
+                    const activeEl = document.activeElement;
+                    if (!activeEl || (activeEl.tagName !== 'INPUT' && activeEl.tagName !== 'TEXTAREA')) {
+                        console.log('[GSG] Auto-reload after 6h — preventing memory accumulation');
+                        location.reload();
+                    }
+                }
+            }, 6 * 60 * 60 * 1000);
+
+            // Memory diagnostics — log every 30s to console so user can see growth rate
+            if (window.performance?.memory) {
+                setInterval(() => {
+                    const mb = (window.performance.memory.usedJSHeapSize / 1048576).toFixed(1);
+                    const tot = (window.performance.memory.totalJSHeapSize / 1048576).toFixed(1);
+                    const pkts = document.getElementById('routeViz')?._vizPackets?.length || 0;
+                    const conns = (state.allConnections || []).length;
+                    const devHist = Object.keys(state.deviceTrafficHistory || {}).length;
+                    console.log(`[GSG mem] JS heap: ${mb}/${tot} MB | pkts: ${pkts} | conns: ${conns} | devHist keys: ${devHist}`);
+                }, 30000);
+            }
+
             // Periodic state cleanup — prune stale IPs from history objects every 10 minutes
             setInterval(() => {
                 const activeIPs = new Set((state.devices || []).map(d => d.ip));
@@ -7426,17 +7462,6 @@
                 requestAnimationFrame(() => requestAnimationFrame(() => { fab.style.opacity = '1'; }));
             }, 3 * 60 * 1000); // 3 minutes
         })();
-    // Эта функция подтянет настройки из файла при открытии страницы
-    const initAiSettings = async () => {
-        const rules = await GatewayApp.utils.apiCall('/rules');
-        if (rules && rules.ai_settings) {
-            const ai = rules.ai_settings;
-            if (document.getElementById('aiNodesFilter')) document.getElementById('aiNodesFilter').value = ai.node_filter || '';
-            if (document.getElementById('aiDomainsInput')) document.getElementById('aiDomainsInput').value = (ai.domains || []).join('\n');
-            setTimeout(() => GatewayApp.ui.updateAiPreview(), 800);
-        }
-    };
-    initAiSettings();
     });
     document.addEventListener("DOMContentLoaded", async () => {
         try {
