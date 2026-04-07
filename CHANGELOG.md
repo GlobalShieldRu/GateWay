@@ -4,12 +4,16 @@
 
 ## [Unreleased]
 
+## [1.6.3] — 2026-04-07
+
 ### Добавлено
-- update-watcher.sh: lockfile, save_state(), healthcheck (web/mihomo/dhcp/netenforcer/internet), do_rollback() с авто-откатом при провале healthcheck, Telegram-уведомление об откате
-- API: GET /api/rollback/state — состояние последнего обновления, POST /api/rollback — запуск ручного отката через триггер-файл
-- API: GET /api/version расширен полями previous_version, update_status, last_rollback
-- Веб-интерфейс: кнопка отката (красная, рядом с кнопкой обновления), видна только если can_rollback=true; уведомление об откате при загрузке страницы
-- install.sh: cron update-watcher каждую минуту (было каждые 6 часов)
+- ru_direct через runetfreedom geosite (1449 звёзд, обновление каждые 6 часов)
+- Tooltip-система + пауза polling при скрытой вкладке
+- Стресс-тесты OTA — все 31 теста проходят (30 pass + 1 skip)
+- Документация стресс-тестов OTA
+
+### Исправлено
+- Утечки памяти браузера — ограничения буферов, очистка состояния, оптимизация DOM
 
 ## [1.3.0] — 2026-04-01
 
