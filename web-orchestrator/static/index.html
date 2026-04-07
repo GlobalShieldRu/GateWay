@@ -721,6 +721,23 @@
         .conn-row { transition: background 0.1s; }
         .conn-row:hover { background: rgba(255,255,255,0.04) !important; }
 
+        /* ─── Tooltip system ─────────────────────────────────── */
+        #gsg-tip {
+            position: fixed; z-index: 99999; pointer-events: none;
+            max-width: 260px;
+            padding: 6px 10px;
+            background: rgba(15,14,20,0.97);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 8px;
+            font-size: 12px; line-height: 1.45;
+            color: #cbd5e1;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+            backdrop-filter: blur(8px);
+            opacity: 0; transition: opacity 0.12s;
+            white-space: pre-wrap;
+        }
+        #gsg-tip.visible { opacity: 1; }
+
         /* ─── Tailwind utility replacements (removed CDN) ── */
         .flex { display: flex; }
         .flex-col { flex-direction: column; }
@@ -774,10 +791,10 @@
                     <div style="font-size:10px;color:var(--gold);font-weight:600;letter-spacing:0.08em;text-transform:uppercase;">Gateway</div>
                     <div style="display:flex;align-items:center;justify-content:flex-end;gap:4px;margin-top:5px;">
                         <span style="font-size:9px;color:var(--gold);font-family:'JetBrains Mono',monospace;font-weight:700;text-shadow:0 0 8px rgba(201,168,76,0.4);">v<span id="gsgVersion">...</span></span>
-                        <button id="gsgUpdateBtn" onclick="GatewayApp.actions.checkUpdate()" style="display:flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.25);cursor:pointer;color:var(--gold);padding:0;" title="Обновить GSG">
+                        <button id="gsgUpdateBtn" onclick="GatewayApp.actions.checkUpdate()" data-tip="Проверить наличие обновления GSG и запустить OTA-обновление" style="display:flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.25);cursor:pointer;color:var(--gold);padding:0;">
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4"/></svg>
                         </button>
-                        <button id="gsgRollbackBtn" onclick="GatewayApp.actions.triggerRollback()" style="display:none;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.35);cursor:pointer;color:#ef4444;padding:0;" title="Откатить обновление">
+                        <button id="gsgRollbackBtn" onclick="GatewayApp.actions.triggerRollback()" data-tip="Откатить к предыдущей версии GSG" style="display:none;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.35);cursor:pointer;color:#ef4444;padding:0;">
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
                         </button>
                     </div>
@@ -830,27 +847,27 @@
         <!-- Nav -->
         <nav style="padding:10px 10px;flex:1;display:flex;flex-direction:column;gap:2px;">
             <div class="section-label" style="padding:4px 8px 6px;">Управление</div>
-            <div class="nav-item active" id="nav-devices" onclick="GatewayApp.ui.switchTab('tab-devices', this)">
+            <div class="nav-item active" id="nav-devices" onclick="GatewayApp.ui.switchTab('tab-devices', this)" data-tip="Устройства в сети: режим маршрутизации, приложения, трафик каждого клиента">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18" stroke-width="3"/></svg>
                 Устройства
             </div>
-            <div class="nav-item expert-item" id="nav-groups" onclick="GatewayApp.ui.switchTab('tab-groups', this)" style="display:flex;">
+            <div class="nav-item expert-item" id="nav-groups" onclick="GatewayApp.ui.switchTab('tab-groups', this)" style="display:flex;" data-tip="Группы доменов с правилами маршрутизации — что идёт через VPN, а что напрямую">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                 Маршруты
             </div>
-            <div class="nav-item expert-item" id="nav-dhcp" onclick="GatewayApp.ui.switchTab('tab-dhcp', this)" style="display:flex;">
+            <div class="nav-item expert-item" id="nav-dhcp" onclick="GatewayApp.ui.switchTab('tab-dhcp', this)" style="display:flex;" data-tip="Таблица аренды IP-адресов (DHCP) и настройки сети">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
                 DHCP и Сеть
             </div>
-            <div class="nav-item expert-item" id="nav-proxy" onclick="GatewayApp.ui.switchTab('tab-proxy', this)" style="display:flex;">
+            <div class="nav-item expert-item" id="nav-proxy" onclick="GatewayApp.ui.switchTab('tab-proxy', this)" style="display:flex;" data-tip="Системные логи Mihomo и GSG в реальном времени">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
                 Логи
             </div>
-            <div class="nav-item expert-item" id="nav-connections" onclick="GatewayApp.ui.switchTab('tab-connections', this)" style="display:flex;">
+            <div class="nav-item expert-item" id="nav-connections" onclick="GatewayApp.ui.switchTab('tab-connections', this)" style="display:flex;" data-tip="Активные TCP-соединения через шлюз с информацией о хостах и скорости">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
                 Соединения
             </div>
-            <div class="nav-item expert-item" id="nav-stats" onclick="GatewayApp.ui.switchTab('tab-stats', this)" style="display:flex;">
+            <div class="nav-item expert-item" id="nav-stats" onclick="GatewayApp.ui.switchTab('tab-stats', this)" style="display:flex;" data-tip="Исторический трафик по устройствам за последние 24 часа">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
                 Статистика
             </div>
@@ -977,10 +994,10 @@
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;">
                         <div style="font-size:16px;font-weight:800;color:#f1f5f9;">Состояние сети</div>
                         <div style="display:flex;align-items:center;gap:8px;">
-                            <button id="dotsModeBtn" onclick="GatewayApp.ui.toggleDotsMode();" title="Направление точек" style="background:none;border:none;cursor:pointer;color:#64748b;padding:2px 6px;font-size:13px;line-height:1;font-family:'JetBrains Mono',monospace;font-weight:700;">→</button>
-                            <button id="routeVizToggleBtn" onclick="GatewayApp.ui.toggleRouteVizMode();" title="Переключить вид" style="background:none;border:none;cursor:pointer;color:#64748b;padding:2px 4px;font-size:14px;line-height:1;">📊</button>
-                            <button id="colResizerBtn" onclick="GatewayApp.ui.toggleColResizer();" title="Настроить ширину колонок" style="background:none;border:none;cursor:pointer;color:#64748b;padding:2px 4px;font-size:14px;line-height:1;">⚙</button>
-                        <span id="globalProtectionBadge" class="status-badge loading">
+                            <button id="dotsModeBtn" onclick="GatewayApp.ui.toggleDotsMode();" data-tip="Переключить направление анимации точек: от устройства к узлу или наоборот" style="background:none;border:none;cursor:pointer;color:#64748b;padding:2px 6px;font-size:13px;line-height:1;font-family:'JetBrains Mono',monospace;font-weight:700;">→</button>
+                            <button id="routeVizToggleBtn" onclick="GatewayApp.ui.toggleRouteVizMode();" data-tip="Переключить между схемой маршрутов и графиком трафика" style="background:none;border:none;cursor:pointer;color:#64748b;padding:2px 4px;font-size:14px;line-height:1;">📊</button>
+                            <button id="colResizerBtn" onclick="GatewayApp.ui.toggleColResizer();" data-tip="Настроить ширину колонок таблицы устройств" style="background:none;border:none;cursor:pointer;color:#64748b;padding:2px 4px;font-size:14px;line-height:1;">⚙</button>
+                        <span id="globalProtectionBadge" class="status-badge loading" data-tip="Статус защиты шлюза — показывает сколько устройств под защитой VPN">
                             <span style="animation:skelPulse 1s infinite;display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;"></span>
                             Проверка...
                         </span>
@@ -1000,15 +1017,15 @@
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                             <span class="section-label" data-chart-label>График трафика · 60 сек</span>
                             <div style="display:flex;gap:12px;align-items:center;">
-                                <div style="display:flex;align-items:center;gap:5px;">
+                                <div style="display:flex;align-items:center;gap:5px;" data-tip="Auto — трафик через умный прокси (Швеция / ближайший узел)">
                                     <span style="width:7px;height:7px;border-radius:50%;background:#c9a84c;display:inline-block;flex-shrink:0;"></span>
                                     <span id="chartSpeedAuto" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#c9a84c;display:inline-block;min-width:74px;text-align:right;">0 B/s</span>
                                 </div>
-                                <div style="display:flex;align-items:center;gap:5px;">
+                                <div style="display:flex;align-items:center;gap:5px;" data-tip="NY — трафик через узел в Нью-Йорке (AI-сервисы: ChatGPT, Gemini)">
                                     <span style="width:7px;height:7px;border-radius:50%;background:#60a5fa;display:inline-block;flex-shrink:0;"></span>
                                     <span id="chartSpeedNy" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#60a5fa;display:inline-block;min-width:74px;text-align:right;">0 B/s</span>
                                 </div>
-                                <div style="display:flex;align-items:center;gap:5px;">
+                                <div style="display:flex;align-items:center;gap:5px;" data-tip="Прямой — трафик без VPN (российские сайты, локальная сеть)">
                                     <span style="width:7px;height:7px;border-radius:50%;background:#94a3b8;display:inline-block;flex-shrink:0;"></span>
                                     <span id="chartSpeedDown" style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#94a3b8;display:inline-block;min-width:74px;text-align:right;">0 B/s</span>
                                 </div>
@@ -1042,13 +1059,13 @@
                             <div style="display:flex;align-items:center;gap:10px;">
                                 <div class="section-label">УЗЛЫ</div>
                                 <span id="nodesOnlineCount" style="font-size:10px;font-weight:700;color:#34d399;"></span>
-                                <label id="autoNodeToggle" title="Автоматически выбирает узел с наименьшей задержкой" style="display:flex;align-items:center;gap:5px;cursor:pointer;user-select:none;">
+                                <label id="autoNodeToggle" data-tip="Автоматически выбирает узел с наименьшей задержкой" style="display:flex;align-items:center;gap:5px;cursor:pointer;user-select:none;">
                                     <input type="checkbox" id="autoNodeCheck" onchange="if(this.checked)GatewayApp.actions.restoreNodeSettings()" style="display:none;">
                                     <span id="autoNodeBox" style="width:14px;height:14px;border-radius:4px;border:1.5px solid rgba(148,163,184,0.4);display:flex;align-items:center;justify-content:center;transition:all 0.15s;flex-shrink:0;"></span>
                                     <span style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:0.04em;">АВТО</span>
                                 </label>
                             </div>
-                            <button class="btn-ghost" id="pingBtn" onclick="GatewayApp.actions.pingNodes()">
+                            <button class="btn-ghost" id="pingBtn" onclick="GatewayApp.actions.pingNodes()" data-tip="Проверить задержку до всех узлов и обновить статус">
                                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:inline;margin-right:4px;"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                                 Пинг
                             </button>
@@ -1077,9 +1094,9 @@
                             <input id="dev-search" class="gsg-input" placeholder="Поиск устройства..." style="width:100%;font-size:11px;padding:5px 10px;">
                         </div>
                         <div style="display:flex;gap:4px;margin-left:auto;">
-                            <button class="global-mode-btn" data-mode="smart" style="padding:4px 10px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.3);color:#c9a84c;transition:all 0.15s;" onmouseover="this.style.background='rgba(201,168,76,0.25)'" onmouseout="this.style.background='rgba(201,168,76,0.12)'">Все Smart</button>
-                            <button class="global-mode-btn" data-mode="global" style="padding:4px 10px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#3b82f6;transition:all 0.15s;" onmouseover="this.style.background='rgba(59,130,246,0.25)'" onmouseout="this.style.background='rgba(59,130,246,0.12)'">Все Global</button>
-                            <button class="global-mode-btn" data-mode="bypass" style="padding:4px 10px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;background:rgba(148,163,184,0.12);border:1px solid rgba(148,163,184,0.3);color:#94a3b8;transition:all 0.15s;" onmouseover="this.style.background='rgba(148,163,184,0.25)'" onmouseout="this.style.background='rgba(148,163,184,0.12)'">Все Bypass</button>
+                            <button class="global-mode-btn" data-mode="smart" data-tip="Умный режим: заблокированные сайты идут через VPN, остальные — напрямую" style="padding:4px 10px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.3);color:#c9a84c;transition:all 0.15s;" onmouseover="this.style.background='rgba(201,168,76,0.25)'" onmouseout="this.style.background='rgba(201,168,76,0.12)'">Все Smart</button>
+                            <button class="global-mode-btn" data-mode="global" data-tip="Весь трафик через VPN — для устройств, которым нужен полный прокси" style="padding:4px 10px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#3b82f6;transition:all 0.15s;" onmouseover="this.style.background='rgba(59,130,246,0.25)'" onmouseout="this.style.background='rgba(59,130,246,0.12)'">Все Global</button>
+                            <button class="global-mode-btn" data-mode="bypass" data-tip="Напрямую: весь трафик без VPN, как без шлюза" style="padding:4px 10px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;background:rgba(148,163,184,0.12);border:1px solid rgba(148,163,184,0.3);color:#94a3b8;transition:all 0.15s;" onmouseover="this.style.background='rgba(148,163,184,0.25)'" onmouseout="this.style.background='rgba(148,163,184,0.12)'">Все Bypass</button>
                         </div>
                     </div>
                     <!-- Desktop table header -->
@@ -2162,7 +2179,8 @@
                                     const pillLabels = {smart:'Умный',global:'Весь трафик',bypass:'Напрямую',block:'Блокировать'};
                                     const c = pillColors[m];
                                     const active = dev.mode === m;
-                                    return `<span class="mode-pill" data-ip="${dev.ip}" data-mode="${m}" title="${{smart:'Умный',global:'Весь трафик',bypass:'Напрямую',block:'Блокировать'}[m]}" style="padding:2px 4px;border-radius:5px;font-size:9px;font-weight:700;cursor:pointer;transition:all 0.15s;text-align:center;${active ? `background:${c}22;border:1px solid ${c};color:${c};` : `background:transparent;border:1px solid rgba(255,255,255,0.08);color:rgba(148,163,184,0.5);`}">${pillLabels[m]}</span>`;
+                                    const _modeTips = {smart:'Умный: заблокированные — через VPN, остальные — напрямую',global:'Весь трафик через VPN',bypass:'Напрямую: без VPN совсем',block:'Заблокировать: устройство не выходит в интернет'};
+                                    return `<span class="mode-pill" data-ip="${dev.ip}" data-mode="${m}" data-tip="${_modeTips[m]}" style="padding:2px 4px;border-radius:5px;font-size:9px;font-weight:700;cursor:pointer;transition:all 0.15s;text-align:center;${active ? `background:${c}22;border:1px solid ${c};color:${c};` : `background:transparent;border:1px solid rgba(255,255,255,0.08);color:rgba(148,163,184,0.5);`}">${pillLabels[m]}</span>`;
                                 }).join('')}
                             </div>
                         </div>
@@ -2174,7 +2192,7 @@
                                     const getFlag = (tag) => { if (/ny|new.?york/i.test(tag)) return '\u{1F1FA}\u{1F1F8}'; if (/stock|stok|swed/i.test(tag)) return '\u{1F1F8}\u{1F1EA}'; return '\u{1F310}'; };
                                     const autoActive = curNode === 'auto';
                                     const autoColor = '#10b981';
-                                    let pills = `<span class="node-pill" data-ip="${dev.ip}" data-node="auto" style="font-size:9px;padding:2px 6px;border-radius:5px;cursor:pointer;white-space:nowrap;${autoActive ? `background:${autoColor}22;border:1px solid ${autoColor};color:${autoColor};` : `background:transparent;border:1px solid rgba(255,255,255,0.08);color:rgba(148,163,184,0.5);`}">\u26A1 Auto</span>`;
+                                    let pills = `<span class="node-pill" data-ip="${dev.ip}" data-node="auto" data-tip="Автоматический выбор — устройство использует лучший узел по задержке" style="font-size:9px;padding:2px 6px;border-radius:5px;cursor:pointer;white-space:nowrap;${autoActive ? `background:${autoColor}22;border:1px solid ${autoColor};color:${autoColor};` : `background:transparent;border:1px solid rgba(255,255,255,0.08);color:rgba(148,163,184,0.5);`}">\u26A1 Auto</span>`;
                                     state.nodes.forEach(n => {
                                         const active = curNode === n.tag;
                                         const nc = '#60a5fa';
@@ -2623,8 +2641,8 @@
                                 <div style="display:flex;align-items:center;gap:8px;">
                                     <span style="font-size:15px;font-weight:800;color:#f1f5f9;">${pg.name}</span>
                                     <span style="font-size:9px;padding:2px 8px;border-radius:4px;background:${color}22;color:${color};border:1px solid ${color}44;font-weight:700;">${label}</span>
-                                    ${isBuiltin ? '<span style="font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(148,163,184,0.08);color:#64748b;border:1px solid rgba(148,163,184,0.15);">🔒</span>' : ''}
-                                    ${myConflicts.length > 0 ? '<span style="font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(251,191,36,0.1);color:#fbbf24;border:1px solid rgba(251,191,36,0.2);">⚠️ конфликт</span>' : ''}
+                                    ${isBuiltin ? '<span data-tip="Встроенная группа — нельзя переименовать или удалить" style="font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(148,163,184,0.08);color:#64748b;border:1px solid rgba(148,163,184,0.15);">🔒</span>' : ''}
+                                    ${myConflicts.length > 0 ? '<span data-tip="Домены пересекаются с другой группой — приоритет у той, что выше в списке" style="font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(251,191,36,0.1);color:#fbbf24;border:1px solid rgba(251,191,36,0.2);">⚠️ конфликт</span>' : ''}
                                 </div>
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" style="transform:rotate(${isExpanded ? '180' : '0'}deg);transition:transform 0.2s;"><polyline points="6 9 12 15 18 9"/></svg>
                             </div>
@@ -2915,6 +2933,7 @@
             },
 
             renderRouteViz: () => {
+                if (document.hidden) return;
                 const box = document.getElementById('routeViz');
                 if (!box) return;
                 const data = state.networkData;
@@ -4060,6 +4079,7 @@
             },
 
             drawTrafficChart: () => {
+                if (document.hidden) return;
                 const canvas = document.getElementById('trafficChart');
                 if (!canvas) return;
                 const dpr = window.devicePixelRatio || 1;
@@ -7147,22 +7167,85 @@
             actions.fetchNodes();
             actions.fetchGroups();
 
-            const pollingLoop = async () => { await actions.fetchData(); setTimeout(pollingLoop, 5000); };
+            // ── Tooltip system ────────────────────────────────────────────────────────
+            ((() => {
+                const tip = document.createElement('div');
+                tip.id = 'gsg-tip';
+                document.body.appendChild(tip);
+                let _timer = null, _mx = 0, _my = 0;
+
+                const show = (text, x, y) => {
+                    tip.innerHTML = text;
+                    // Position: prefer below-right, clamp to viewport
+                    const vw = window.innerWidth, vh = window.innerHeight;
+                    const ox = 14, oy = 18;
+                    tip.style.left = '0'; tip.style.top = '0';
+                    tip.style.opacity = '0'; tip.classList.remove('visible');
+                    // Measure after content set
+                    requestAnimationFrame(() => {
+                        const tw = tip.offsetWidth, th = tip.offsetHeight;
+                        let lx = x + ox, ly = y + oy;
+                        if (lx + tw > vw - 8) lx = x - tw - ox;
+                        if (ly + th > vh - 8) ly = y - th - oy;
+                        tip.style.left = lx + 'px';
+                        tip.style.top  = ly + 'px';
+                        tip.classList.add('visible');
+                    });
+                };
+                const hide = () => {
+                    clearTimeout(_timer);
+                    tip.classList.remove('visible');
+                };
+
+                document.addEventListener('mousemove', (e) => { _mx = e.clientX; _my = e.clientY; });
+
+                document.addEventListener('mouseover', (e) => {
+                    const el = e.target.closest('[data-tip]');
+                    if (!el) return;
+                    clearTimeout(_timer);
+                    _timer = setTimeout(() => show(el.dataset.tip, _mx, _my), 620);
+                });
+
+                document.addEventListener('mouseout', (e) => {
+                    if (!e.target.closest('[data-tip]')) return;
+                    // Only hide if leaving the tip-target entirely
+                    if (!e.relatedTarget?.closest('[data-tip]')) hide();
+                });
+
+                document.addEventListener('mousedown', hide);
+                document.addEventListener('scroll', hide, true);
+            })());
+
+            // Все циклы паузируются когда вкладка скрыта — главный источник утечки памяти.
+            // При возврате на вкладку данные обновляются сразу.
+            let _tabVisible = !document.hidden;
+            document.addEventListener('visibilitychange', () => {
+                const wasHidden = !_tabVisible;
+                _tabVisible = !document.hidden;
+                if (wasHidden && _tabVisible) {
+                    // Вкладка снова видима — немедленное обновление
+                    actions.fetchData();
+                    actions.fetchTraffic();
+                    actions.fetchConnections();
+                }
+            });
+
+            const pollingLoop = async () => { if (_tabVisible) await actions.fetchData(); setTimeout(pollingLoop, 5000); };
             setTimeout(pollingLoop, 300);
 
-            const trafficLoop = async () => { await actions.fetchTraffic(); setTimeout(trafficLoop, 1000); };
+            const trafficLoop = async () => { if (_tabVisible) await actions.fetchTraffic(); setTimeout(trafficLoop, 2000); };
             setTimeout(trafficLoop, 1000);
 
-            const historyLoop = async () => { await actions.fetchTrafficHistory(); setTimeout(historyLoop, 30000); };
+            const historyLoop = async () => { if (_tabVisible) await actions.fetchTrafficHistory(); setTimeout(historyLoop, 30000); };
             setTimeout(historyLoop, 2000);
 
-            const nodesLoop = async () => { await actions.fetchNodes(); setTimeout(nodesLoop, 120000); };
+            const nodesLoop = async () => { if (_tabVisible) await actions.fetchNodes(); setTimeout(nodesLoop, 120000); };
             setTimeout(nodesLoop, 120000);
 
             const logsLoop = async () => { await actions.fetchLogs(); setTimeout(logsLoop, 3000); };
             logsLoop();
 
-            const connLoop = async () => { await actions.fetchConnections(); setTimeout(connLoop, 2000); };
+            const connLoop = async () => { if (_tabVisible) await actions.fetchConnections(); setTimeout(connLoop, 2000); };
             setTimeout(connLoop, 1500);
 
             // Keyboard shortcuts
