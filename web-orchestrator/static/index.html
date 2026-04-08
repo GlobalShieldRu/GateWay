@@ -1546,7 +1546,7 @@
             { id: 'claude',    title: 'Claude (только US)', color: '#d97706', ny: true, alwaysActive: true },
             { id: 'chatgpt',   title: 'ChatGPT (только US)',color: '#10a37f', ny: true, alwaysActive: true },
             { id: 'netflix',   title: 'Netflix (только US)', color: '#E50914', ny: true },
-            { id: 'myip',      title: 'Мой IP (сервисы определения IP)', color: '#38bdf8', ny: false },
+            { id: 'myip',      title: 'Мой IP', color: '#38bdf8', ny: false, hint: 'MenuBar IP, 2ip.ru и другие приложения, которые показывают ваш внешний IP. Должны идти через VPN — иначе покажут реальный IP.' },
 
         ];
 
@@ -7014,7 +7014,10 @@
                 const _connLine = isLive
                     ? `<span style="color:#22c55e;font-weight:600;">● Активно</span> · ${liveInfo[appId]} соед${totDown > 0 ? ` · ↓${fmtSpd(totDown)}` : ''}`
                     : `<span style="color:#475569;">● Нет соединений</span>`;
-                statsEl2.innerHTML = _connLine;
+                const _hintLine = appDef.hint
+                    ? `<div style="margin-top:5px;padding:5px 7px;border-radius:6px;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.12);font-size:10px;color:#94a3b8;line-height:1.4;">${appDef.hint}</div>`
+                    : '';
+                statsEl2.innerHTML = _connLine + _hintLine;
 
                 const actionsDiv = document.getElementById('app-chip-popup-actions');
                 const nodeLabel = actionsDiv.previousElementSibling;
