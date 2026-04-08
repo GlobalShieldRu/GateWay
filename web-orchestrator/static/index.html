@@ -2666,12 +2666,31 @@
                                 </div>
                             </div>` : '<div style="margin-bottom:4px;font-size:10px;color:#34d399;">↗ Трафик идёт напрямую, минуя прокси</div>'}
                             <!-- Домены -->
-                            ${domains.length > 0 ? `<div>
-                                <div style="font-size:10px;color:#64748b;margin-bottom:4px;">Домены (${domains.length}):</div>
-                                <div style="display:flex;flex-wrap:wrap;gap:3px;">
-                                    ${domains.map(d => _renderDomainPill(d, _isDomainConflict(d), pg.id)).join('')}
-                                </div>
-                            </div>` : `<div style="font-size:10px;color:#475569;">Нет доменов</div>`}
+                            ${domains.length > 0 ? (() => {
+                                // Detect which apps have their domains in this group
+                                const pgDomSet = new Set(domains.map(d => d.trim().toLowerCase()));
+                                const matchedApps = APPS.filter(app => {
+                                    const appDoms = APP_DOMAINS[app.id] || [];
+                                    if (!appDoms.length) return false;
+                                    const hits = appDoms.filter(d => pgDomSet.has(d.toLowerCase()));
+                                    return hits.length >= Math.min(2, appDoms.length);
+                                });
+                                const appBadges = matchedApps.map(app => {
+                                    const svg = APP_ICONS[app.id] || '';
+                                    const iconHtml = svg
+                                        ? `<span style="width:14px;height:14px;display:inline-flex;align-items:center;justify-content:center;color:${app.color};flex-shrink:0;">${svg.replace('width="20"','width="14"').replace('height="20"','height="14"')}</span>`
+                                        : `<span style="width:14px;height:14px;border-radius:50%;background:${app.color};flex-shrink:0;display:inline-block;"></span>`;
+                                    const hintAttr = app.hint ? ` data-tip="${app.hint.replace(/"/g,'&quot;')}"` : '';
+                                    return `<span${hintAttr} style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:6px;background:${app.color}18;border:1px solid ${app.color}44;font-size:11px;color:${app.color};font-weight:600;white-space:nowrap;">${iconHtml}${app.title}</span>`;
+                                }).join('');
+                                return `<div>
+                                    ${matchedApps.length > 0 ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;">${appBadges}</div>` : ''}
+                                    <div style="font-size:10px;color:#64748b;margin-bottom:4px;">Домены (${domains.length}):</div>
+                                    <div style="display:flex;flex-wrap:wrap;gap:3px;">
+                                        ${domains.map(d => _renderDomainPill(d, _isDomainConflict(d), pg.id)).join('')}
+                                    </div>
+                                </div>`;
+                            })() : `<div style="font-size:10px;color:#475569;">Нет доменов</div>`}
                         </div>
                         <!-- Inline editor -->
                         ${isExpanded ? `<div style="padding:0 20px 20px;border-top:1px solid rgba(255,255,255,0.06);">
