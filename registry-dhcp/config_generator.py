@@ -39,15 +39,26 @@ def generate():
     ]
 
     # Static IP reservations from devices.json (dhcp-host=MAC,IP)
+    # Поддерживает оба формата: MAC-ключ (новый) и IP-ключ со static_ip/reserved_ip (старый)
     try:
+        def _looks_like_mac(s: str) -> bool:
+            parts = s.split(':')
+            return len(parts) == 6 and all(len(p) == 2 for p in parts)
+
         with open(GSG_DEVICES_FILE, 'r') as f:
             devices = json.load(f)
-        for ip, cfg in devices.items():
-            mac = cfg.get("mac", "")
-            static_ip = cfg.get("static_ip", "")
-            if mac and static_ip:
-                lines.append(f"dhcp-host={mac},{static_ip},2m")
-                print(f"[INFO] Static IP: {mac} → {static_ip} (lease 2m)")
+        for key, cfg in devices.items():
+            if _looks_like_mac(key):
+                # Новый формат: ключ = MAC
+                mac = key
+                reserved_ip = cfg.get("reserved_ip") or cfg.get("static_ip", "")
+            else:
+                # Старый формат: ключ = IP
+                mac = cfg.get("mac", "")
+                reserved_ip = cfg.get("reserved_ip") or cfg.get("static_ip", "")
+            if mac and reserved_ip:
+                lines.append(f"dhcp-host={mac},{reserved_ip},24h")
+                print(f"[INFO] DHCP резерв: {mac} → {reserved_ip}")
     except Exception:
         pass
 

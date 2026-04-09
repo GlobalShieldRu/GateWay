@@ -528,6 +528,94 @@ async def send_heartbeat():
 
 
 
+async def _migrate_devices_to_mac_keys():
+    """Миграция devices.json: IP-ключи → MAC-ключи.
+    Читает текущие DHCP лизы чтобы найти MAC по IP.
+    Безопасна — не трогает записи у которых MAC уже является ключом."""
+    try:
+        if not GSG_DEVICES_FILE.exists():
+            return
+        raw = GSG_DEVICES_FILE.read_text().strip()
+        if not raw:
+            return
+        data = json.loads(raw)
+        if not data:
+            return
+
+        # Проверяем: если все ключи уже выглядят как MAC — миграция не нужна
+        def _looks_like_mac(s: str) -> bool:
+            parts = s.split(':')
+            return len(parts) == 6 and all(len(p) == 2 for p in parts)
+
+        def _looks_like_ip(s: str) -> bool:
+            parts = s.split('.')
+            return len(parts) == 4 and all(p.isdigit() for p in parts)
+
+        ip_keys = [k for k in data if _looks_like_ip(k)]
+        if not ip_keys:
+            return  # уже мигрировано или пустой файл
+
+        # Читаем лизы для маппинга IP → MAC
+        ip_to_mac: dict = {}
+        if DNSMASQ_LEASES.exists():
+            try:
+                for line in DNSMASQ_LEASES.read_text().splitlines():
+                    parts = line.strip().split()
+                    if len(parts) >= 4:
+                        mac = parts[1].lower()
+                        ip  = parts[2]
+                        ip_to_mac[ip] = mac
+            except Exception:
+                pass
+
+        # Также читаем ARP таблицу
+        try:
+            lan_prefix = GATEWAY_IP.rsplit('.', 1)[0] + '.'
+            with open('/proc/net/arp', 'r') as f:
+                for line in f.readlines()[1:]:
+                    parts = line.split()
+                    if len(parts) >= 4 and parts[3] != "00:00:00:00:00:00":
+                        if parts[0].startswith(lan_prefix):
+                            ip_to_mac.setdefault(parts[0], parts[3].lower())
+        except Exception:
+            pass
+
+        new_data: dict = {}
+        for key, cfg in data.items():
+            if _looks_like_mac(key):
+                # Уже MAC-ключ — оставляем как есть
+                new_data[key] = cfg
+                continue
+            if _looks_like_ip(key):
+                # IP-ключ: ищем MAC
+                mac = cfg.get('mac', '') or ip_to_mac.get(key, '')
+                if mac and _looks_like_mac(mac):
+                    # Мигрируем в MAC-ключ
+                    new_cfg = dict(cfg)
+                    # Если reserved_ip не задан — используем текущий IP как reserved
+                    if not new_cfg.get('reserved_ip') and not new_cfg.get('static_ip'):
+                        new_cfg['reserved_ip'] = key
+                    elif new_cfg.get('static_ip') and not new_cfg.get('reserved_ip'):
+                        new_cfg['reserved_ip'] = new_cfg['static_ip']
+                    new_cfg['mac'] = mac
+                    new_cfg['current_ip'] = key
+                    # Не дублируем по MAC
+                    if mac not in new_data:
+                        new_data[mac] = new_cfg
+                    logging.info(f"[MIGRATE] {key} → {mac} (reserved_ip={new_cfg.get('reserved_ip','')})")
+                else:
+                    # MAC неизвестен — сохраняем под IP-ключом временно
+                    new_data[key] = cfg
+                    logging.warning(f"[MIGRATE] {key}: MAC неизвестен, оставляем IP-ключ")
+            else:
+                new_data[key] = cfg
+
+        GSG_DEVICES_FILE.write_text(json.dumps(new_data, indent=2))
+        logging.info(f"[MIGRATE] devices.json мигрирован: {len(ip_keys)} IP-записей → MAC-ключи")
+    except Exception as e:
+        logging.warning(f"[MIGRATE] Ошибка миграции devices.json: {e}")
+
+
 @app.on_event("startup")
 async def startup_event():
     # Ensure DNS works (resolv.conf may be empty in network_mode:host containers)
@@ -546,6 +634,8 @@ async def startup_event():
         bak = Path(str(GSG_RULES_FILE) + '.bak')
         if bak.exists():
             GSG_RULES_FILE.write_text(bak.read_text())
+    # Миграция devices.json: IP-ключи → MAC-ключи
+    await _migrate_devices_to_mac_keys()
     await traffic_history.load()
     asyncio.create_task(monitor.poll_mihomo())
     asyncio.create_task(traffic_history.run(monitor))
@@ -941,40 +1031,76 @@ async def get_devices():
     active_ips = set(monitor.stats.keys())
     active_devices = await parse_arp_and_leases(active_ips)
     configs = await read_json(GSG_DEVICES_FILE, {})
-    # MAC fallback migration: если устройство сменило IP, находим конфиг по MAC
-    migrated = False
+
+    def _looks_like_mac(s: str) -> bool:
+        parts = s.split(':')
+        return len(parts) == 6 and all(len(p) == 2 for p in parts)
+
+    # Строим маппинг MAC → конфиг (поддерживаем оба формата ключей: MAC и IP)
+    mac_configs: dict = {}
+    for key, cfg in configs.items():
+        if _looks_like_mac(key):
+            mac_configs[key] = cfg
+        elif cfg.get('mac') and _looks_like_mac(cfg['mac']):
+            # IP-ключ с MAC внутри — берём конфиг по MAC
+            mac_configs[cfg['mac']] = cfg
+
+    changed = False
+    new_mac_entries: dict = {}
+
     for d in active_devices:
-        if d["ip"] not in configs and d.get("mac"):
-            old_ip = next((k for k, v in configs.items() if v.get("mac") == d["mac"]), None)
-            if old_ip:
-                configs[d["ip"]] = configs.pop(old_ip)
-                migrated = True
-    if migrated:
+        mac = d.get('mac', '')
+        ip  = d['ip']
+        if not mac:
+            continue
+        if mac not in mac_configs:
+            # Новое устройство — создаём запись с MAC-ключом
+            # Автоматически резервируем текущий IP
+            new_mac_entries[mac] = {
+                "mode": "smart",
+                "assigned_node": "auto",
+                "tiktok_node": "auto",
+                "custom_name": "",
+                "reserved_ip": ip,
+                "mac": mac,
+                "current_ip": ip,
+            }
+            changed = True
+        else:
+            # Обновляем current_ip в конфиге
+            if mac_configs[mac].get('current_ip') != ip:
+                mac_configs[mac]['current_ip'] = ip
+                changed = True
+
+    if new_mac_entries:
+        mac_configs.update(new_mac_entries)
+
+    if changed:
+        # Перестраиваем configs: только MAC-ключи
+        new_configs = {k: v for k, v in mac_configs.items()}
         async with _devices_lock:
             async with aiofiles.open(GSG_DEVICES_FILE, 'w') as f:
-                await f.write(json.dumps(configs, indent=2))
-    new_devices = [d for d in active_devices if d["ip"] not in configs]
-    if new_devices:
-        for d in new_devices:
-            configs[d["ip"]] = {"mode": "smart", "assigned_node": "auto", "tiktok_node": "auto", "custom_name": "", "static_ip": "", "mac": d.get("mac", "")}
-        async with _devices_lock:
-            async with aiofiles.open(GSG_DEVICES_FILE, 'w') as f:
-                await f.write(json.dumps(configs, indent=2))
-        async with aiofiles.open(GSG_CONFIG_DIR / ".reload_singbox", 'w') as f:
-            await f.write("1")
+                await f.write(json.dumps(new_configs, indent=2))
+        if new_mac_entries:
+            async with aiofiles.open(GSG_CONFIG_DIR / ".reload_singbox", 'w') as f:
+                await f.write("1")
+
     result = []
     for d in active_devices:
-        conf = configs.get(d["ip"], {})
-        # Keep mac in sync
-        if d.get("mac") and not conf.get("mac"):
-            conf["mac"] = d["mac"]
+        mac = d.get('mac', '')
+        conf = mac_configs.get(mac, {})
+        reserved_ip = conf.get('reserved_ip') or conf.get('static_ip') or ''
+        current_ip  = d['ip']
         result.append({
             **d,
             "mode": conf.get("mode", "smart"),
             "assigned_node": conf.get("assigned_node", "auto"),
             "tiktok_node": conf.get("tiktok_node", "auto"),
             "custom_name": conf.get("custom_name", ""),
-            "static_ip": conf.get("static_ip", ""),
+            "static_ip": reserved_ip,   # обратная совместимость с UI
+            "reserved_ip": reserved_ip,
+            "current_ip": current_ip,
+            "is_reserved": bool(reserved_ip) and reserved_ip == current_ip,
         })
     return result
 
@@ -984,7 +1110,7 @@ async def assign_node_to_all(body: dict):
     node = body.get("assigned_node", "auto")
     async with _devices_lock:
         configs = await read_json(GSG_DEVICES_FILE, {})
-        for ip, dev in configs.items():
+        for dev in configs.values():
             if "_prev_assigned_node" not in dev:
                 dev["_prev_assigned_node"] = dev.get("assigned_node", "auto")
             dev["assigned_node"] = node
@@ -1002,7 +1128,7 @@ async def restore_nodes():
     async with _devices_lock:
         configs = await read_json(GSG_DEVICES_FILE, {})
         restored = 0
-        for ip, dev in configs.items():
+        for dev in configs.values():
             if "_prev_assigned_node" in dev:
                 dev["assigned_node"] = dev.pop("_prev_assigned_node")
                 restored += 1
@@ -1018,25 +1144,74 @@ async def restore_nodes():
 
 @app.put("/api/devices/{ip}")
 async def update_device(ip: str, data: DeviceUpdate):
+    def _looks_like_mac(s: str) -> bool:
+        parts = s.split(':')
+        return len(parts) == 6 and all(len(p) == 2 for p in parts)
+
     async with _devices_lock:
         configs = await read_json(GSG_DEVICES_FILE, {})
-        existing = configs.get(ip, {})
-        new_mac = data.mac or existing.get("mac", "")
-        configs[ip] = {
+
+        # Ищем существующую запись: сначала по MAC (новый формат), затем по IP
+        new_mac = data.mac or ""
+        existing_key = None
+        existing = {}
+
+        # Если передан MAC — ищем по нему
+        if new_mac and _looks_like_mac(new_mac):
+            existing_key = new_mac
+            existing = configs.get(new_mac, {})
+        # Иначе ищем IP-ключ или запись с mac==ip среди всех
+        if not existing_key:
+            if ip in configs:
+                existing_key = ip
+                existing = configs[ip]
+                if not new_mac:
+                    new_mac = existing.get('mac', '')
+            else:
+                # Поиск по MAC внутри IP-ключей
+                for k, v in configs.items():
+                    if not _looks_like_mac(k) and v.get('mac') == new_mac:
+                        existing_key = k
+                        existing = v
+                        break
+
+        if not new_mac:
+            new_mac = existing.get('mac', '')
+
+        # Определяем reserved_ip: если передан static_ip — используем его,
+        # иначе если нет reserved_ip — автоматически резервируем текущий IP
+        new_reserved = data.static_ip or existing.get('reserved_ip') or existing.get('static_ip') or ip
+
+        new_cfg = {
             "mode": data.mode,
             "assigned_node": data.assigned_node,
             "tiktok_node": data.tiktok_node,
             "custom_name": data.custom_name,
-            "static_ip": data.static_ip,
+            "reserved_ip": new_reserved,
+            "static_ip": new_reserved,   # обратная совместимость с dnsmasq
             "mac": new_mac,
+            "current_ip": existing.get('current_ip', ip),
         }
-        # Удаляем дубли конфигов с тем же MAC под другими IP
+
+        # Сохраняем под MAC-ключом (или IP если MAC неизвестен)
+        save_key = new_mac if (new_mac and _looks_like_mac(new_mac)) else ip
+
+        # Удаляем старые записи (IP-ключ или дубли)
+        stale = []
+        if existing_key and existing_key != save_key:
+            stale.append(existing_key)
+        # Удаляем дубли с тем же MAC под другими ключами
         if new_mac:
-            stale = [k for k, v in configs.items() if k != ip and v.get("mac") == new_mac]
-            for k in stale:
-                del configs[k]
+            for k, v in configs.items():
+                if k != save_key and (k == new_mac or v.get('mac') == new_mac):
+                    stale.append(k)
+        for k in stale:
+            configs.pop(k, None)
+
+        configs[save_key] = new_cfg
         async with aiofiles.open(GSG_DEVICES_FILE, 'w') as f:
             await f.write(json.dumps(configs, indent=2))
+
     # Reload nftables only if routing mode changed
     routing_changed = (
         data.mode != existing.get("mode") or
@@ -1048,13 +1223,14 @@ async def update_device(ip: str, data: DeviceUpdate):
             await f.write("1")
         async with aiofiles.open(GSG_CONFIG_DIR / ".reload_singbox", 'w') as f:
             await f.write("1")
-    # Trigger dnsmasq reload if static IP or MAC changed
-    static_ip_changed = data.static_ip != existing.get("static_ip", "")
-    if data.static_ip != "" or data.mac:
+    # Trigger dnsmasq reload if reserved_ip or MAC changed
+    old_reserved = existing.get('reserved_ip') or existing.get('static_ip', '')
+    reserved_changed = new_reserved != old_reserved
+    if new_reserved or new_mac:
         async with aiofiles.open(GSG_CONFIG_DIR / ".reload_dhcp", 'w') as f:
             await f.write("1")
-    # Force DHCP renew: release old lease so client gets new static IP
-    if static_ip_changed and new_mac and data.static_ip:
+    # Force DHCP renew: release old lease so client gets new reserved IP
+    if reserved_changed and new_mac and new_reserved:
         asyncio.create_task(_dhcp_force_renew(ip, new_mac))
     return {"success": True}
 
@@ -1076,25 +1252,44 @@ async def _dhcp_force_renew(old_ip: str, mac: str):
     except Exception as e:
         logging.warning(f"[DHCP] Force renew failed: {e}")
 
+def _find_device_conf(configs: dict, ip: str):
+    """Находит конфиг устройства по IP: ищет MAC-ключ с current_ip==ip,
+    затем IP-ключ (обратная совместимость). Возвращает (key, conf)."""
+    def _looks_like_mac(s: str) -> bool:
+        parts = s.split(':')
+        return len(parts) == 6 and all(len(p) == 2 for p in parts)
+    # MAC-ключ с current_ip
+    for k, v in configs.items():
+        if _looks_like_mac(k) and v.get('current_ip') == ip:
+            return k, v
+    # IP-ключ (старый формат)
+    if ip in configs:
+        return ip, configs[ip]
+    return None, {}
+
 @app.get("/api/devices/{ip}/pin")
 async def get_device_pin(ip: str):
     configs = await read_json(GSG_DEVICES_FILE, {})
-    conf = configs.get(ip, {})
-    pinned = bool(conf.get("static_ip") and conf.get("mac"))
+    _, conf = _find_device_conf(configs, ip)
+    reserved = conf.get("reserved_ip") or conf.get("static_ip", "")
+    pinned = bool(reserved and conf.get("mac"))
     return {"pinned": pinned}
 
 @app.post("/api/devices/{ip}/pin")
 async def pin_device_ip(ip: str):
     async with _devices_lock:
         configs = await read_json(GSG_DEVICES_FILE, {})
-        conf = configs.get(ip, {})
+        key, conf = _find_device_conf(configs, ip)
         mac = conf.get("mac", "")
         if not mac:
             raise HTTPException(400, detail="MAC-адрес неизвестен")
-        if conf.get("static_ip") == ip:
+        reserved = conf.get("reserved_ip") or conf.get("static_ip", "")
+        if reserved == ip:
             return {"pinned": True, "already": True}
+        conf["reserved_ip"] = ip
         conf["static_ip"] = ip
-        configs[ip] = conf
+        if key:
+            configs[key] = conf
         async with aiofiles.open(GSG_DEVICES_FILE, 'w') as f:
             await f.write(json.dumps(configs, indent=2))
     async with aiofiles.open(GSG_CONFIG_DIR / ".reload_dhcp", 'w') as f:
@@ -1105,9 +1300,11 @@ async def pin_device_ip(ip: str):
 async def unpin_device_ip(ip: str):
     async with _devices_lock:
         configs = await read_json(GSG_DEVICES_FILE, {})
-        conf = configs.get(ip, {})
+        key, conf = _find_device_conf(configs, ip)
+        conf["reserved_ip"] = ""
         conf["static_ip"] = ""
-        configs[ip] = conf
+        if key:
+            configs[key] = conf
         async with aiofiles.open(GSG_DEVICES_FILE, 'w') as f:
             await f.write(json.dumps(configs, indent=2))
     async with aiofiles.open(GSG_CONFIG_DIR / ".reload_dhcp", 'w') as f:

@@ -464,7 +464,26 @@ def main():
         print("[GSG] ru_direct: пропущен — geosite.dat ещё не обновлён до runetfreedom (перезапустите туннель)", flush=True)
 
     # --- 3. ПРАВИЛА УСТРОЙСТВ ---
-    for ip, info in devices.items():
+    def _looks_like_mac(s: str) -> bool:
+        parts = s.split(':')
+        return len(parts) == 6 and all(len(p) == 2 for p in parts)
+
+    for key, info in devices.items():
+        # Поддерживаем оба формата: MAC-ключ (новый) и IP-ключ (старый)
+        if _looks_like_mac(key):
+            # Новый формат: ключ = MAC, IP берём из reserved_ip или static_ip
+            ip = info.get('reserved_ip') or info.get('static_ip') or info.get('current_ip', '')
+            if not ip:
+                print(f"[WARN] Устройство {key}: нет reserved_ip, пропускаем", flush=True)
+                continue
+        else:
+            # Старый формат: ключ = IP
+            ip = key
+            # Если есть reserved_ip/static_ip — используем его для правил
+            reserved = info.get('reserved_ip') or info.get('static_ip', '')
+            if reserved:
+                ip = reserved
+
         mode = info.get('mode', 'smart')
         assign = info.get('assigned_node', 'auto')
         target = global_node
@@ -525,7 +544,13 @@ def main():
         # заменяя их на глобальный проксирующий MATCH
         sub_rules = {}
         device_ip_rules = []
-        for ip, info in devices.items():
+        for key, info in devices.items():
+            if _looks_like_mac(key):
+                ip = info.get('reserved_ip') or info.get('static_ip') or info.get('current_ip', '')
+                if not ip:
+                    continue
+            else:
+                ip = info.get('reserved_ip') or info.get('static_ip') or key
             mode = info.get('mode', 'smart')
             if mode == 'block':
                 device_ip_rules.append(f"SRC-IP-CIDR,{ip}/32,REJECT")
