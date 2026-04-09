@@ -29,12 +29,25 @@ override_rules → domain_rules (из групп) → ip_rules (устройст
 
 ## OTA обновления
 
-- Systemd-сервис `gsg-updater.service` — следит за триггером через `inotifywait` (не cron)
-- Скрипт: `update-watcher.sh` — git fetch → build → up → healthcheck → автооткат при ошибке
-- Прогресс-бар: 6 стадий, `/api/update/status` возвращает stage + log_lines
-- `/api/version` — публичный эндпоинт (без авторизации) для healthcheck
-- После `git reset --hard` автоматически делается `chmod +x *.sh`
-- Релиз: `./release.sh X.Y.Z` — обновляет GSG_VERSION, тег, GitHub Release
+**Триггер:** пользователь нажимает кнопку в UI → web-orchestrator создаёт файл `.update_trigger` в volume `/var/lib/docker/volumes/gsg_gsg_config/_data/` → `inotifywait` в `update-watcher.sh` реагирует мгновенно.
+
+**6 стадий `update-watcher.sh`:**
+1. `git fetch origin main`
+2. `git reset --hard origin/main` + `chmod +x *.sh`
+3. `docker compose build` (пересборка образов)
+4. `docker compose up -d`
+5. `sleep 15` — ожидание запуска
+6. Healthcheck (3 попытки): `/api/version`, порт 9090 (Mihomo), dnsmasq, интернет
+
+**Автооткат:** если healthcheck провален — `git reset --hard` к предыдущему hash + `docker compose build` + `up`.
+
+**Версия:** `GSG_VERSION` в `web-orchestrator/main.py`. OTA видит обновление по смене версии → **перед OTA нужен релиз**.
+
+**Релиз перед OTA:** `./release.sh X.Y.Z` — обновляет GSG_VERSION, создаёт тег, GitHub Release, уведомляет в Telegram. Без релиза OTA не покажет новую версию.
+
+- Сервис: `gsg-updater.service` (systemd, не cron)
+- Прогресс: `/api/update/status` возвращает stage + log_lines
+- Healthcheck endpoint: `/api/version` (публичный, без авторизации)
 
 ## Установка на устройство
 
