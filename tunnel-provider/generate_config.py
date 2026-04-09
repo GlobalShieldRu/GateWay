@@ -33,6 +33,9 @@ def main():
     server_config = {}
     nodes = []
 
+    # Файл для хранения полных VLESS-конфигов в персистентном volume
+    PROXIES_BACKUP = GSG_CONFIG_DIR / "proxies_backup.yaml"
+
     if url:
         headers = {"User-Agent": "Mihomo/1.18.10 (GSG-Smart-Gateway)"}
         try:
@@ -42,6 +45,14 @@ def main():
             if isinstance(parsed_yaml, dict):
                 server_config = parsed_yaml
                 nodes = server_config.get("proxies") or []
+                # Сохраняем полные VLESS-конфиги в volume при каждом успешном fetch
+                if nodes:
+                    try:
+                        with open(PROXIES_BACKUP, 'w') as f:
+                            yaml.dump(nodes, f, allow_unicode=True, default_flow_style=False)
+                        print(f"[INFO] Бэкап прокси сохранён: {len(nodes)} узлов → {PROXIES_BACKUP}", flush=True)
+                    except Exception as e:
+                        print(f"[WARN] Не удалось сохранить бэкап прокси: {e}", flush=True)
         except Exception as e:
             print(f"[WARN] Failed to fetch subscription: {e}", flush=True)
 
@@ -58,13 +69,33 @@ def main():
                 print(f"[WARN] Подписка вернула 0 узлов, сохраняю предыдущие {len(prev['nodes'])} узлов", flush=True)
                 gui_nodes = prev["nodes"]
                 nodes = [{"name": n["tag"], "type": n["type"], "server": n["server"], "port": n["server_port"]} for n in gui_nodes]
-                # Восстанавливаем server_config из предыдущего Mihomo YAML
-                if MIHOMO_CONFIG.exists():
+
+                # Восстанавливаем полные VLESS-конфиги из бэкапа в volume (надёжный источник)
+                if PROXIES_BACKUP.exists():
                     try:
-                        server_config = yaml.safe_load(MIHOMO_CONFIG.read_text()) or {}
-                        print(f"[WARN] Восстановлен server_config из {MIHOMO_CONFIG} ({len(server_config.get('proxies', []))} proxies)", flush=True)
-                    except Exception:
-                        pass
+                        backup_proxies = yaml.safe_load(PROXIES_BACKUP.read_text())
+                        if isinstance(backup_proxies, list) and backup_proxies:
+                            server_config = {"proxies": backup_proxies}
+                            nodes = backup_proxies  # используем полные конфиги из бэкапа
+                            print(f"[INFO] Восстановлен из бэкапа прокси: {len(backup_proxies)} узлов", flush=True)
+                    except Exception as e:
+                        print(f"[WARN] Не удалось прочитать бэкап прокси: {e}", flush=True)
+
+                # Fallback на config.yaml только если бэкап недоступен
+                if not server_config.get("proxies"):
+                    if MIHOMO_CONFIG.exists():
+                        try:
+                            old_cfg = yaml.safe_load(MIHOMO_CONFIG.read_text()) or {}
+                            old_proxies = old_cfg.get("proxies", [])
+                            # Используем только если там реальные ноды (не GSG-FALLBACK)
+                            real_proxies = [p for p in old_proxies if p.get("name") != "GSG-FALLBACK" and p.get("type") != "direct"]
+                            if real_proxies:
+                                server_config = old_cfg
+                                print(f"[WARN] Восстановлен из config.yaml: {len(real_proxies)} реальных прокси", flush=True)
+                            else:
+                                print(f"[WARN] config.yaml содержит только GSG-FALLBACK, пропускаем", flush=True)
+                        except Exception:
+                            pass
         except Exception:
             pass
 
