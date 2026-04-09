@@ -159,9 +159,12 @@ class TrafficMonitor:
                                 'src': ip,
                                 'host': host,
                                 'dst_port': meta.get('destinationPort', ''),
+                                'dst_ip': meta.get('destinationIP', ''),
                                 'network': meta.get('network', 'tcp').upper(),
                                 'chains': chains,
                                 'start': conn.get('start', ''),
+                                'rule': conn.get('rule', ''),
+                                'rule_payload': conn.get('rulePayload', ''),
                                 '_seen': time.monotonic(),
                             }
 
@@ -522,6 +525,7 @@ async def send_heartbeat():
                 )
     except Exception:
         pass
+
 
 
 @app.on_event("startup")
@@ -1245,7 +1249,8 @@ async def save_ai_rules(req: AiSettingsRequest):
     for pg in rules["proxy_groups"]:
         if pg["id"] == "ai":
             pg["node_filter"] = req.node_filter
-            pg["domains"] = [d.strip() for d in req.domains if d.strip()]
+            pg["rules"] = [d.strip() for d in req.domains if d.strip()]
+            pg.pop("domains", None)
             break
 
     await _backup_rules()
@@ -1256,31 +1261,44 @@ async def save_ai_rules(req: AiSettingsRequest):
     return {"ok": True}
 
 
+def _get_pg_rules(pg: dict) -> list:
+    """Возвращает список строк правил группы (новый формат rules или старый domains)."""
+    r = pg.get("rules")
+    if r is not None:
+        return r
+    return pg.get("domains", [])
+
+
 def _ensure_proxy_groups(rules: dict) -> dict:
-    """Миграция: если proxy_groups нет, строим из старого формата."""
+    """Миграция: если proxy_groups нет, строим из старого формата.
+    Также мигрирует domains → rules внутри существующих групп."""
     if "proxy_groups" in rules and rules["proxy_groups"]:
+        # Миграция domains → rules для существующих групп
+        for pg in rules["proxy_groups"]:
+            if "domains" in pg and "rules" not in pg:
+                pg["rules"] = pg.pop("domains")
         return rules
 
     groups = [
-        {"id": "auto", "name": "Auto", "node_filter": "", "type": "url-test", "builtin": True, "domains": []},
+        {"id": "auto", "name": "Auto", "node_filter": "", "type": "url-test", "builtin": True, "rules": []},
     ]
     # AI
     ai_s = rules.get("ai_settings", {})
     ai_domains = ai_s.get("domains") or ["gemini", "openai", "chatgpt", "anthropic", "claude", "aistudio.google.com"]
     groups.append({
         "id": "ai", "name": "AI", "node_filter": ai_s.get("node_filter", "NY"),
-        "type": "fallback", "builtin": True, "domains": ai_domains
+        "type": "fallback", "builtin": True, "rules": ai_domains
     })
     # Bypass (direct)
     direct_list = rules.get("direct", [])
     groups.append({
         "id": "bypass", "name": "Bypass", "node_filter": "",
-        "type": "direct", "builtin": True, "domains": direct_list
+        "type": "direct", "builtin": True, "rules": direct_list
     })
     # Предустановленные группы
     groups.append({
         "id": "exchanges", "name": "Биржи", "node_filter": "", "type": "url-test", "builtin": False,
-        "domains": [
+        "rules": [
             "mexc.com","mexc.co","mexc.fm","mexc.la","mocortech.com","mexcsensors.com",
             "binance.com","binance.cloud","binance.me","bnbstatic.com","binance.vision",
             "bybit.com","bybit.cloud","bycsi.com",
@@ -1295,7 +1313,7 @@ def _ensure_proxy_groups(rules: dict) -> dict:
     })
     groups.append({
         "id": "social", "name": "Соцсети", "node_filter": "", "type": "url-test", "builtin": False,
-        "domains": [
+        "rules": [
             "instagram.com","cdninstagram.com","facebook.com","fbcdn.net","fb.com",
             "twitter.com","x.com","twimg.com",
             "linkedin.com","licdn.com",
@@ -1307,7 +1325,7 @@ def _ensure_proxy_groups(rules: dict) -> dict:
     })
     groups.append({
         "id": "streaming", "name": "Стриминг", "node_filter": "", "type": "url-test", "builtin": False,
-        "domains": [
+        "rules": [
             "netflix.com","nflxvideo.net","nflximg.net","nflxso.net",
             "spotify.com","scdn.co","spotifycdn.com",
             "disneyplus.com","disney-plus.net","bamgrid.com",
@@ -1320,7 +1338,7 @@ def _ensure_proxy_groups(rules: dict) -> dict:
     # Proxy-домены → в Auto
     proxy_list = rules.get("proxy", [])
     if proxy_list:
-        groups[0]["domains"] = proxy_list  # Auto — первый
+        groups[0]["rules"] = proxy_list  # Auto — первый
 
     rules["proxy_groups"] = groups
     return rules
@@ -1332,15 +1350,36 @@ class ProxyGroupCreate(BaseModel):
     name: str
     node_filter: str = ""
     type: str = "url-test"
-    domains: List[str] = []
+    rules: List[str] = []
     exclusions: List[str] = []
+    # Обратная совместимость: старое поле
+    domains: Optional[List[str]] = None
 
 class ProxyGroupUpdate(BaseModel):
     name: Optional[str] = None
     node_filter: Optional[str] = None
     type: Optional[str] = None
-    domains: Optional[List[str]] = None
+    rules: Optional[List[str]] = None
     exclusions: Optional[List[str]] = None
+    # Обратная совместимость: старое поле
+    domains: Optional[List[str]] = None
+
+def _is_ip_entry(s: str) -> bool:
+    """Возвращает True если строка выглядит как IP или CIDR."""
+    import ipaddress as _ipa
+    s = s.strip()
+    if '/' in s:
+        try:
+            _ipa.ip_network(s, strict=False)
+            return True
+        except ValueError:
+            pass
+    try:
+        _ipa.ip_address(s)
+        return True
+    except ValueError:
+        return False
+
 
 # --- ROUTE TESTS API ---
 
@@ -1415,10 +1454,10 @@ async def test_routes():
         g_id = pg.get("id")
         g_type = pg.get("type", "url-test")
         g_name = pg.get("name")
-        domains = pg.get("domains", [])
+        pg_rules = _get_pg_rules(pg)
         node_filter = pg.get("node_filter", "").lower().strip()
 
-        if not domains:
+        if not pg_rules:
             continue
 
         # Ожидаемые узлы для группы
@@ -1436,6 +1475,14 @@ async def test_routes():
         # Реальные узлы в Mihomo proxy-group
         actual_nodes = get_group_nodes(g_id) if g_type != "direct" else []
 
+        # Для проверки отбираем только домены/ключевые слова (без IP-CIDR)
+        domain_entries = [r.strip() for r in pg_rules if r.strip() and not r.startswith('#') and '/' not in r]
+        try:
+            import ipaddress as _ipa
+            domain_entries = [r for r in domain_entries if not _is_ip_entry(r)]
+        except Exception:
+            pass
+
         group_result = {
             "group": g_name,
             "group_id": g_id,
@@ -1444,7 +1491,7 @@ async def test_routes():
             "expected_nodes": len(expected_nodes),
             "actual_nodes": len(actual_nodes),
             "actual_node_names": actual_nodes[:6],
-            "domains": [d.strip() for d in domains if d.strip()],
+            "domains": domain_entries,
             "domains_tested": 0,
             "domains_ok": 0,
             "domains_wrong": 0,
@@ -1465,8 +1512,8 @@ async def test_routes():
                 group_result["issues"].append(issue)
                 results["warnings"].append(issue)
 
-        # Проверяем каждый домен
-        for d in domains:
+        # Проверяем каждый домен/ключевое слово
+        for d in domain_entries:
             d = d.strip()
             if not d:
                 continue
@@ -1527,7 +1574,7 @@ async def test_routes():
         if mode == "block":
             # В текущей архитектуре доменные правила (группы) приоритетнее SRC-IP-CIDR.
             # Это значит заблокированное устройство может пустить трафик через VPN для доменов из групп.
-            has_group_domains = any(len(pg.get("domains", [])) > 0 for pg in proxy_groups if pg.get("type") != "direct")
+            has_group_domains = any(len(_get_pg_rules(pg)) > 0 for pg in proxy_groups if pg.get("type") != "direct")
             if has_group_domains:
                 issue = "Режим Block: доменные правила групп имеют приоритет — трафик к доменам из Auto/AI может пройти через VPN"
                 dev_result["issues"].append(issue)
@@ -1565,11 +1612,11 @@ async def test_routes():
             integrity["issues"].append(issue)
             integrity["config_ok"] = False
 
-    # Проверяем что количество доменных правил совпадает
+    # Проверяем что количество доменных правил совпадает (только домены, без IP)
     expected_domain_rules = 0
     for pg in proxy_groups:
-        for d in pg.get("domains", []):
-            if d.strip():
+        for d in _get_pg_rules(pg):
+            if d.strip() and not d.startswith('#') and not _is_ip_entry(d):
                 expected_domain_rules += 1
     # Считаем DomainSuffix и DomainKeyword правила в Mihomo (без системных)
     system_suffixes = {"local"}
@@ -1659,10 +1706,12 @@ async def create_group(req: ProxyGroupCreate):
     rules = _ensure_proxy_groups(rules)
 
     new_id = f"user_{int(time.time())}"
+    # Поддержка старого поля domains для обратной совместимости
+    rules_list = req.rules if req.rules is not None else (req.domains or [])
     new_group = {
         "id": new_id, "name": req.name, "node_filter": req.node_filter,
         "type": req.type, "builtin": False,
-        "domains": [d.strip() for d in req.domains if d.strip()],
+        "rules": [d.strip() for d in rules_list if d.strip()],
         "exclusions": [d.strip() for d in req.exclusions if d.strip()]
     }
     rules["proxy_groups"].append(new_group)
@@ -1697,8 +1746,11 @@ async def update_group(group_id: str, req: ProxyGroupUpdate):
         found["node_filter"] = req.node_filter
     if req.type is not None:
         found["type"] = req.type
-    if req.domains is not None:
-        found["domains"] = [d.strip() for d in req.domains if d.strip()]
+    # Поддержка старого поля domains для обратной совместимости
+    new_rules = req.rules if req.rules is not None else req.domains
+    if new_rules is not None:
+        found["rules"] = [d.strip() for d in new_rules if d.strip()]
+        found.pop("domains", None)  # убираем старое поле если было
     if req.exclusions is not None:
         found["exclusions"] = [d.strip() for d in req.exclusions if d.strip()]
 
@@ -2107,6 +2159,10 @@ async def get_connections():
             'chain': next((x for x in chains if x not in ('DIRECT','REJECT','GLOBAL','') ), 'DIRECT'),
             'upload': c.get('up', 0),
             'download': c.get('down', 0),
+            'start': c.get('start', ''),
+            'rule': c.get('rule', ''),
+            'rule_payload': c.get('rule_payload', ''),
+            'dst_ip': c.get('dst_ip', ''),
         })
     conns.sort(key=lambda x: -(x['upload'] + x['download']))
     return {"connections": conns[:100]}

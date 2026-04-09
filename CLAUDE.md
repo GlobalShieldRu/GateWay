@@ -59,14 +59,16 @@ scp GSG/install.sh root@194.87.30.15:/root/vless_front/www/install.sh
 
 ## Деплой
 
-**Обязательно пересобирать образы** (docker cp недостаточно!):
+**Основной процесс:** коммит + пуш в git → пользователь запускает OTA-обновление через веб-интерфейс GSG. Пересборка образов происходит автоматически через `update-watcher.sh`.
+
+**Вручную `docker compose build` не делаем** — только через OTA.
+
+**Экстренный фикс** (до следующего релиза) — патчим файл прямо в работающем контейнере:
 ```bash
-# На хосте GSG (10.10.1.139):
-cd /root/GSG
-docker compose build tunnel-provider web-orchestrator
-docker compose up -d
+scp tunnel-provider/generate_config.py root@10.10.1.139:/tmp/gen.py
+ssh root@10.10.1.139 'docker cp /tmp/gen.py gsg-tunnel:/usr/local/bin/generate_config.py'
 ```
-`entrypoint.sh` вызывает `/usr/local/bin/generate_config.py` из образа, а не `/app/`.
+`entrypoint.sh` вызывает `/usr/local/bin/generate_config.py` из образа, а не из `/app/`.
 
 ## Конфигурация
 

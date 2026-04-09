@@ -87,6 +87,14 @@ def main():
     server_config["allow-lan"] = True
     server_config["external-controller"] = "0.0.0.0:9090"
     server_config["log-level"] = "silent"
+    server_config["keep-alive-interval"] = 300   # TCP keepalive каждые 5 мин (оптимально для роутера)
+    server_config["keep-alive-idle-time"] = 600  # начинать keepalive после 10 мин простоя
+    server_config["unified-delay"] = True        # Нормализует latency для url-test групп
+    server_config["find-process-mode"] = "off"   # Не определять процессы (не нужно для TPROXY)
+    server_config["profile"] = {
+        "store-selected": True,   # Сохранять выбор proxy-group при перезагрузке конфига
+        "store-fake-ip": True,    # Сохранять DNS mappings при перезагрузке
+    }
     server_config["ipv6"] = False
     server_config["geodata-mode"] = True
     server_config["geo-auto-update"] = True
@@ -110,6 +118,7 @@ def main():
 
     server_config["sniffer"] = {
         "enable": True,
+        "parse-pure-ip": False,  # Не тратить CPU на IP-only соединения
         "sniff": {
             "HTTP": {"ports": [80, 8080], "override-destination": True},
             "TLS": {"ports": [443, 8443], "override-destination": True},
@@ -125,30 +134,74 @@ def main():
 
     existing_group_names = [g["name"] for g in server_config["proxy-groups"]]
 
+    # --- Парсер строк rules: определяем тип по содержимому ---
+    import ipaddress as _ipaddress
+
+    def _get_rules(pg: dict) -> list:
+        """Возвращает список строк правил группы (новый формат rules или старый domains)."""
+        rules_list = pg.get("rules")
+        if rules_list is not None:
+            return rules_list
+        # Миграция: domains → rules
+        return pg.get("domains", [])
+
+    def _parse_rule_line(line: str, target: str) -> list:
+        """
+        Парсит одну строку из textarea правил и возвращает список Mihomo-правил.
+        Возвращает [] для пустых строк и комментариев.
+        Типы:
+          - 10.10.2.0/24 или 192.168.1.0/24  → IP-CIDR,<net>,<target>,no-resolve
+          - 192.168.1.1 (одиночный IP без маски) → IP-CIDR,<ip>/32,<target>,no-resolve
+          - kinopoisk.ru (содержит точку)        → DOMAIN-SUFFIX,<domain>,<target>
+          - kinopoisk (без точек и слешей)       → DOMAIN-KEYWORD,<keyword>,<target>
+        """
+        line = line.strip()
+        if not line or line.startswith('#'):
+            return []
+        # Проверяем IP-CIDR (содержит '/')
+        if '/' in line:
+            try:
+                _ipaddress.ip_network(line, strict=False)
+                return [f"IP-CIDR,{line},{target},no-resolve"]
+            except ValueError:
+                pass
+        # Проверяем одиночный IP без маски
+        try:
+            addr = _ipaddress.ip_address(line)
+            return [f"IP-CIDR,{line}/32,{target},no-resolve"]
+        except ValueError:
+            pass
+        # Домен или ключевое слово
+        clean = line.split('://')[-1].split('/')[0]
+        if '.' in clean:
+            return [f"DOMAIN-SUFFIX,{clean},{target}"]
+        else:
+            return [f"DOMAIN-KEYWORD,{clean},{target}"]
+
     # --- PROXY GROUPS ---
     # Миграция: если proxy_groups нет, строим из старого формата
     proxy_groups = user_rules.get("proxy_groups")
     if not proxy_groups:
         proxy_groups = [
-            {"id": "auto", "name": "Auto", "node_filter": "", "type": "url-test", "builtin": True, "domains": []},
+            {"id": "auto", "name": "Auto", "node_filter": "", "type": "url-test", "builtin": True, "rules": []},
         ]
         # Миграция AI
         ai_s = user_rules.get("ai_settings", {})
         ai_domains = ai_s.get("domains") or ["gemini", "openai", "chatgpt", "anthropic", "claude", "aistudio.google.com"]
         proxy_groups.append({
             "id": "ai", "name": "AI", "node_filter": ai_s.get("node_filter", "NY"),
-            "type": "fallback", "builtin": True, "domains": ai_domains
+            "type": "fallback", "builtin": True, "rules": ai_domains
         })
         # Bypass (direct) — встроенная группа
         direct_list = user_rules.get("direct", [])
         proxy_groups.append({
             "id": "bypass", "name": "Bypass", "node_filter": "",
-            "type": "direct", "builtin": True, "domains": direct_list
+            "type": "direct", "builtin": True, "rules": direct_list
         })
         # Предустановленные группы
         proxy_groups.append({
             "id": "exchanges", "name": "Биржи", "node_filter": "", "type": "url-test", "builtin": False,
-            "domains": [
+            "rules": [
                 "mexc.com","mexc.co","mexc.fm","mexc.la","mocortech.com","mexcsensors.com",
                 "binance.com","binance.cloud","binance.me","bnbstatic.com","binance.vision",
                 "bybit.com","bybit.cloud","bycsi.com",
@@ -163,7 +216,7 @@ def main():
         })
         proxy_groups.append({
             "id": "social", "name": "Соцсети", "node_filter": "", "type": "url-test", "builtin": False,
-            "domains": [
+            "rules": [
                 "instagram.com","cdninstagram.com","facebook.com","fbcdn.net","fb.com",
                 "twitter.com","x.com","twimg.com",
                 "linkedin.com","licdn.com",
@@ -175,7 +228,7 @@ def main():
         })
         proxy_groups.append({
             "id": "streaming", "name": "Стриминг", "node_filter": "", "type": "url-test", "builtin": False,
-            "domains": [
+            "rules": [
                 "netflix.com","nflxvideo.net","nflximg.net","nflxso.net",
                 "spotify.com","scdn.co","spotifycdn.com",
                 "disneyplus.com","disney-plus.net","bamgrid.com",
@@ -188,7 +241,7 @@ def main():
         # Миграция proxy-доменов → в Auto
         proxy_list = user_rules.get("proxy", [])
         if proxy_list:
-            proxy_groups[0]["domains"] = proxy_list  # Auto — первый элемент
+            proxy_groups[0]["rules"] = proxy_list  # Auto — первый элемент
 
     # Создаём Mihomo proxy-groups
     print(f"\n[GSG] === PROXY GROUPS ({len(proxy_groups)}) ===", flush=True)
@@ -196,9 +249,9 @@ def main():
         g_id = pg.get("id", "unknown")
         g_type = pg.get("type", "url-test")
 
-        # Bypass — не создаёт proxy-group, домены идут DIRECT
+        # Bypass — не создаёт proxy-group, правила идут DIRECT
         if g_type == "direct" or g_id == "bypass":
-            print(f"  {pg.get('name',g_id)} [{g_id}] — DIRECT, {len(pg.get('domains',[]))} доменов", flush=True)
+            print(f"  {pg.get('name',g_id)} [{g_id}] — DIRECT, {len(_get_rules(pg))} правил", flush=True)
             continue
 
         filter_str = pg.get("node_filter", "").lower().strip()
@@ -214,13 +267,15 @@ def main():
         if g_id not in existing_group_names:
             group_cfg = {
                 "name": g_id, "type": g_type, "proxies": proxies,
-                "url": "http://www.gstatic.com/generate_204", "interval": 600, "lazy": True
+                "url": "http://www.gstatic.com/generate_204", "interval": 600, "lazy": True,
+                "timeout": 5000,          # Таймаут health-check (5 сек)
+                "max-failed-times": 3,    # Выводить узел из ротации после 3 ошибок
             }
             if g_type == "url-test":
                 group_cfg["tolerance"] = 50
             server_config["proxy-groups"].append(group_cfg)
             existing_group_names.append(g_id)
-            print(f"  {pg.get('name',g_id)} [{g_id}] — {g_type}, {len(proxies)} узлов, {len(pg.get('domains',[]))} доменов", flush=True)
+            print(f"  {pg.get('name',g_id)} [{g_id}] — {g_type}, {len(proxies)} узлов, {len(_get_rules(pg))} правил", flush=True)
 
     custom_groups = user_rules.get("custom_groups", [])
 
@@ -257,6 +312,8 @@ def main():
             })
             existing_group_names.append(g_name)
         seen_node_groups[node_name] = g_name
+
+    bypass_network_rules = []  # IP-CIDR правила из групп собираются в секции доменных правил
 
     # Формируем правила из route_overrides
     override_rules = []
@@ -303,7 +360,8 @@ def main():
         rule_providers['rkn-domains'] = {
             "type": "http", "behavior": "domain", "format": "text",
             "url": "https://community.antifilter.download/list/domains.lst",
-            "path": "./rules/rkn-domains.txt", "interval": 86400
+            "path": "./rules/rkn-domains.txt", "interval": 86400,
+            "size-limit": 104857600  # 100 MB максимум
         }
 
     # Telegram CIDR — всегда, независимо от rkn_bypass.
@@ -312,7 +370,8 @@ def main():
     rule_providers['telegram-cidr'] = {
         "type": "http", "behavior": "ipcidr", "format": "text",
         "url": "https://core.telegram.org/resources/cidr.txt",
-        "path": "./rules/telegram-cidr.txt", "interval": 86400
+        "path": "./rules/telegram-cidr.txt", "interval": 86400,
+        "size-limit": 10485760  # 10 MB максимум
     }
 
     custom_routing_rules = []
@@ -327,11 +386,11 @@ def main():
                 clean_d = domain.strip().split('://')[-1].split('/')[0]
                 custom_routing_rules.append(f"DOMAIN-SUFFIX,{clean_d},{target}")
 
-    # --- 1. ДОМЕНЫ ИЗ PROXY GROUPS ---
+    # --- 1. ПРАВИЛА ИЗ PROXY GROUPS ---
     for pg in proxy_groups:
         g_id = pg.get("id", "unknown")
         g_type = pg.get("type", "url-test")
-        domains = pg.get("domains", [])
+        pg_rules = _get_rules(pg)
         exclusions = pg.get("exclusions", [])
 
         # Exclusions группы: эти домены идут DIRECT для устройств использующих группу.
@@ -342,36 +401,23 @@ def main():
                 ex = ex.strip()
                 if not ex:
                     continue
-                # group:ИмяГруппы → раскрываем все домены указанной группы
+                # group:ИмяГруппы → раскрываем все правила указанной группы
                 if ex.startswith('group:'):
                     ref_name = ex[len('group:'):]
                     ref_group = next((p for p in proxy_groups if p.get('name') == ref_name or p.get('id') == ref_name), None)
                     if ref_group is None:
                         print(f"[WARN] exclusions: группа '{ref_name}' не найдена, пропускаем", flush=True)
                         continue
-                    ref_domains = ref_group.get('domains', [])
-                    print(f"  [{pg.get('name', g_id)}] exclusion group:{ref_name} → {len(ref_domains)} доменов", flush=True)
-                    for rd in ref_domains:
-                        rd = rd.strip()
-                        if not rd:
-                            continue
-                        clean_rd = rd.split('://')[-1].split('/')[0]
-                        if '.' in clean_rd:
-                            domain_rules.append(f"DOMAIN-SUFFIX,{clean_rd},DIRECT")
-                        else:
-                            domain_rules.append(f"DOMAIN-KEYWORD,{clean_rd},DIRECT")
+                    ref_rules = _get_rules(ref_group)
+                    print(f"  [{pg.get('name', g_id)}] exclusion group:{ref_name} → {len(ref_rules)} правил", flush=True)
+                    for rr in ref_rules:
+                        for mihomo_rule in _parse_rule_line(rr, "DIRECT"):
+                            domain_rules.append(mihomo_rule)
                     continue
-                clean_ex = ex.split('://')[-1].split('/')[0]
-                # keyword: префикс или содержит * → DOMAIN-KEYWORD
-                if clean_ex.startswith('keyword:'):
-                    clean_ex = clean_ex[len('keyword:'):]
-                    domain_rules.append(f"DOMAIN-KEYWORD,{clean_ex},DIRECT")
-                elif '*' in clean_ex or '.' not in clean_ex:
-                    domain_rules.append(f"DOMAIN-KEYWORD,{clean_ex.replace('*','')},DIRECT")
-                else:
-                    domain_rules.append(f"DOMAIN-SUFFIX,{clean_ex},DIRECT")
+                for mihomo_rule in _parse_rule_line(ex, "DIRECT"):
+                    domain_rules.append(mihomo_rule)
 
-        if not domains:
+        if not pg_rules:
             continue
 
         # Bypass/direct → DIRECT, остальные → через proxy-group
@@ -382,25 +428,30 @@ def main():
         else:
             target = global_node
 
-        for d in domains:
-            d = d.strip()
-            if not d:
+        # IP-CIDR правила из группы выносим в начало (bypass_network_rules)
+        for line in pg_rules:
+            line = line.strip()
+            if not line or line.startswith('#'):
                 continue
-            clean_d = d.split('://')[-1].split('/')[0]
-            if '.' in clean_d:
-                domain_rules.append(f"DOMAIN-SUFFIX,{clean_d},{target}")
-            else:
-                domain_rules.append(f"DOMAIN-KEYWORD,{clean_d},{target}")
-
-    # --- 2. ПОЛЬЗОВАТЕЛЬСКИЕ ДОМЕНЫ (legacy: proxy без группы) ---
-    if not user_rules.get("proxy_groups"):
-        # Только если не мигрировали — иначе proxy уже в группе proxy_default
-        pass
-
-
-    for d in user_rules.get('direct', []):
-        clean_d = d.strip().split('://')[-1].split('/')[0]
-        domain_rules.append(f"DOMAIN-SUFFIX,{clean_d},DIRECT")
+            # Определяем: это IP/CIDR или домен/ключевое слово?
+            is_ip = False
+            if '/' in line:
+                try:
+                    _ipaddress.ip_network(line, strict=False)
+                    is_ip = True
+                except ValueError:
+                    pass
+            if not is_ip:
+                try:
+                    _ipaddress.ip_address(line)
+                    is_ip = True
+                except ValueError:
+                    pass
+            for mihomo_rule in _parse_rule_line(line, target):
+                if mihomo_rule.startswith("IP-CIDR,"):
+                    bypass_network_rules.append(mihomo_rule)
+                else:
+                    domain_rules.append(mihomo_rule)
 
     # ru_direct: сайты, доступные только внутри России — идут напрямую.
     # Требует geosite.dat от runetfreedom (маркер /etc/mihomo/.geosite-runetfreedom).
@@ -506,7 +557,7 @@ def main():
     else:
         print("\n[GSG] [WARN] Группа 'ai' не найдена, GEOIP,google и GEOIP,cloudflare не добавлены", flush=True)
 
-    server_config["rules"] = override_rules + domain_rules + geoip_ai_rules + ip_rules + custom_routing_rules + [f"MATCH,{global_node}"]
+    server_config["rules"] = bypass_network_rules + override_rules + domain_rules + geoip_ai_rules + ip_rules + custom_routing_rules + [f"MATCH,{global_node}"]
 
     MIHOMO_CONFIG.parent.mkdir(parents=True, exist_ok=True)
     with open(MIHOMO_CONFIG, 'w') as f:

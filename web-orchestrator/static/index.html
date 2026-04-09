@@ -859,7 +859,7 @@
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
                 DHCP и Сеть
             </div>
-            <div class="nav-item expert-item" id="nav-proxy" onclick="GatewayApp.ui.switchTab('tab-proxy', this)" style="display:flex;" data-tip="Системные логи Mihomo и GSG в реальном времени">
+            <div class="nav-item expert-item" id="nav-proxy" onclick="GatewayApp.ui.switchTab('tab-proxy', this)" style="display:flex;" data-tip="Системные логи шлюза в реальном времени">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
                 Логи
             </div>
@@ -1008,7 +1008,7 @@
                     <div id="routeViz"></div>
 
                     <!-- QUIC note -->
-                    <div style="margin-top:6px;font-size:9px;color:rgba(100,116,139,0.5);line-height:1.4;" title="Браузеры используют QUIC (UDP) для Gemini, ChatGPT, TikTok — трафик идёт через NY-узел, но UDP не отображается в мониторе соединений Mihomo. Точки через NY видны только при TCP-трафике.">
+                    <div style="margin-top:6px;font-size:9px;color:rgba(100,116,139,0.5);line-height:1.4;" title="Браузеры используют QUIC (UDP) для Gemini, ChatGPT, TikTok — трафик идёт через NY-узел, но UDP не отображается в мониторе соединений шлюза. Точки через NY видны только при TCP-трафике.">
                         ⓘ Точки NY — только TCP. Gemini / ChatGPT используют QUIC (UDP) — маршрут верный, но не виден в статистике.
                     </div>
 
@@ -1194,9 +1194,9 @@
                             </select>
                         </div>
                         <div>
-                            <div class="section-label" style="margin-bottom:6px;">Домены и ключевые слова</div>
-                            <textarea id="groupEditDomains_new" class="gsg-textarea" rows="7" placeholder="youtube.com&#10;netflix.com&#10;speedtest.net"></textarea>
-                            <div style="font-size:10px;color:var(--muted);margin-top:4px;">Без точки → KEYWORD (все поддомены). С точкой → SUFFIX.</div>
+                            <div class="section-label" style="margin-bottom:6px;">Правила (домены, IP, подсети)</div>
+                            <textarea id="groupEditDomains_new" class="gsg-textarea" rows="7" placeholder="# Один элемент на строку&#10;youtube.com      → domain suffix&#10;netflix          → keyword&#10;10.10.2.0/24     → IP-CIDR bypass&#10;192.168.1.1      → одиночный IP/32"></textarea>
+                            <div style="font-size:10px;color:var(--muted);margin-top:4px;">Тип определяется автоматически: с точкой → SUFFIX, без точки → KEYWORD, IP/CIDR → IP-CIDR.</div>
                         </div>
                         <div>
                             <div class="section-label" style="margin-bottom:6px;">Исключения (DIRECT)</div>
@@ -1312,7 +1312,7 @@
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-shrink:0;flex-wrap:wrap;gap:10px;">
                         <div style="font-size:15px;font-weight:800;color:#f1f5f9;display:flex;align-items:center;gap:8px;">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
-                            Журнал ядра (Mihomo)
+                            Журнал шлюза
                         </div>
                         <div style="display:flex;align-items:center;gap:8px;">
                             <div id="logLevelBadge" style="display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:rgba(100,116,139,0.1);border:1px solid rgba(100,116,139,0.2);">
@@ -1337,7 +1337,7 @@
             <div id="tab-connections" class="tab-content expert-item reveal reveal-2">
                 <div class="glass" style="padding:24px;">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                        <div style="font-size:15px;font-weight:800;color:#f1f5f9;display:flex;align-items:center;gap:8px;" title="Показаны только TCP-соединения. QUIC (HTTP/3, UDP 443) — Gemini, ChatGPT, TikTok — маршрутизируется корректно, но не отображается здесь: Mihomo не передаёт UDP в /connections API.">
+                        <div style="font-size:15px;font-weight:800;color:#f1f5f9;display:flex;align-items:center;gap:8px;" title="Показаны только TCP-соединения. QUIC (HTTP/3, UDP 443) — Gemini, ChatGPT, TikTok — маршрутизируется корректно, но не отображается здесь: шлюз не передаёт UDP в монитор соединений.">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
                             Активные соединения
                         </div>
@@ -1379,10 +1379,13 @@
                         <button id="conn-apply-btn" onclick="GatewayApp.actions.addToGroup(document.getElementById('conn-target-select')?.value)" style="padding:4px 10px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);color:#FBBF24;">→</button>
                     </div>
                     <!-- Table header -->
-                    <div style="display:grid;grid-template-columns:28px 170px 1fr 90px 100px;gap:10px;padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:4px;">
+                    <div style="display:grid;grid-template-columns:28px 150px minmax(140px,1fr) 100px 110px 70px 110px 90px;gap:8px;padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.06);margin-bottom:4px;">
                         <span style="display:flex;align-items:center;"><input type="checkbox" id="conn-select-all" style="accent-color:#FBBF24;cursor:pointer;" title="Выбрать все видимые"></span>
                         <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">Клиент</span>
                         <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">Назначение</span>
+                        <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">Приложение</span>
+                        <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">Скорость</span>
+                        <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">Время</span>
                         <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">Через</span>
                         <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;text-align:right;">Трафик</span>
                     </div>
@@ -1584,6 +1587,50 @@
                         'myexternalip.com', 'wtfismyip.com', 'ipecho.net'],
         };
 
+        // Port → protocol name
+        const PORT_PROTO = {
+            80:'HTTP', 443:'HTTPS', 8080:'HTTP', 8443:'HTTPS',
+            993:'IMAPS', 995:'POP3S', 587:'SMTP', 465:'SMTPS', 25:'SMTP',
+            5222:'MTProto', 5223:'MTProto', 1194:'OpenVPN', 51820:'WireGuard',
+            22:'SSH', 3389:'RDP', 53:'DNS', 853:'DNS/TLS',
+            6667:'IRC', 6697:'IRC/TLS', 3478:'STUN', 19302:'STUN',
+        };
+        // Sparkline using Unicode block chars
+        const _SPARK = ' ▁▂▃▄▅▆▇█';
+        const _sparkline = (hist) => {
+            if (!hist || !hist.length) return '';
+            const max = Math.max(...hist, 1);
+            return hist.map(v => _SPARK[Math.min(8, Math.floor(v / max * 8))]).join('');
+        };
+
+        // Telegram IP ranges (MTProto — нет hostname, только IP)
+        const _TG_IP_RE = /^(149\.154\.|91\.108\.|95\.161\.)/;
+
+        // Domain → app icon mapping (used in connections table and network status)
+        const _domainIconMap = [
+            [/tiktok|tiktokcdn|tiktokv|bytedance/i, 'tiktok', '#ee1d52', 'TikTok'],
+            [/youtube|googlevideo|ytimg/i, 'youtube', '#ff0000', 'YouTube'],
+            [/telegram\.org|t\.me|telesco\.pe|telegram-cdn/i, 'telegram', '#229ED9', 'Telegram'],
+            [_TG_IP_RE, 'telegram', '#229ED9', 'Telegram'],
+            [/instagram|cdninstagram|fbcdn|facebook/i, 'instagram', '#e1306c', 'Instagram'],
+            [/netflix\.com|nflxvideo\.net/i, 'netflix', '#E50914', 'Netflix'],
+            [/openai|chatgpt/i, 'chatgpt', '#10a37f', 'ChatGPT'],
+            [/claude|anthropic/i, 'claude', '#d97706', 'Claude'],
+            [/gemini|generativelanguage/i, 'gemini', '#8ab4f8', 'Gemini'],
+            [/kinopoisk/i, 'kinopoisk', '#ff6600', 'Kinopoisk', 'https://www.kinopoisk.ru/favicon.ico'],
+            [/yandex|ya\.ru/i, 'yandex', '#ff0000', 'Yandex', 'https://yandex.ru/favicon.ico'],
+            [/apple\.|icloud\.|apple-cloudkit\./i, 'apple', '#a3a3a3', 'Apple', 'https://apple.com/favicon.ico'],
+            [/megogo\./i, 'megogo', '#1db954', 'Megogo', 'https://megogo.net/favicon.ico'],
+            [/^VK$|vk\.|userapi\.com|vkuseraudio\./i, 'vk', '#0077ff', 'VK', 'https://vk.com/favicon.ico'],
+            [/ok\.ru|odnoklassniki\./i, 'ok', '#ee8208', 'OK', 'https://ok.ru/favicon.ico'],
+            [/spotify\.|scdn\.co/i, 'spotify', '#1db954', 'Spotify', 'https://open.spotify.com/favicon.ico'],
+            [/twitch\.|twitchsvc\./i, 'twitch', '#9146ff', 'Twitch', 'https://twitch.tv/favicon.ico'],
+            [/discord\./i, 'discord', '#5865f2', 'Discord', 'https://discord.com/favicon.ico'],
+            [/ipify\.org|ifconfig\.me|freeipapi\.com|ip-api\.com|iplocation\.net|trackip\.net|abstractapi\.com|2ip\.|ipinfo\.io|myip\.com|checkip\.amazonaws|myexternalip|wtfismyip|ipecho\.net/i, 'myip', '#38bdf8', 'Мой IP'],
+            [/globalshield\.ru/i, 'globalshield', '#fbbf24', 'GlobalShield', null],
+            [/google\.|googleapis\.|gstatic\./i, 'google', '#4285f4', 'Google', 'https://google.com/favicon.ico'],
+        ];
+
         // Used in fetchConnections and app-chip popup to match connection hosts → appId
         const _APP_MATCH_PATTERNS = [
             ['telegram',  /telegram\.org|t\.me|telesco\.pe|tdesktop|telegram-cdn/i],
@@ -1776,7 +1823,8 @@
             _tunnelWasOffline: false,
             _devSearch: '',
             _selectedHosts: new Set(),
-            routeOverrides: []
+            routeOverrides: [],
+            _bypassNetworks: []  // unused, kept for legacy compat
         };
 
         const utils = {
@@ -2544,7 +2592,11 @@
 
                 const groups = state.proxyGroups.map(pg => ({
                     id: pg.id, name: pg.name,
-                    entries: (pg.domains || []).map(d => ({
+                    entries: (pg.rules !== undefined ? pg.rules : (pg.domains || [])).filter(d => {
+                        // Исключаем IP/CIDR из конфликтной проверки
+                        const t = d.trim();
+                        return t && !t.startsWith('#') && !/^[\d.:]+\//.test(t) && !/^\d+\.\d+\.\d+\.\d+$/.test(t);
+                    }).map(d => ({
                         raw: d, key: d.trim().toLowerCase(),
                         isKeyword: !d.trim().includes('.')
                     })).filter(e => e.key)
@@ -2621,13 +2673,39 @@
                     const bdr = isConflict ? 'border:1px solid rgba(251,191,36,0.4);' : 'border:1px solid rgba(59,130,246,0.4);';
                     const esc = d.replace(/'/g, "\\'");
                     const x = '<span onclick="event.stopPropagation();GatewayApp.actions.removeDomain(\'' + groupId + '\',\'' + esc + '\')" style="margin-left:3px;cursor:pointer;opacity:0.4;font-size:9px;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.4">✕</span>';
-                    return '<span draggable="true" ondragstart="event.dataTransfer.setData(\'text/plain\',\'' + groupId + '|' + esc + '\')" style="font-size:12px;padding:3px 8px;border-radius:6px;background:' + bg + ';color:' + clr + ';' + bdr + 'font-family:JetBrains Mono,monospace;display:inline-flex;align-items:center;gap:2px;cursor:grab;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + d + x + '</span>';
+                    return '<span draggable="true" ondragstart="event.stopPropagation();event.dataTransfer.setData(\'text/plain\',\'dom|' + groupId + '|' + esc + '\')" style="font-size:12px;padding:3px 8px;border-radius:6px;background:' + bg + ';color:' + clr + ';' + bdr + 'font-family:JetBrains Mono,monospace;display:inline-flex;align-items:center;gap:2px;cursor:grab;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + d + x + '</span>';
                 };
+
+                // ── Глобальная карта "приложение → единственная группа" ─────────
+                // Предотвращает дублирование чипа в нескольких группах: для каждого
+                // приложения выбирается группа, где у него больше всего доменов.
+                // При ничьей — побеждает группа, которая идёт раньше в state.proxyGroups.
+                const _appToGroup = {};
+                {
+                    const _pgSets = state.proxyGroups.map(pg => {
+                        const r = pg.rules !== undefined ? pg.rules : (pg.domains || []);
+                        return { id: pg.id, set: new Set(r.map(d => d.trim().toLowerCase())) };
+                    });
+                    for (const app of APPS) {
+                        const appDoms = APP_DOMAINS[app.id] || [];
+                        if (!appDoms.length) continue;
+                        let bestGid = null, bestHits = 0;
+                        for (const pgs of _pgSets) {
+                            const hits = appDoms.reduce((acc, d) => acc + (pgs.set.has(d.toLowerCase()) ? 1 : 0), 0);
+                            if (hits > bestHits) { bestHits = hits; bestGid = pgs.id; }
+                        }
+                        // Показываем чип только если набралось минимум 2 совпадения (или все)
+                        if (bestHits >= Math.min(2, appDoms.length)) {
+                            _appToGroup[app.id] = bestGid;
+                        }
+                    }
+                }
 
                 container.innerHTML = conflictsHtml + state.proxyGroups.map(pg => {
                     const color = TYPE_COLORS[pg.type] || '#94a3b8';
                     const label = TYPE_LABELS[pg.type] || pg.type;
-                    const domains = pg.domains || [];
+                    const rules = pg.rules !== undefined ? pg.rules : (pg.domains || []);
+                    const domains = rules;  // алиас для совместимости с остальным кодом карточки
                     const isBuiltin = pg.builtin;
                     const isExpanded = expanded === pg.id;
 
@@ -2645,7 +2723,7 @@
                     const myConflicts = domains.filter(d => _isDomainConflict(d));
 
                     const borderNormal = isExpanded ? 'rgba(96,165,250,0.4)' : 'rgba(255,255,255,0.06)';
-                    return `<div class="glass" data-group-id="${pg.id}" style="padding:0;border:2px solid ` + borderNormal + `;transition:border-color 0.2s;" ondragover="event.preventDefault();this.style.borderColor='rgba(52,211,153,0.6)'" ondragleave="this.style.borderColor='` + borderNormal + `'" ondrop="event.preventDefault();this.style.borderColor='` + borderNormal + `';var p=event.dataTransfer.getData('text/plain').split('|');if(p[0]!=='${pg.id}')GatewayApp.actions.moveDomain(p[0],'${pg.id}',p[1])">
+                    return `<div class="glass" data-group-id="${pg.id}" style="padding:0;border:2px solid ` + borderNormal + `;transition:border-color 0.2s,background-color 0.2s;" ondragover="event.preventDefault();this.style.borderColor='rgba(52,211,153,0.6)';this.style.backgroundColor='rgba(52,211,153,0.05)'" ondragleave="this.style.borderColor='` + borderNormal + `';this.style.backgroundColor=''" ondrop="event.preventDefault();this.style.borderColor='` + borderNormal + `';this.style.backgroundColor='';var raw=event.dataTransfer.getData('text/plain');var p=raw.split('|');if(p[0]==='app'){if(p[2]!=='${pg.id}')GatewayApp.actions.moveAppToGroup(p[1],p[2],'${pg.id}')}else if(p[0]==='dom'){if(p[1]!=='${pg.id}')GatewayApp.actions.moveDomain(p[1],'${pg.id}',p[2])}else if(p[0]!=='${pg.id}'){GatewayApp.actions.moveDomain(p[0],'${pg.id}',p[1])}">
                         <!-- Header (кликабельный) -->
                         <div onclick="GatewayApp.ui.toggleGroup('${pg.id}')" style="padding:20px;cursor:pointer;">
                             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
@@ -2657,40 +2735,44 @@
                                 </div>
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" style="transform:rotate(${isExpanded ? '180' : '0'}deg);transition:transform 0.2s;"><polyline points="6 9 12 15 18 9"/></svg>
                             </div>
-                            <!-- Узлы (скрываем для bypass/direct) -->
-                            ${(pg.type !== 'direct' && pg.id !== 'bypass') ? `<div style="margin-bottom:8px;">
-                                <div style="font-size:10px;color:#64748b;margin-bottom:4px;">Узлы (${matchedNodes.length})${pg.node_filter ? ' — фильтр: ' + pg.node_filter : ' — все'}:</div>
-                                <div style="display:flex;flex-wrap:wrap;gap:3px;">
-                                    ${matchedNodes.slice(0, 6).map(n => _renderNodePill(n)).join('')}
-                                    ${matchedNodes.length > 6 ? '<span style="font-size:10px;color:#64748b;">+' + (matchedNodes.length - 6) + '</span>' : ''}
-                                </div>
-                            </div>` : '<div style="margin-bottom:4px;font-size:10px;color:#34d399;">↗ Трафик идёт напрямую, минуя прокси</div>'}
-                            <!-- Домены -->
-                            ${domains.length > 0 ? (() => {
-                                // Detect which apps have their domains in this group
-                                const pgDomSet = new Set(domains.map(d => d.trim().toLowerCase()));
-                                const matchedApps = APPS.filter(app => {
-                                    const appDoms = APP_DOMAINS[app.id] || [];
-                                    if (!appDoms.length) return false;
-                                    const hits = appDoms.filter(d => pgDomSet.has(d.toLowerCase()));
-                                    return hits.length >= Math.min(2, appDoms.length);
-                                });
+                            <!-- Узлы + приложения + домены -->
+                            ${(pg.type !== 'direct' && pg.id !== 'bypass') ? (() => {
+                                const matchedApps = APPS.filter(app => _appToGroup[app.id] === pg.id);
                                 const appBadges = matchedApps.map(app => {
                                     const svg = APP_ICONS[app.id] || '';
                                     const iconHtml = svg
-                                        ? `<span style="width:14px;height:14px;display:inline-flex;align-items:center;justify-content:center;color:${app.color};flex-shrink:0;">${svg.replace('width="20"','width="14"').replace('height="20"','height="14"')}</span>`
-                                        : `<span style="width:14px;height:14px;border-radius:50%;background:${app.color};flex-shrink:0;display:inline-block;"></span>`;
-                                    const hintAttr = app.hint ? ` data-tip="${app.hint.replace(/"/g,'&quot;')}"` : '';
-                                    return `<span${hintAttr} style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:6px;background:${app.color}18;border:1px solid ${app.color}44;font-size:11px;color:${app.color};font-weight:600;white-space:nowrap;">${iconHtml}${app.title}</span>`;
+                                        ? `<span style="width:14px;height:14px;display:inline-flex;align-items:center;justify-content:center;color:${app.color};flex-shrink:0;pointer-events:none;">${svg.replace('width="20"','width="14"').replace('height="20"','height="14"')}</span>`
+                                        : `<span style="width:14px;height:14px;border-radius:50%;background:${app.color};flex-shrink:0;display:inline-block;pointer-events:none;"></span>`;
+                                    const appDoms = APP_DOMAINS[app.id] || [];
+                                    const domsVisible = appDoms.slice(0, 10);
+                                    const moreCount = appDoms.length - domsVisible.length;
+                                    const domsLines = domsVisible.map(d =>
+                                        '<div style="font-family:JetBrains Mono,monospace;font-size:11px;color:#cbd5e1;">' + d + '</div>'
+                                    ).join('');
+                                    const moreLine = moreCount > 0
+                                        ? '<div style="font-size:10px;color:#64748b;margin-top:3px;">+' + moreCount + ' ещё</div>'
+                                        : '';
+                                    const hintLine = app.hint
+                                        ? '<div style="font-size:10px;color:#fbbf24;margin-bottom:4px;">' + app.hint + '</div>'
+                                        : '';
+                                    const tipHtmlRaw =
+                                        '<div style="font-weight:700;color:' + app.color + ';margin-bottom:4px;font-size:11px;">' + app.title + '</div>' +
+                                        hintLine + domsLines + moreLine +
+                                        '<div style="font-size:9px;color:#64748b;margin-top:5px;border-top:1px solid rgba(255,255,255,0.08);padding-top:4px;">Перетащите в другую группу для переноса</div>';
+                                    const tipHtml = tipHtmlRaw.replace(/"/g, '&quot;');
+                                    const payload = 'app|' + app.id + '|' + pg.id;
+                                    return `<span draggable="true" ondragstart="event.stopPropagation();event.dataTransfer.setData('text/plain','${payload}');this.style.opacity='0.5'" ondragend="this.style.opacity='1'" data-tip="${tipHtml}" style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:6px;background:${app.color}18;border:1px solid ${app.color}44;font-size:11px;color:${app.color};font-weight:600;white-space:nowrap;cursor:grab;user-select:none;">${iconHtml}${app.title}</span>`;
                                 }).join('');
                                 return `<div>
-                                    ${matchedApps.length > 0 ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;">${appBadges}</div>` : ''}
-                                    <div style="font-size:10px;color:#64748b;margin-bottom:4px;">Домены (${domains.length}):</div>
-                                    <div style="display:flex;flex-wrap:wrap;gap:3px;">
-                                        ${domains.map(d => _renderDomainPill(d, _isDomainConflict(d), pg.id)).join('')}
+                                    <div style="font-size:10px;color:#64748b;margin-bottom:4px;">Трафик пойдёт через (${matchedNodes.length})${pg.node_filter ? ' — фильтр: ' + pg.node_filter : ''}:</div>
+                                    <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:10px;">
+                                        ${matchedNodes.slice(0, 6).map(n => _renderNodePill(n)).join('')}
+                                        ${matchedNodes.length > 6 ? '<span style="font-size:10px;color:#64748b;">+' + (matchedNodes.length - 6) + '</span>' : ''}
                                     </div>
+                                    ${matchedApps.length > 0 ? `<div style="font-size:10px;color:#64748b;margin-bottom:4px;">Приложений:</div><div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;">${appBadges}</div>` : ''}
+                                    ${domains.length > 0 ? `<div style="font-size:10px;color:#64748b;margin-bottom:4px;">${matchedApps.length > 0 ? 'И доменов' : 'Доменов'} (${domains.length}):</div><div style="display:flex;flex-wrap:wrap;gap:3px;">${domains.map(d => _renderDomainPill(d, _isDomainConflict(d), pg.id)).join('')}</div>` : '<div style="font-size:10px;color:#475569;">Нет доменов</div>'}
                                 </div>`;
-                            })() : `<div style="font-size:10px;color:#475569;">Нет доменов</div>`}
+                            })() : `<div style="margin-bottom:4px;font-size:10px;color:#34d399;">↗ Трафик идёт напрямую, минуя прокси</div>${domains.length > 0 ? '<div style="font-size:10px;color:#64748b;margin-top:6px;margin-bottom:4px;">Доменов (' + domains.length + '):</div><div style="display:flex;flex-wrap:wrap;gap:3px;">' + domains.map(d => _renderDomainPill(d, _isDomainConflict(d), pg.id)).join('') + '</div>' : ''}`}
                         </div>
                         <!-- Inline editor -->
                         ${isExpanded ? `<div style="padding:0 20px 20px;border-top:1px solid rgba(255,255,255,0.06);">
@@ -2714,9 +2796,9 @@
                                     </div>`}
                                 </div>
                                 <div>
-                                    <div class="section-label" style="margin-bottom:6px;">Домены и ключевые слова</div>
-                                    <textarea id="groupEditDomains" class="gsg-textarea" rows="8" placeholder="youtube.com&#10;netflix.com">${domains.join('\n')}</textarea>
-                                    <div style="font-size:10px;color:var(--muted);margin-top:4px;">Без точки → KEYWORD (все поддомены). С точкой → SUFFIX.</div>
+                                    <div class="section-label" style="margin-bottom:6px;">Правила (домены, IP, подсети)</div>
+                                    <textarea id="groupEditDomains" class="gsg-textarea" rows="8" placeholder="# Один элемент на строку&#10;youtube.com      → domain suffix&#10;netflix          → keyword&#10;10.10.2.0/24     → IP-CIDR bypass&#10;192.168.1.1      → одиночный IP/32">${rules.join('\n')}</textarea>
+                                    <div style="font-size:10px;color:var(--muted);margin-top:4px;">Тип определяется автоматически: с точкой → SUFFIX, без точки → KEYWORD, IP/CIDR → IP-CIDR (максимальный приоритет).</div>
                                 </div>
                                 ${(pg.type !== 'direct' && pg.id !== 'bypass') ? `<div>
                                     <div class="section-label" style="margin-bottom:6px;">Исключения (DIRECT)</div>
@@ -3323,30 +3405,7 @@
                             }
                         }
                     }
-                    // Domain → icon mapping (domain string → app icon key)
-                    const _domainIconMap = [
-                        [/tiktok|tiktokcdn|tiktokv|bytedance/i, 'tiktok', '#ee1d52', 'TikTok'],
-                        [/youtube|googlevideo|ytimg/i, 'youtube', '#ff0000', 'YouTube'],
-                        [/telegram\.org|t\.me|telesco\.pe|telegram-cdn/i, 'telegram', '#229ED9', 'Telegram'],
-                        [/instagram|cdninstagram|fbcdn|facebook/i, 'instagram', '#e1306c', 'Instagram'],
-                        [/netflix\.com|nflxvideo\.net/i, 'netflix', '#E50914', 'Netflix'],
-                        [/openai|chatgpt/i, 'chatgpt', '#10a37f', 'ChatGPT'],
-                        [/claude|anthropic/i, 'claude', '#d97706', 'Claude'],
-                        [/gemini|generativelanguage/i, 'gemini', '#8ab4f8', 'Gemini'],
-                        // Favicon-based icons (no SVG in APP_ICONS — rendered via <img>)
-                        [/kinopoisk/i, 'kinopoisk', '#ff6600', 'Kinopoisk', 'https://www.kinopoisk.ru/favicon.ico'],
-                        [/yandex|ya\.ru/i, 'yandex', '#ff0000', 'Yandex', 'https://yandex.ru/favicon.ico'],
-                        [/apple\.|icloud\.|apple-cloudkit\./i, 'apple', '#a3a3a3', 'Apple', 'https://apple.com/favicon.ico'],
-                        [/megogo\./i, 'megogo', '#1db954', 'Megogo', 'https://megogo.net/favicon.ico'],
-                        [/^VK$|vk\.|userapi\.com|vkuseraudio\./i, 'vk', '#0077ff', 'VK', 'https://vk.com/favicon.ico'],
-                        [/ok\.ru|odnoklassniki\./i, 'ok', '#ee8208', 'OK', 'https://ok.ru/favicon.ico'],
-                        [/spotify\.|scdn\.co/i, 'spotify', '#1db954', 'Spotify', 'https://open.spotify.com/favicon.ico'],
-                        [/twitch\.|twitchsvc\./i, 'twitch', '#9146ff', 'Twitch', 'https://twitch.tv/favicon.ico'],
-                        [/discord\./i, 'discord', '#5865f2', 'Discord', 'https://discord.com/favicon.ico'],
-                        [/ipify\.org|ifconfig\.me|freeipapi\.com|ip-api\.com|iplocation\.net|trackip\.net|abstractapi\.com|2ip\.|ipinfo\.io|myip\.com|checkip\.amazonaws|myexternalip|wtfismyip|ipecho\.net/i, 'myip', '#38bdf8', 'Мой IP'],
-                        [/globalshield\.ru/i, 'globalshield', '#fbbf24', 'GlobalShield', null],
-                        [/google\.|googleapis\.|gstatic\./i, 'google', '#4285f4', 'Google', 'https://google.com/favicon.ico'],
-                    ];
+                    // _domainIconMap — глобальная константа (объявлена выше)
                     const _domIcon = (domain) => {
                         for (const entry of _domainIconMap) {
                             const [re, key, color, label, favicon] = entry;
@@ -5104,9 +5163,12 @@
                 if (!host || !state.proxyGroups) return null;
                 const h = host.toLowerCase();
                 for (const pg of state.proxyGroups) {
-                    for (const d of (pg.domains || [])) {
+                    const pgRules = pg.rules !== undefined ? pg.rules : (pg.domains || []);
+                    for (const d of pgRules) {
                         const dl = d.trim().toLowerCase();
-                        if (!dl) continue;
+                        if (!dl || dl.startsWith('#')) continue;
+                        // Пропускаем IP/CIDR
+                        if (/^[\d.:]+\//.test(dl) || /^\d+\.\d+\.\d+\.\d+$/.test(dl)) continue;
                         if (dl.includes('.')) { // SUFFIX
                             if (h === dl || h.endsWith('.' + dl)) return pg;
                         } else { // KEYWORD
@@ -5152,16 +5214,62 @@
                     const upFmt   = utils.formatBytes(c.upload);
                     const downFmt = utils.formatBytes(c.download);
 
+                    // Duration helper
+                    const _fmtDur = (iso) => {
+                        if (!iso) return '';
+                        const sec = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+                        if (sec < 60) return sec + 'с';
+                        if (sec < 3600) return Math.floor(sec/60) + 'м ' + (sec%60) + 'с';
+                        return Math.floor(sec/3600) + 'ч ' + Math.floor((sec%3600)/60) + 'м';
+                    };
+                    // Speed helper
+                    const _fmtSpd = (bps) => {
+                        if (!bps || bps < 100) return '';
+                        if (bps < 1024) return Math.round(bps) + ' B/s';
+                        if (bps < 1048576) return (bps/1024).toFixed(1) + ' KB/s';
+                        return (bps/1048576).toFixed(2) + ' MB/s';
+                    };
+                    // App icon helper — матчит по hostname и dst_ip (для MTProto без hostname)
+                    const _connAppIcon = (host, dstIp) => {
+                        const targets = [host, dstIp || ''].filter(Boolean);
+                        for (const [pat, aid, color, title] of _domainIconMap) {
+                            if (targets.some(t => pat.test(t))) {
+                                const svg = APP_ICONS[aid];
+                                if (svg) return `<span style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:600;color:${color};white-space:nowrap;" title="${title}"><span style="width:12px;height:12px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">${svg.replace('width="20"','width="12"').replace('height="20"','height="12"')}</span>${title}</span>`;
+                                return `<span style="font-size:10px;font-weight:600;color:${color};">${title}</span>`;
+                            }
+                        }
+                        return '';
+                    };
+                    // Speed lookup + sparkline
+                    const speedKey = `${c.src}|${rawHost}|${chain}`;
+                    const spd = (state._connSpeeds || {})[speedKey] || {};
+                    const spdDownFmt = _fmtSpd(spd.down);
+                    const spdUpFmt   = _fmtSpd(spd.up);
+                    const spark = _sparkline((state._connSpeedHist || {})[speedKey] || []);
+                    // Protocol by port
+                    const dstPort = parseInt(c.dst_port) || 0;
+                    const proto = PORT_PROTO[dstPort] || '';
+                    const durFmt     = _fmtDur(c.start);
+                    const ruleLabel  = c.rule_payload || c.rule || '';
+
                     if (existingRows.has(key)) {
-                        // Patch bytes and checkbox — no DOM recreation
+                        // Patch bytes, speed, duration — no DOM recreation
                         const row = existingRows.get(key);
-                        const downEl = row.querySelector('[data-role="down"]');
-                        const upEl   = row.querySelector('[data-role="up"]');
-                        if (downEl) downEl.textContent = '↓' + downFmt;
-                        if (upEl)   upEl.textContent   = '↑' + upFmt;
+                        const downEl  = row.querySelector('[data-role="down"]');
+                        const upEl    = row.querySelector('[data-role="up"]');
+                        const spdDnEl = row.querySelector('[data-role="spd-down"]');
+                        const spdUpEl = row.querySelector('[data-role="spd-up"]');
+                        const durEl   = row.querySelector('[data-role="duration"]');
+                        if (downEl)  downEl.textContent  = '↓' + downFmt;
+                        if (upEl)    upEl.textContent    = '↑' + upFmt;
+                        if (spdDnEl) spdDnEl.textContent = spdDownFmt ? '↓ ' + spdDownFmt : '';
+                        if (spdUpEl) spdUpEl.textContent = spdUpFmt   ? '↑ ' + spdUpFmt   : '';
+                        if (durEl)   durEl.textContent   = durFmt;
+                        const spkEl = row.querySelector('[data-role="spark"]');
+                        if (spkEl) spkEl.textContent = spark;
                         const cb = row.querySelector('.conn-checkbox');
                         if (cb) cb.checked = state._selectedHosts.has(rawHost);
-                        // Only reorder if not already in the right position
                         if (box.children[rowIdx] !== row) box.insertBefore(row, box.children[rowIdx] || null);
                         rowIdx++;
                     } else {
@@ -5177,21 +5285,36 @@
                             const gc = grp.type === 'direct' ? '#34d399' : grp.id === 'ai' ? '#a78bfa' : '#60a5fa';
                             grpBadge = `<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:${gc}22;color:${gc};border:1px solid ${gc}44;margin-right:4px;">${grp.name}</span>`;
                         }
+                        const appIconHtml = _connAppIcon(rawHost, c.dst_ip);
                         const div = document.createElement('div');
                         div.className = 'conn-row';
                         div.dataset.connKey = key;
                         div.dataset.host    = rawHost;
                         div.dataset.src     = c.src;
                         div.dataset.chain   = chain;
-                        div.style.cssText   = 'display:grid;grid-template-columns:28px 170px 1fr 90px 100px;gap:10px;padding:7px 10px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);margin-bottom:3px;align-items:center;';
+                        div.style.cssText   = 'display:grid;grid-template-columns:28px 150px minmax(140px,1fr) 100px 110px 70px 110px 90px;gap:8px;padding:7px 10px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.04);margin-bottom:3px;align-items:center;';
                         div.innerHTML = `<div style="display:flex;align-items:center;"><input type="checkbox" class="conn-checkbox" data-host="${rawHost}" ${checked} style="accent-color:#FBBF24;cursor:pointer;"></div>
                             <div style="min-width:0;">
                                 <div style="font-size:12px;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${srcName}</div>
                                 <div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--muted);margin-top:1px;">${c.src}</div>
                             </div>
-                            <div style="min-width:0;display:flex;align-items:center;gap:6px;">
-                                <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;background:rgba(100,116,139,0.12);border:1px solid rgba(100,116,139,0.2);color:#64748b;">${c.network}</span>
-                                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${host}">${host}</span>
+                            <div style="min-width:0;">
+                                <div style="display:flex;align-items:center;gap:6px;">
+                                    <span style="font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;background:rgba(100,116,139,0.12);border:1px solid rgba(100,116,139,0.2);color:#64748b;flex-shrink:0;">${c.network}</span>
+                                    <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${host}">${host}</span>
+                                    ${proto ? `<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(96,165,250,0.1);border:1px solid rgba(96,165,250,0.2);color:#60a5fa;flex-shrink:0;">${proto}</span>` : ''}
+                                </div>
+                                ${c.dst_ip && c.dst_ip !== c.host ? `<div style="font-family:'JetBrains Mono',monospace;font-size:9px;color:#475569;margin-top:1px;">${c.dst_ip}</div>` : ''}
+                            </div>
+                            <div style="min-width:0;overflow:hidden;">${appIconHtml}</div>
+                            <div style="font-family:'JetBrains Mono',monospace;font-size:10px;white-space:nowrap;">
+                                <div data-role="spark" style="color:#64748b;letter-spacing:1px;font-size:11px;">${spark}</div>
+                                <div data-role="spd-down" style="color:#34d399;">${spdDownFmt ? '↓ ' + spdDownFmt : ''}</div>
+                                <div data-role="spd-up" style="color:#60a5fa;">${spdUpFmt ? '↑ ' + spdUpFmt : ''}</div>
+                            </div>
+                            <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#64748b;">
+                                <div data-role="duration">${durFmt}</div>
+                                ${ruleLabel ? `<div style="font-size:9px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${ruleLabel}">${ruleLabel}</div>` : ''}
                             </div>
                             <div style="font-size:11px;font-weight:700;color:${chainColor};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${chain}">${grpBadge}${chain}</div>
                             <div style="text-align:right;font-family:'JetBrains Mono',monospace;font-size:10px;">
@@ -6065,6 +6188,15 @@
                     Object.keys(prev).forEach(k => { if (!activeKeys.has(k)) delete prev[k]; });
                     state._connPrev   = prev;
                     state._connSpeeds = speeds;
+                    // Accumulate speed history for sparklines (last 12 polls per connection)
+                    if (!state._connSpeedHist) state._connSpeedHist = {};
+                    Object.entries(speeds).forEach(([key, s]) => {
+                        if (!state._connSpeedHist[key]) state._connSpeedHist[key] = [];
+                        state._connSpeedHist[key].push(s.down || 0);
+                        if (state._connSpeedHist[key].length > 12) state._connSpeedHist[key].shift();
+                    });
+                    // Evict stale history keys
+                    Object.keys(state._connSpeedHist).forEach(k => { if (!activeKeys.has(k)) delete state._connSpeedHist[k]; });
                     // Compute active apps per device IP (for chip highlighting)
                     const _adApps = {};
                     state.allConnections.forEach(c => {
@@ -6133,19 +6265,20 @@
                 if (!pg) { ui.showToast('Группа не найдена', 'error'); return; }
 
                 // Добавляем новые домены (без дубликатов)
-                const existing = new Set((pg.domains || []).map(d => d.toLowerCase()));
-                const newDomains = [...(pg.domains || [])];
+                const existingRules = pg.rules !== undefined ? pg.rules : (pg.domains || []);
+                const existing = new Set(existingRules.map(d => d.toLowerCase()));
+                const newRules = [...existingRules];
                 const added = [];
                 for (const d of domains) {
                     if (!existing.has(d.toLowerCase())) {
-                        newDomains.push(d);
+                        newRules.push(d);
                         existing.add(d.toLowerCase());
                         added.push(d);
                     }
                 }
                 if (!added.length) { ui.showToast('Домены уже в группе ' + pg.name, 'info'); return; }
 
-                const res = await utils.apiCall('/groups/' + groupId, { method: 'PUT', body: JSON.stringify({ domains: newDomains }) });
+                const res = await utils.apiCall('/groups/' + groupId, { method: 'PUT', body: JSON.stringify({ rules: newRules }) });
                 if (res) {
                     state._selectedHosts.clear();
                     const selAll = document.getElementById('conn-select-all');
@@ -6252,39 +6385,40 @@
                 const name = (nameEl?.value || '').trim();
                 const node_filter = (filterEl?.value || '').trim();
                 const type = typeEl?.value || 'url-test';
-                const domains = (domainsEl?.value || '').split('\n').map(d => d.trim()).filter(d => d);
+                const rules = (domainsEl?.value || '').split('\n').map(d => d.trim()).filter(d => d && !d.startsWith('#'));
                 const exclusions = (exclusionsEl?.value || '').split('\n').map(d => d.trim()).filter(d => d);
 
                 if (!name && !editId) { alert('Введите название группы'); return; }
 
-                // Проверка конфликтов
+                // Проверка конфликтов (только для доменов/ключевых слов, не IP)
+                const _isIpLike = s => /^[\d.:]+\//.test(s) || /^\d+\.\d+\.\d+\.\d+$/.test(s);
                 const otherGroups = state.proxyGroups.filter(g => g.id !== editId);
                 const otherDomains = new Set();
-                for (const g of otherGroups) for (const d of (g.domains || [])) otherDomains.add(d.trim().toLowerCase());
-                const newConflicts = domains.filter(d => otherDomains.has(d.trim().toLowerCase()));
+                for (const g of otherGroups) for (const d of (g.rules !== undefined ? g.rules : (g.domains || []))) otherDomains.add(d.trim().toLowerCase());
+                const newConflicts = rules.filter(d => !_isIpLike(d) && otherDomains.has(d.trim().toLowerCase()));
                 if (newConflicts.length > 0) {
                     const conflictingGroups = {};
                     for (const d of newConflicts) {
                         const dk = d.trim().toLowerCase();
                         for (const g of otherGroups) {
-                            if ((g.domains || []).some(gd => gd.trim().toLowerCase() === dk)) {
+                            if ((g.rules !== undefined ? g.rules : (g.domains || [])).some(gd => gd.trim().toLowerCase() === dk)) {
                                 conflictingGroups[d] = g.name;
                             }
                         }
                     }
                     const msg = Object.entries(conflictingGroups).map(([d,g]) => `${d} → уже в «${g}»`).join('\n');
-                    if (!confirm(`Обнаружены конфликты доменов:\n${msg}\n\nПриоритет будет у первой группы в списке. Продолжить?`)) return;
+                    if (!confirm(`Обнаружены конфликты:\n${msg}\n\nПриоритет будет у первой группы в списке. Продолжить?`)) return;
                 }
 
                 let res;
                 if (editId) {
-                    const payload = { node_filter, type, domains, exclusions };
+                    const payload = { node_filter, type, rules, exclusions };
                     // Имя можно менять только для не-builtin
                     const pg = state.proxyGroups.find(g => g.id === editId);
                     if (!pg?.builtin && name) payload.name = name;
                     res = await utils.apiCall(`/groups/${editId}`, { method: 'PUT', body: JSON.stringify(payload) });
                 } else {
-                    res = await utils.apiCall('/groups', { method: 'POST', body: JSON.stringify({ name, node_filter, type, domains, exclusions }) });
+                    res = await utils.apiCall('/groups', { method: 'POST', body: JSON.stringify({ name, node_filter, type, rules, exclusions }) });
                 }
                 if (res) {
                     ui.hideGroupEditor();
@@ -6423,7 +6557,7 @@
                 html += '<div style="display:flex;align-items:center;gap:10px;">';
                 html += '<span id="test-icon" style="font-size:20px;">⏳</span>';
                 html += '<div><div id="test-title" style="font-size:13px;font-weight:800;color:#94a3b8;">Проверка маршрутов...</div>';
-                html += '<div id="test-subtitle" style="font-size:10px;color:#64748b;margin-top:2px;">Анализ конфигурации Mihomo</div></div></div>';
+                html += '<div id="test-subtitle" style="font-size:10px;color:#64748b;margin-top:2px;">Анализ конфигурации шлюза</div></div></div>';
                 html += '<svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" style="transition:transform 0.2s;"><polyline points="6 9 12 15 18 9"/></svg>';
                 html += '</div>';
 
@@ -6475,7 +6609,7 @@
                 // Описание процесса
                 html += '<div style="font-size:10px;color:#475569;line-height:1.5;margin-bottom:14px;padding:8px 10px;border-radius:6px;background:rgba(255,255,255,0.015);border:1px solid rgba(255,255,255,0.03);">';
                 html += '<strong style="color:#64748b;">Как проверяется:</strong> ';
-                html += '1) Запрос правил из Mihomo API → ';
+                html += '1) Запрос правил шлюза → ';
                 html += '2) Для каждого домена: поиск совпадения в правилах → проверка что target = нужная группа → ';
                 html += '3) Проверка узлов в каждой proxy-group (фильтр + наличие) → ';
                 html += '4) Проверка устройств (режим, назначенный узел, sub-rules) → ';
@@ -6645,27 +6779,62 @@
             },
 
             // --- DOMAIN OPERATIONS ---
+            _pgRules: (pg) => pg.rules !== undefined ? pg.rules : (pg.domains || []),
+
             moveDomain: async (fromGroupId, toGroupId, domain) => {
                 // Удаляем из исходной группы
                 const fromPg = state.proxyGroups.find(g => g.id === fromGroupId);
                 if (fromPg) {
-                    const newFromDomains = (fromPg.domains || []).filter(d => d.trim() !== domain.trim());
-                    await utils.apiCall('/groups/' + fromGroupId, { method: 'PUT', body: JSON.stringify({ domains: newFromDomains }) });
+                    const newFromRules = actions._pgRules(fromPg).filter(d => d.trim() !== domain.trim());
+                    await utils.apiCall('/groups/' + fromGroupId, { method: 'PUT', body: JSON.stringify({ rules: newFromRules }) });
                 }
                 // Добавляем в целевую группу
                 const toPg = state.proxyGroups.find(g => g.id === toGroupId);
                 if (toPg) {
-                    const newToDomains = [...(toPg.domains || []), domain.trim()];
-                    await utils.apiCall('/groups/' + toGroupId, { method: 'PUT', body: JSON.stringify({ domains: newToDomains }) });
+                    const newToRules = [...actions._pgRules(toPg), domain.trim()];
+                    await utils.apiCall('/groups/' + toGroupId, { method: 'PUT', body: JSON.stringify({ rules: newToRules }) });
                 }
                 await actions.fetchGroups();
+            },
+
+            moveAppToGroup: async (appId, fromGroupId, toGroupId) => {
+                // Перенос приложения целиком: удаляем домены из ВСЕХ других групп
+                // (не только из fromGroupId — на случай, если они случайно
+                // оказались где-то ещё) и добавляем их в целевую.
+                const appDomains = APP_DOMAINS[appId] || [];
+                if (!appDomains.length || fromGroupId === toGroupId) return;
+                const target = state.proxyGroups.find(g => g.id === toGroupId);
+                if (!target) return;
+                const appDomSet = new Set(appDomains.map(d => d.toLowerCase()));
+                for (const pg of (state.proxyGroups || [])) {
+                    if (pg.id === toGroupId) continue;
+                    if (pg.builtin && pg.id !== 'bypass') continue;
+                    const pgRules = actions._pgRules(pg);
+                    const filtered = pgRules.filter(d => !appDomSet.has(d.trim().toLowerCase()));
+                    if (filtered.length !== pgRules.length) {
+                        await utils.apiCall('/groups/' + pg.id, { method: 'PUT', body: JSON.stringify({ rules: filtered }) });
+                    }
+                }
+                // Добавляем в целевую
+                const existingRules = actions._pgRules(target);
+                const existing = new Set(existingRules.map(d => d.trim().toLowerCase()));
+                const toAdd = appDomains.filter(d => !existing.has(d.toLowerCase()));
+                if (toAdd.length) {
+                    const newRules = [...existingRules, ...toAdd];
+                    await utils.apiCall('/groups/' + toGroupId, { method: 'PUT', body: JSON.stringify({ rules: newRules }) });
+                }
+                await actions.fetchGroups();
+                const appDef = APPS.find(a => a.id === appId);
+                const fromPg = state.proxyGroups.find(g => g.id === fromGroupId);
+                const fromName = fromPg?.name || fromGroupId;
+                ui.showToast(`${appDef?.title || appId}: ${fromName} → ${target.name}`, 'success');
             },
 
             removeDomain: async (groupId, domain) => {
                 const pg = state.proxyGroups.find(g => g.id === groupId);
                 if (!pg) return;
-                const newDomains = (pg.domains || []).filter(d => d.trim() !== domain.trim());
-                const res = await utils.apiCall('/groups/' + groupId, { method: 'PUT', body: JSON.stringify({ domains: newDomains }) });
+                const newRules = actions._pgRules(pg).filter(d => d.trim() !== domain.trim());
+                const res = await utils.apiCall('/groups/' + groupId, { method: 'PUT', body: JSON.stringify({ rules: newRules }) });
                 if (res) await actions.fetchGroups();
             },
 
@@ -6677,18 +6846,20 @@
                     if (pg.id === groupId) continue;
                     if (pg.builtin && pg.id !== 'bypass') continue;
                     const pgDomSet = new Set(appDomains.map(d => d.toLowerCase()));
-                    const filtered = (pg.domains || []).filter(d => !pgDomSet.has(d.trim().toLowerCase()));
-                    if (filtered.length !== (pg.domains || []).length) {
-                        await utils.apiCall('/groups/' + pg.id, { method: 'PUT', body: JSON.stringify({ domains: filtered }) });
+                    const pgRules = actions._pgRules(pg);
+                    const filtered = pgRules.filter(d => !pgDomSet.has(d.trim().toLowerCase()));
+                    if (filtered.length !== pgRules.length) {
+                        await utils.apiCall('/groups/' + pg.id, { method: 'PUT', body: JSON.stringify({ rules: filtered }) });
                     }
                 }
                 // Add to target group
                 const target = state.proxyGroups.find(g => g.id === groupId);
                 if (!target) return;
-                const existing = new Set((target.domains || []).map(d => d.trim().toLowerCase()));
+                const existingRules = actions._pgRules(target);
+                const existing = new Set(existingRules.map(d => d.trim().toLowerCase()));
                 const toAdd = appDomains.filter(d => !existing.has(d.toLowerCase()));
-                const newDomains = [...(target.domains || []), ...toAdd];
-                await utils.apiCall('/groups/' + groupId, { method: 'PUT', body: JSON.stringify({ domains: newDomains }) });
+                const newRules = [...existingRules, ...toAdd];
+                await utils.apiCall('/groups/' + groupId, { method: 'PUT', body: JSON.stringify({ rules: newRules }) });
                 await actions.fetchGroups();
                 const appDef = APPS.find(a => a.id === appId);
                 ui.showToast(`${appDef?.title || appId} → ${target.name} (${toAdd.length} доменов)`, 'success');
@@ -6699,9 +6870,10 @@
                 if (!appDomains.size) return;
                 for (const pg of (state.proxyGroups || [])) {
                     if (pg.builtin && pg.id !== 'bypass') continue;
-                    const filtered = (pg.domains || []).filter(d => !appDomains.has(d.trim().toLowerCase()));
-                    if (filtered.length !== (pg.domains || []).length) {
-                        await utils.apiCall('/groups/' + pg.id, { method: 'PUT', body: JSON.stringify({ domains: filtered }) });
+                    const pgRules = actions._pgRules(pg);
+                    const filtered = pgRules.filter(d => !appDomains.has(d.trim().toLowerCase()));
+                    if (filtered.length !== pgRules.length) {
+                        await utils.apiCall('/groups/' + pg.id, { method: 'PUT', body: JSON.stringify({ rules: filtered }) });
                     }
                 }
                 await actions.fetchGroups();
@@ -7069,7 +7241,7 @@
                         (_curGroup ? '' : `<div style="font-size:9px;color:#475569;margin-top:4px;width:100%;">Нет правила — трафик идёт по умолчанию (Smart)</div>`);
                 } else if (appDef.ny) {
                     nodeLabel.style.display = 'none';
-                    actionsDiv.innerHTML = `<div style="font-size:10px;color:#3b82f6;">🇺🇸 Всегда через NY по правилам Mihomo</div>`;
+                    actionsDiv.innerHTML = `<div style="font-size:10px;color:#3b82f6;">🇺🇸 Всегда через NY по правилам шлюза</div>`;
                 } else {
                     actionsDiv.innerHTML = `<div style="font-size:10px;color:#64748b;">Нет доменов для этого приложения</div>`;
                 }

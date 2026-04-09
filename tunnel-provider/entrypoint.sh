@@ -89,9 +89,29 @@ inotifywait -m -e close_write,moved_to,create "$GSG_CONFIG_DIR" 2>/dev/null | wh
             -d '{"path": "/etc/mihomo/config.yaml"}' \
             http://127.0.0.1:9090/configs > /dev/null || true
 
+        # Восстанавливаем GLOBAL → auto после reload (Mihomo сбрасывает на DIRECT)
+        sleep 2
+        curl -s -X PUT -H "Content-Type: application/json" \
+            -d '{"name": "auto"}' \
+            http://127.0.0.1:9090/proxies/GLOBAL > /dev/null || true
+        echo "[INFO] GLOBAL selector восстановлен: auto"
+
         rm -f "$GSG_CONFIG_DIR/.reload_singbox"
     fi
 done &
 
 echo "[INFO] Запуск Mihomo Core..."
+# Выставляем GLOBAL → auto после старта (в фоне, ждём готовности API)
+(
+    for i in $(seq 1 15); do
+        sleep 2
+        if curl -s http://127.0.0.1:9090/proxies/GLOBAL > /dev/null 2>&1; then
+            curl -s -X PUT -H "Content-Type: application/json" \
+                -d '{"name": "auto"}' \
+                http://127.0.0.1:9090/proxies/GLOBAL > /dev/null || true
+            echo "[INFO] GLOBAL selector выставлен: auto (старт)"
+            break
+        fi
+    done
+) &
 exec /usr/local/bin/mihomo -d /etc/mihomo -f "$MIHOMO_CONFIG" 2>&1 | tee /etc/gsg/sing-box.log
