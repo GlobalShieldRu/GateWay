@@ -616,6 +616,43 @@ async def _migrate_devices_to_mac_keys():
         logging.warning(f"[MIGRATE] Ошибка миграции devices.json: {e}")
 
 
+DEVICE_EVICT_DAYS = 30  # устройства без активности дольше этого удаляются
+
+async def _evict_stale_devices():
+    """Раз в сутки удаляет устройства, не появлявшиеся более DEVICE_EVICT_DAYS дней."""
+    while True:
+        await asyncio.sleep(86400)  # первый запуск через 24ч после старта
+        try:
+            threshold = time.time() - DEVICE_EVICT_DAYS * 86400
+            async with _devices_lock:
+                configs = await read_json(GSG_DEVICES_FILE, {})
+                to_delete = []
+                for key, cfg in configs.items():
+                    last_seen = cfg.get('last_seen')
+                    if last_seen is None:
+                        # Старая запись без last_seen — пропускаем, grace period
+                        continue
+                    if last_seen < threshold:
+                        to_delete.append(key)
+                if to_delete:
+                    for key in to_delete:
+                        cfg = configs.pop(key)
+                        logging.info(
+                            f"[EVICT] Удалено устройство {key} "
+                            f"(mac={cfg.get('mac','?')}, ip={cfg.get('current_ip','?')}, "
+                            f"last_seen={int(cfg.get('last_seen',0))})"
+                        )
+                    async with aiofiles.open(GSG_DEVICES_FILE, 'w') as f:
+                        await f.write(json.dumps(configs, indent=2))
+                    async with aiofiles.open(GSG_CONFIG_DIR / ".reload_dhcp", 'w') as f:
+                        await f.write("1")
+                    logging.info(f"[EVICT] Итого удалено: {len(to_delete)} устройств")
+                else:
+                    logging.info("[EVICT] Устаревших устройств не найдено")
+        except Exception as e:
+            logging.warning(f"[EVICT] Ошибка при чистке устройств: {e}")
+
+
 @app.on_event("startup")
 async def startup_event():
     # Ensure DNS works (resolv.conf may be empty in network_mode:host containers)
@@ -640,6 +677,7 @@ async def startup_event():
     asyncio.create_task(monitor.poll_mihomo())
     asyncio.create_task(traffic_history.run(monitor))
     asyncio.create_task(_rotate_log())
+    asyncio.create_task(_evict_stale_devices())
     async def _delayed_heartbeat():
         await asyncio.sleep(60)  # ждём пока monitor и traffic_history наполнятся
         await send_heartbeat()
@@ -1064,13 +1102,16 @@ async def get_devices():
                 "reserved_ip": ip,
                 "mac": mac,
                 "current_ip": ip,
+                "last_seen": time.time(),
             }
             changed = True
         else:
-            # Обновляем current_ip в конфиге
+            # Обновляем current_ip и last_seen в конфиге
             if mac_configs[mac].get('current_ip') != ip:
                 mac_configs[mac]['current_ip'] = ip
                 changed = True
+            mac_configs[mac]['last_seen'] = time.time()
+            changed = True
 
     if new_mac_entries:
         mac_configs.update(new_mac_entries)
@@ -1267,49 +1308,6 @@ def _find_device_conf(configs: dict, ip: str):
         return ip, configs[ip]
     return None, {}
 
-@app.get("/api/devices/{ip}/pin")
-async def get_device_pin(ip: str):
-    configs = await read_json(GSG_DEVICES_FILE, {})
-    _, conf = _find_device_conf(configs, ip)
-    reserved = conf.get("reserved_ip") or conf.get("static_ip", "")
-    pinned = bool(reserved and conf.get("mac"))
-    return {"pinned": pinned}
-
-@app.post("/api/devices/{ip}/pin")
-async def pin_device_ip(ip: str):
-    async with _devices_lock:
-        configs = await read_json(GSG_DEVICES_FILE, {})
-        key, conf = _find_device_conf(configs, ip)
-        mac = conf.get("mac", "")
-        if not mac:
-            raise HTTPException(400, detail="MAC-адрес неизвестен")
-        reserved = conf.get("reserved_ip") or conf.get("static_ip", "")
-        if reserved == ip:
-            return {"pinned": True, "already": True}
-        conf["reserved_ip"] = ip
-        conf["static_ip"] = ip
-        if key:
-            configs[key] = conf
-        async with aiofiles.open(GSG_DEVICES_FILE, 'w') as f:
-            await f.write(json.dumps(configs, indent=2))
-    async with aiofiles.open(GSG_CONFIG_DIR / ".reload_dhcp", 'w') as f:
-        await f.write("1")
-    return {"pinned": True}
-
-@app.delete("/api/devices/{ip}/pin")
-async def unpin_device_ip(ip: str):
-    async with _devices_lock:
-        configs = await read_json(GSG_DEVICES_FILE, {})
-        key, conf = _find_device_conf(configs, ip)
-        conf["reserved_ip"] = ""
-        conf["static_ip"] = ""
-        if key:
-            configs[key] = conf
-        async with aiofiles.open(GSG_DEVICES_FILE, 'w') as f:
-            await f.write(json.dumps(configs, indent=2))
-    async with aiofiles.open(GSG_CONFIG_DIR / ".reload_dhcp", 'w') as f:
-        await f.write("1")
-    return {"pinned": False}
 
 @app.get("/api/nodes")
 async def get_nodes():
