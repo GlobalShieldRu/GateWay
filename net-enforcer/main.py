@@ -29,6 +29,12 @@ table inet gsg {{
         udp dport 53 return
         tcp dport 53 return
 
+        # WebRTC/VoIP bypass — эти порты не должны идти через прокси (Телемост, FaceTime, STUN/TURN)
+        udp dport {{ 3478-3497 }} return
+        udp dport {{ 16384-16387 }} return
+        tcp dport 5223 return
+        udp dport 5223 return
+
         # Отсекаем мусорный трафик умного дома (Multicast и Broadcast)
         ip daddr {{ 224.0.0.0/4, 255.255.255.255/32 }} return
 

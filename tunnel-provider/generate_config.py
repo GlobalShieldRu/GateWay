@@ -346,6 +346,13 @@ def main():
 
     bypass_network_rules = []  # IP-CIDR правила из групп собираются в секции доменных правил
 
+    # WebRTC/VoIP порты всегда DIRECT (Телемост, FaceTime, STUN/TURN, RTP)
+    voip_bypass_rules = [
+        "DST-PORT,3478-3497,DIRECT",
+        "DST-PORT,16384-16387,DIRECT",
+        "DST-PORT,5223,DIRECT",
+    ]
+
     # Формируем правила из route_overrides
     override_rules = []
     for override in route_overrides:
@@ -613,7 +620,7 @@ def main():
     else:
         print("\n[GSG] [WARN] Группа 'ai' не найдена, GEOIP,google и GEOIP,cloudflare не добавлены", flush=True)
 
-    server_config["rules"] = bypass_network_rules + override_rules + domain_rules + geoip_ai_rules + ip_rules + custom_routing_rules + [f"MATCH,{global_node}"]
+    server_config["rules"] = voip_bypass_rules + bypass_network_rules + override_rules + domain_rules + geoip_ai_rules + ip_rules + custom_routing_rules + [f"MATCH,{global_node}"]
 
     MIHOMO_CONFIG.parent.mkdir(parents=True, exist_ok=True)
     with open(MIHOMO_CONFIG, 'w') as f:
