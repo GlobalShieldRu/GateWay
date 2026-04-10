@@ -618,6 +618,43 @@ async def _migrate_devices_to_mac_keys():
 
 DEVICE_EVICT_DAYS = 30  # устройства без активности дольше этого удаляются
 
+CONN_FLOOD_THRESHOLD = 500   # соединений на устройство — порог срабатывания
+CONN_WATCHDOG_INTERVAL = 120  # секунд между проверками
+
+async def _connection_watchdog():
+    """Каждые 2 минуты проверяет таблицу соединений Mihomo.
+    Если одно устройство занимает более CONN_FLOOD_THRESHOLD соединений — убивает их все.
+    Защита от зависших VPN-клиентов и retry-штормов без блокировки устройства."""
+    await asyncio.sleep(30)  # дать Mihomo время запуститься
+    while True:
+        try:
+            async with httpx.AsyncClient() as client:
+                r = await client.get("http://127.0.0.1:9090/connections", timeout=5.0)
+                if r.status_code == 200:
+                    data = r.json()
+                    conns = data.get("connections", [])
+                    # Группируем по sourceIP
+                    by_ip: dict[str, list] = {}
+                    for c in conns:
+                        ip = c.get("metadata", {}).get("sourceIP", "")
+                        if ip:
+                            by_ip.setdefault(ip, []).append(c["id"])
+                    for ip, ids in by_ip.items():
+                        if len(ids) >= CONN_FLOOD_THRESHOLD:
+                            logging.warning(
+                                f"[WATCHDOG] {ip} имеет {len(ids)} соединений (>={CONN_FLOOD_THRESHOLD}) — чистим"
+                            )
+                            for cid in ids:
+                                try:
+                                    await client.delete(f"http://127.0.0.1:9090/connections/{cid}", timeout=2.0)
+                                except Exception:
+                                    pass
+                            logging.warning(f"[WATCHDOG] {ip}: убито {len(ids)} соединений")
+        except Exception as e:
+            logging.debug(f"[WATCHDOG] Ошибка: {e}")
+        await asyncio.sleep(CONN_WATCHDOG_INTERVAL)
+
+
 async def _evict_stale_devices():
     """Раз в сутки удаляет устройства, не появлявшиеся более DEVICE_EVICT_DAYS дней."""
     while True:
@@ -678,6 +715,7 @@ async def startup_event():
     asyncio.create_task(traffic_history.run(monitor))
     asyncio.create_task(_rotate_log())
     asyncio.create_task(_evict_stale_devices())
+    asyncio.create_task(_connection_watchdog())
     async def _delayed_heartbeat():
         await asyncio.sleep(60)  # ждём пока monitor и traffic_history наполнятся
         await send_heartbeat()
