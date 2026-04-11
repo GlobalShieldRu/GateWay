@@ -60,6 +60,9 @@ table inet gsg {{
 class NetEnforcer:
     async def setup_os_routing(self):
         os.system("sysctl -w net.ipv4.ip_forward=1")
+        # Увеличиваем таблицу conntrack — дефолт 8192 переполняется при пиковом трафике
+        os.system("sysctl -w net.netfilter.nf_conntrack_max=32768 2>/dev/null || true")
+        os.system("sysctl -w net.netfilter.nf_conntrack_tcp_timeout_established=1800 2>/dev/null || true")
         # Отключаем ICMP redirect — иначе bypass-клиенты получат редирект и обойдут GSG
         os.system("sysctl -w net.ipv4.conf.all.send_redirects=0")
         os.system("sysctl -w net.ipv4.conf.eth0.send_redirects=0")
