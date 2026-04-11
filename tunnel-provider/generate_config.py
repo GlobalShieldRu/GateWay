@@ -214,7 +214,7 @@ def main():
     proxy_groups = user_rules.get("proxy_groups")
     if not proxy_groups:
         proxy_groups = [
-            {"id": "auto", "name": "Auto", "node_filter": "", "type": "url-test", "builtin": True, "rules": []},
+            {"id": "auto", "name": "Auto", "node_filter": "", "type": "fallback", "builtin": True, "rules": []},
         ]
         # Миграция AI
         ai_s = user_rules.get("ai_settings", {})
@@ -273,6 +273,13 @@ def main():
         proxy_list = user_rules.get("proxy", [])
         if proxy_list:
             proxy_groups[0]["rules"] = proxy_list  # Auto — первый элемент
+
+    # Применяем типы групп из rules.json поверх того что пришло из подписки
+    pg_type_override = {pg["id"]: pg.get("type", "url-test") for pg in proxy_groups if "id" in pg}
+    for g in server_config["proxy-groups"]:
+        gname = g.get("name", "")
+        if gname in pg_type_override:
+            g["type"] = pg_type_override[gname]
 
     # Создаём Mihomo proxy-groups
     print(f"\n[GSG] === PROXY GROUPS ({len(proxy_groups)}) ===", flush=True)
