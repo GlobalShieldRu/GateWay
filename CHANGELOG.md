@@ -4,6 +4,18 @@
 
 ## [Unreleased]
 
+## [1.7.4] — 2026-04-09
+
+### Добавлено
+- Connection watchdog — каждые 2 минуты проверяет таблицу Mihomo и убивает соединения устройств, превысивших порог 500 (защита от зависших VPN-клиентов)
+- cerebras.ai добавлен в AI группу по умолчанию
+- pg_type_override: типы proxy-groups из rules.json перезаписывают типы из подписки
+
+### Исправлено
+- Auto группа переведена на тип fallback — при падении узла Mihomo автоматически переключается на следующий живой
+- Краш tunnel-контейнера каждые 2-3 минуты: UnboundLocalError в generate_config.py (pg_type_override обращался к proxy_groups до его определения), вызывавший перезапуск контейнера и пропадание интернета
+- WebRTC/Телемост: L3 nftables bypass портов STUN/RTP/APNs + L7 DST-PORT DIRECT в Mihomo
+
 ## [1.7.3] — 2026-04-09
 
 ### Добавлено
