@@ -84,6 +84,8 @@
             0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.7); }
             50% { box-shadow: 0 0 0 4px rgba(34,197,94,0); }
         }
+        .app-route-item { display: inline-flex; align-items: center; gap: 2px; margin: 1px; }
+        .app-node-badge { font-size: 9px; background: rgba(99,102,241,0.2); color: #a5b4fc; border-radius: 3px; padding: 0px 3px; white-space: nowrap; }
         #app-chip-popup { position: fixed; display: none; z-index: 9998; background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 10px 12px; min-width: 190px; max-width: 260px; box-shadow: 0 8px 28px rgba(0,0,0,0.65); animation: fadeInDown 0.14s ease; }
         @keyframes fadeInDown { from { opacity:0; transform:translateY(-5px); } to { opacity:1; transform:translateY(0); } }
 
@@ -303,7 +305,7 @@
         /* Device row grid (desktop) */
         .dev-row-grid {
             display: grid;
-            grid-template-columns: 2.2fr 0.8fr 2fr 1.5fr 1.8fr 1.2fr 2fr;
+            grid-template-columns: minmax(0,2.2fr) minmax(0,0.8fr) minmax(0,2fr) minmax(0,1fr) minmax(0,2.3fr) minmax(0,1.2fr) minmax(0,2fr);
             align-items: center;
             gap: 10px;
             padding: 14px 20px;
@@ -312,8 +314,8 @@
         }
         /* Wide screens: wider route column, narrower apps */
         @media (min-width: 1700px) {
-            .dev-row-grid { grid-template-columns: 2.2fr 0.8fr 2fr 2fr 1.2fr 1.2fr 2fr; }
-            .dev-table-hdr-cols { grid-template-columns: 2.2fr 0.8fr 2fr 2fr 1.2fr 1.2fr 2fr !important; }
+            .dev-row-grid { grid-template-columns: minmax(0,2.2fr) minmax(0,0.8fr) minmax(0,2fr) minmax(0,1.2fr) minmax(0,2.2fr) minmax(0,1.2fr) minmax(0,2fr); }
+            .dev-table-hdr-cols { grid-template-columns: minmax(0,2.2fr) minmax(0,0.8fr) minmax(0,2fr) minmax(0,1.2fr) minmax(0,2.2fr) minmax(0,1.2fr) minmax(0,2fr) !important; }
         }
         .dev-row-grid:last-child { border-bottom: none; }
         .dev-col-route { min-width: 0; overflow: hidden; }
@@ -651,14 +653,20 @@
                 gap: 0 !important;
                 padding: 0 !important;
             }
+            /* dev-row-mobile — вертикальный контейнер: верх = иконка+инфо, низ = чипы+режим */
             .dev-row-mobile {
+                display: flex !important;
+                flex-direction: column !important;
+                padding: 0 !important;
+                border-bottom: 1px solid rgba(255,255,255,0.04);
+            }
+            /* dev-row-mobile-body — горизонтальный ряд: иконка устройства + инфо */
+            .dev-row-mobile-body {
                 display: flex !important;
                 align-items: flex-start;
                 gap: 10px;
-                padding: 12px 14px;
-                border-bottom: 1px solid rgba(255,255,255,0.04);
+                padding: 12px 14px 8px;
             }
-            .dev-row-mobile-body { flex: 1; min-width: 0; }
             .dev-row-mobile-right {
                 display: flex !important;
                 flex-direction: row !important;
@@ -666,6 +674,7 @@
                 gap: 6px;
                 padding: 0 14px 12px;
                 width: 100%;
+                box-sizing: border-box;
             }
             .dev-row-mobile-right > div { flex: 1; min-width: 0; }
             .dev-col-spark, .dev-col-trafik, .dev-col-route { display: none !important; }
@@ -795,6 +804,13 @@
                         <button id="gsgRollbackBtn" onclick="GatewayApp.actions.triggerRollback()" data-tip="Откатить к предыдущей версии GSG" style="display:none;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.35);cursor:pointer;color:#ef4444;padding:0;">
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
                         </button>
+                        <button onclick="GatewayApp.actions.downloadBackup()" data-tip="Скачать бэкап конфигурации (devices, routes, subscription)" style="display:flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.3);cursor:pointer;color:#818cf8;padding:0;">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        </button>
+                        <button onclick="document.getElementById('restoreFileInput').click()" data-tip="Восстановить конфигурацию из бэкапа (.zip)" style="display:flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.3);cursor:pointer;color:#818cf8;padding:0;">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 5 17 10"/><line x1="12" y1="5" x2="12" y2="17"/></svg>
+                        </button>
+                        <input type="file" id="restoreFileInput" accept=".zip" style="display:none" onchange="GatewayApp.actions.restoreBackup(this)">
                     </div>
                 </div>
             </div>
@@ -1098,7 +1114,7 @@
                         </div>
                     </div>
                     <!-- Desktop table header -->
-                    <div class="dev-table-hdr dev-table-hdr-cols" style="display:grid;grid-template-columns:2.2fr 0.8fr 2fr 1.5fr 1.8fr 1.2fr 2fr;gap:10px;padding:8px 20px;border-bottom:1px solid rgba(255,255,255,0.04);align-items:center;">
+                    <div class="dev-table-hdr dev-table-hdr-cols" style="display:grid;grid-template-columns:minmax(0,2.2fr) minmax(0,0.8fr) minmax(0,2fr) minmax(0,1fr) minmax(0,2.3fr) minmax(0,1.2fr) minmax(0,2fr);gap:10px;padding:8px 20px;border-bottom:1px solid rgba(255,255,255,0.04);align-items:center;">
                         <div class="section-label sort-hdr" onclick="GatewayApp.ui.setSort('hostname')" style="cursor:pointer;user-select:none;display:flex;align-items:center;gap:3px;white-space:nowrap;">Клиент <span id="sort-ind-hostname" style="font-size:9px;"></span></div>
                         <div class="section-label" style="white-space:nowrap;">Активность</div>
                         <div class="section-label sort-hdr" onclick="GatewayApp.ui.setSort('traffic')" style="cursor:pointer;user-select:none;display:flex;align-items:center;gap:3px;white-space:nowrap;"><span id="sort-ind-traffic" style="font-size:9px;"></span>Трафик</div>
@@ -1625,7 +1641,7 @@
             [/twitch\.|twitchsvc\./i, 'twitch', '#9146ff', 'Twitch', 'https://twitch.tv/favicon.ico'],
             [/discord\./i, 'discord', '#5865f2', 'Discord', 'https://discord.com/favicon.ico'],
             [/ipify\.org|ifconfig\.me|freeipapi\.com|ip-api\.com|iplocation\.net|trackip\.net|abstractapi\.com|2ip\.|ipinfo\.io|myip\.com|checkip\.amazonaws|myexternalip|wtfismyip|ipecho\.net/i, 'myip', '#38bdf8', 'Мой IP'],
-            [/globalshield\.ru/i, 'globalshield', '#fbbf24', 'GlobalShield', null],
+            [/globalshield\.ru/i, 'globalshield', '#fbbf24', 'GlobalShield', 'https://www.globalshield.ru/favicon.svg'],
             [/google\.|googleapis\.|gstatic\./i, 'google', '#4285f4', 'Google', 'https://google.com/favicon.ico'],
         ];
 
@@ -1822,7 +1838,8 @@
             _devSearch: '',
             _selectedHosts: new Set(),
             routeOverrides: [],
-            _bypassNetworks: []  // unused, kept for legacy compat
+            _bypassNetworks: [],  // unused, kept for legacy compat
+            appRoutesData: {}
         };
 
         const utils = {
@@ -2096,21 +2113,50 @@
                     const _visNY    = APPS.filter(a =>  a.ny && (!!_liveApps[a.id] || _isRecent(a.id)));
                     const _anyChips = _visNonNY.length > 0 || _visNY.length > 0;
                     const _chipIds = [..._visNonNY, ..._visNY].map(a => a.id).join(',');
-                    const appsHtml = _anyChips ? `<div data-apps-for="${dev.ip}" data-app-ids="${_chipIds}" style="display:flex;flex-direction:column;gap:4px;">
-                        <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;max-width:216px;">
-                        ${[..._visNonNY, ..._visNY].map(app => {
-                            const isNY = app.ny;
-                            const isLive   = !!_liveApps[app.id];
-                            const isRecent = !isLive && _isRecent(app.id);
-                            const active   = isLive || isRecent;
-                            const chipStyle = active ? `--chip-bg:${app.color}${isLive?'22':'15'};--chip-border:${app.color}${isLive?'55':'40'};--chip-color:${app.color};${isRecent?'opacity:0.5;':''}` : '';
-                            const dot = isNY ? '<span class="us-dot"></span>' : '';
-                            const _appIcon = APP_ICONS[app.id] || (app.favicon ? `<img src="${app.favicon}" width="18" height="18" style="border-radius:3px;object-fit:contain;" onerror="this.style.display='none'">` : `<span style="font-size:10px;font-weight:800;">${app.title[0]}</span>`);
-                            return `<button class="app-chip${active?' active':''}${isLive?' live':''}" data-ip="${dev.ip}" data-app="${app.id}" title="${app.title}" style="${chipStyle}">${_appIcon}${dot}</button>`;
-                        }).join('')}
-                        </div>
+                    // App-routes data from /api/app-routes (live node mapping per app)
+                    const _appRoutes = (state.appRoutesData || {})[dev.ip] || [];
+                    // Build a lookup: appName (lowercase) → node
+                    const _routeNodeMap = {};
+                    _appRoutes.forEach(r => { _routeNodeMap[r.app.toLowerCase()] = r.node; });
+                    const _shortNode = (node) => {
+                        if (!node || node === 'DIRECT') return 'Direct';
+                        // Take first word before space or |
+                        return node.split(/[\s|]/)[0];
+                    };
+                    // Группируем приложения по узлу: { nodeKey -> { node, apps[] } }
+                    const _buildAppRows = () => {
+                        const allApps = [..._visNonNY, ..._visNY];
+                        const byNode = {};
+                        const order = [];
+                        allApps.forEach(app => {
+                            const _routeNode = _routeNodeMap[app.title.toLowerCase()] || _routeNodeMap[app.id.toLowerCase()] || null;
+                            const key = _routeNode || '__none__';
+                            if (!byNode[key]) { byNode[key] = { node: _routeNode, apps: [] }; order.push(key); }
+                            byNode[key].apps.push(app);
+                        });
+                        return order.map(key => {
+                            const group = byNode[key];
+                            const nodeLabel = group.node ? _shortNode(group.node) : '';
+                            const nodeBadge = nodeLabel
+                                ? `<span class="app-node-badge" style="flex-shrink:0;">${nodeLabel}</span>`
+                                : '';
+                            const chips = group.apps.map(app => {
+                                const isNY = app.ny;
+                                const isLive   = !!_liveApps[app.id];
+                                const isRecent = !isLive && _isRecent(app.id);
+                                const active   = isLive || isRecent;
+                                const chipStyle = active ? `--chip-bg:${app.color}${isLive?'22':'15'};--chip-border:${app.color}${isLive?'55':'40'};--chip-color:${app.color};${isRecent?'opacity:0.5;':''}` : '';
+                                const dot = isNY ? '<span class="us-dot"></span>' : '';
+                                const _appIcon = APP_ICONS[app.id] || (app.favicon ? `<img src="${app.favicon}" width="18" height="18" style="border-radius:3px;object-fit:contain;" onerror="this.style.display='none'">` : `<span style="font-size:10px;font-weight:800;">${app.title[0]}</span>`);
+                                return `<button class="app-chip${active?' active':''}${isLive?' live':''}" data-ip="${dev.ip}" data-app="${app.id}" title="${app.title}${group.node?' → '+group.node:''}" style="${chipStyle}">${_appIcon}${dot}</button>`;
+                            }).join('');
+                            return `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;">${chips}${nodeBadge}</div>`;
+                        }).join('');
+                    };
+                    const appsHtml = _anyChips ? `<div data-apps-for="${dev.ip}" data-app-ids="${_chipIds}" style="display:flex;flex-direction:column;align-items:flex-start;gap:3px;">
+                        ${_buildAppRows()}
                         ${hasUSApp ? `<div style="font-size:9px;color:#60a5fa;font-weight:700;font-family:'JetBrains Mono',monospace;display:flex;align-items:center;gap:3px;"><svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>NY узел</div>` : ''}
-                    </div>` : `<span style="color:#334155;font-size:12px;">—</span>`;
+                    </div>` : (_appRoutes.length > 0 ? `<div data-apps-for="${dev.ip}" style="display:flex;flex-direction:column;align-items:flex-start;gap:3px;">${(() => { const byN={}; const ord=[]; _appRoutes.forEach(r=>{ const k=r.node||'__none__'; if(!byN[k]){byN[k]={node:r.node,apps:[]};ord.push(k);} byN[k].apps.push(r); }); return ord.map(k=>{ const g=byN[k]; const nb=g.node?`<span class="app-node-badge" style="flex-shrink:0;margin-right:2px;">${_shortNode(g.node)}</span>`:''; const ch=g.apps.map(r=>`<span title="${r.app} → ${r.node} (${r.count} соед.)" style="font-size:16px;line-height:1;">${r.icon}</span>`).join(''); return `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:3px;">${ch}${nb}</div>`; }).join(''); })()}</div>` : `<div style="color:#334155;font-size:12px;">—</div>`);
 
                     // Compute effective route for this device
                     let routeNode = null;
@@ -2453,10 +2499,11 @@
                             routeEl.dataset.chainHash = '';
                             return;
                         }
-                        // Hash includes active flag + speed for change detection
+                        // Hash includes active flag + speed + app-routes for change detection
+                        const _appRHash = ((state.appRoutesData || {})[ip] || []).map(r => r.app).join(',');
                         const chainHash = visibleChains.map(({ ch, d, isActive }) =>
                             `${ch}:${isActive?1:0}:${Math.round((d.speed_down+d.speed_up)/512)}`
-                        ).join('|');
+                        ).join('|') + '|apps:' + _appRHash;
                         if (routeEl.dataset.chainHash === chainHash) return;
                         routeEl.dataset.chainHash = chainHash;
                         routeEl.innerHTML = `<div style="display:flex;flex-direction:column;gap:5px;min-width:0;">${
@@ -2474,6 +2521,37 @@
                                 return `<div style="min-width:0;opacity:${isActive?1:0.45};transition:opacity 0.5s;"><div title="${label}" style="font-size:11px;font-weight:700;color:${color};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${label}</div><div style="font-family:'JetBrains Mono',monospace;font-size:9px;margin-top:1px;">${speedHtml}</div></div>`;
                             }).join('')
                         }</div>`;
+                        // Синхронно обновляем ПРИЛОЖЕНИЯ — выравниваем по строкам МАРШРУТ
+                        const appsEl = rowEl?.querySelector('[data-apps-for]');
+                        if (appsEl) {
+                            const _appR = (state.appRoutesData || {})[ip] || [];
+                            const _appByNode = {};
+                            _appR.forEach(r => { const k = r.node || 'DIRECT'; (_appByNode[k] = _appByNode[k] || []).push(r); });
+                            const _renderChip = (r, isActive) => {
+                                // r содержит { app, title, color, favicon, node, count } из state.appRoutesData
+                                const color = r.color || '#64748b';
+                                const chipStyle = `--chip-bg:${color}22;--chip-border:${color}55;--chip-color:${color};opacity:${isActive?1:0.4};transition:opacity 0.5s;`;
+                                // SVG-иконка из APP_ICONS если есть, иначе favicon с буквой под ней
+                                const svgIcon = APP_ICONS[r.app];
+                                const _lbl = (r.title||r.app).slice(0,2).toUpperCase();
+                                const icon = svgIcon
+                                    ? svgIcon
+                                    : r.favicon
+                                        ? `<span style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;"><span style="position:absolute;font-size:8px;font-weight:800;">${_lbl}</span><img src="${r.favicon}" width="20" height="20" style="border-radius:3px;object-fit:contain;position:relative;" onerror="this.style.opacity=0"></span>`
+                                        : `<span style="font-size:8px;font-weight:800;">${_lbl}</span>`;
+                                return `<button class="app-chip active live" data-ip="${ip}" data-app="${r.app}" title="${r.title||r.app} → ${r.node}" style="${chipStyle}">${icon}</button>`;
+                            };
+                            appsEl.innerHTML = `<div style="display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:0;">${
+                                visibleChains.map(({ ch, isActive }) => {
+                                    const allApps = _appByNode[ch] || [];
+                                    const nodeApps = allApps.slice(0, 6);
+                                    const rest = allApps.length - nodeApps.length;
+                                    const chips = nodeApps.map(r => _renderChip(r, isActive)).join('');
+                                    const more = rest > 0 ? `<span style="font-size:9px;color:#64748b;font-weight:700;">+${rest}</span>` : '';
+                                    return `<div style="display:flex;align-items:center;gap:3px;min-height:28px;overflow:visible;padding:3px 0;">${chips}${more}</div>`;
+                                }).join('')
+                            }</div>`;
+                        }
                     });
                 }
             },
@@ -3430,19 +3508,19 @@
                                     items.push(`<div title="${ic.label} (${d.count} соед.)" data-dom-key="${ic.key}"${_dragAttrs} style="${_pillStyle}${_grabCursor}"><div style="width:16px;height:16px;display:flex;align-items:center;justify-content:center;color:${ic.color};flex-shrink:0;">${svg}</div><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;">${ic.label}</span></div>`);
                                     continue;
                                 }
-                                if (ic.key === 'globalshield') {
-                                    items.push(`<div title="${ic.label} (${d.count} соед.)" data-dom-key="${ic.key}" style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:6px;background:rgba(251,191,36,0.2);border:1px solid rgba(251,191,36,0.5);flex-shrink:0;overflow:hidden;box-sizing:border-box;transition:opacity 0.2s ease,transform 0.2s ease;"><span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:800;color:#fbbf24;line-height:1;">GS</span><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;">${ic.label}</span></div>`);
-                                    continue;
-                                }
                                 if (ic.favicon) {
                                     items.push(`<div title="${ic.label} (${d.count} соед.)" data-dom-key="${ic.key}"${_dragAttrs} style="${_pillStyle}${_grabCursor}"><img src="${ic.favicon}" width="14" height="14" style="border-radius:2px;vertical-align:middle;flex-shrink:0;" onerror="this.style.display='none'"><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;">${ic.label}</span></div>`);
                                     continue;
                                 }
+                                // Известный сервис без SVG и явного favicon — используем Google S2
+                                const _icFavUrl = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(d.domain)}&sz=32`;
+                                items.push(`<div title="${ic.label} (${d.count} соед.)" data-dom-key="${ic.key}"${_dragAttrs} style="${_pillStyle}${_grabCursor}"><img src="${_icFavUrl}" width="14" height="14" style="border-radius:2px;flex-shrink:0;" onerror="this.style.display='none'"><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;">${ic.label}</span></div>`);
                             }
                             if (!ic) {
                                 const _skipLabels = /^(обход блокировок|bypass|балансировка|balance|auto|авто|прямой|direct)$/i;
                                 if (_skipLabels.test(d.domain)) continue;
-                                items.push(`<div data-dom-key="${d.domain}" title="${d.count} соед." style="font-family:'JetBrains Mono',monospace;font-size:12px;padding:3px 8px;border-radius:6px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.4);color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box;line-height:1.3;transition:opacity 0.2s ease,transform 0.2s ease;display:inline-flex;align-items:center;gap:5px;flex-shrink:0;">${d.domain}</div>`);
+                                const _favUrl = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(d.domain)}&sz=32`;
+                                items.push(`<div data-dom-key="${d.domain}" title="${d.count} соед." style="font-family:'JetBrains Mono',monospace;font-size:12px;padding:3px 8px;border-radius:6px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.4);color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box;line-height:1.3;transition:opacity 0.2s ease,transform 0.2s ease;display:inline-flex;align-items:center;gap:5px;flex-shrink:0;"><img src="${_favUrl}" width="14" height="14" style="border-radius:2px;flex-shrink:0;" onerror="this.style.display='none'">${d.domain}</div>`);
                             }
                         }
                         return items.join('');
@@ -6202,6 +6280,42 @@
                         Object.keys(apps).forEach(aid => { state._lastSeenApps[ip][aid] = _now; });
                     });
                     state._activeDeviceApps = _adApps;
+                    // Строим app→node маппинг прямо из соединений — без отдельного API
+                    const _appRouteMap = {};
+                    state.allConnections.forEach(c => {
+                        const src = c.src; if (!src) return;
+                        const host = c.host || ''; if (!host) return;
+                        const chain = c.chain || 'DIRECT';
+                        let appId = null, appTitle = null, appColor = '#64748b', appFavicon = null;
+                        for (const entry of _domainIconMap) {
+                            if (entry[0].test(host)) {
+                                [, appId, appColor, appTitle, appFavicon] = entry;
+                                appFavicon = appFavicon || null;
+                                break;
+                            }
+                        }
+                        if (!appId) {
+                            const parts = host.split('.');
+                            if (parts.length < 2) return;
+                            const rootDomain = parts.slice(-2).join('.');
+                            // Фильтруем CDN/инфраструктурные домены — у них нет значимой иконки
+                            const _cdnSkip = /akadns\.net|akamai(edge|technologies|hd)?\.net|cloudfront\.net|amazonaws\.com|fastly\.net|edgekey\.net|edgesuite\.net|llnwd\.net|hwcdn\.net|edgecastcdn\.net|footprint\.net|gslb\.|ngenix\.net|a?cdn\.|gstatic\.com|googleapis\.com/i;
+                            if (_cdnSkip.test(host)) return;
+                            appId = rootDomain; appTitle = rootDomain;
+                            appFavicon = `https://www.google.com/s2/favicons?domain=${rootDomain}&sz=32`;
+                        }
+                        const key = `${appId}|${chain}`;
+                        if (!_appRouteMap[src]) _appRouteMap[src] = {};
+                        if (!_appRouteMap[src][key]) _appRouteMap[src][key] = { appId, appTitle, appColor, appFavicon, chain, count: 0 };
+                        _appRouteMap[src][key].count++;
+                    });
+                    const _newAppRoutes = {};
+                    Object.entries(_appRouteMap).forEach(([ip, byKey]) => {
+                        _newAppRoutes[ip] = Object.values(byKey)
+                            .sort((a, b) => b.count - a.count).slice(0, 10)
+                            .map(e => ({ app: e.appId, title: e.appTitle, color: e.appColor, favicon: e.appFavicon, node: e.chain, count: e.count }));
+                    });
+                    state.appRoutesData = _newAppRoutes;
                     // Патч только классов чипов — без перестройки всей таблицы устройств
                     if (state.devices?.length) ui.updateDeviceAppChips();
                     ui.applyConnFilter();
@@ -7005,6 +7119,38 @@
                 }
             },
 
+            downloadBackup: () => {
+                const a = document.createElement('a');
+                a.href = '/api/backup';
+                a.download = '';
+                a.click();
+            },
+
+            restoreBackup: async (input) => {
+                const file = input.files[0];
+                if (!file) return;
+                if (!confirm(`Восстановить конфигурацию из ${file.name}?\nТекущие настройки будут перезаписаны.`)) {
+                    input.value = '';
+                    return;
+                }
+                const formData = new FormData();
+                formData.append('file', file);
+                try {
+                    ui.showToast('Восстановление...', 'info');
+                    const resp = await fetch('/api/restore', { method: 'POST', body: formData });
+                    const data = await resp.json();
+                    if (resp.ok) {
+                        ui.showToast(`Восстановлено: ${data.restored.join(', ')}`, 'success');
+                        setTimeout(() => location.reload(), 2000);
+                    } else {
+                        ui.showToast('Ошибка: ' + (data.detail || JSON.stringify(data)), 'error');
+                    }
+                } catch(e) {
+                    ui.showToast('Ошибка: ' + e.message, 'error');
+                }
+                input.value = '';
+            },
+
             updateSchedule: async () => {
                 const type = document.getElementById('scheduleTypeSelect')?.value || 'never';
                 const time = document.getElementById('scheduleTimeInput')?.value || '00:00';
@@ -7435,6 +7581,7 @@
 
             const connLoop = async () => { if (_tabVisible) await actions.fetchConnections(); setTimeout(connLoop, 3000); };
             setTimeout(connLoop, 1500);
+
 
             // Auto-reload after 6 hours to prevent memory accumulation in long-running tabs
             setTimeout(() => {

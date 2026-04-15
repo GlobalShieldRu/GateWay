@@ -1,5 +1,7 @@
 import os
+import io
 import json
+import zipfile
 import asyncio
 import time
 import socket
@@ -13,9 +15,9 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from typing import List, Optional
 from collections import defaultdict, OrderedDict
-from fastapi import FastAPI, HTTPException, Request, Response, Cookie
+from fastapi import FastAPI, HTTPException, Request, Response, Cookie, UploadFile, File
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 
@@ -350,9 +352,10 @@ async def get_mac_vendor(mac: str):
             vendor = r.text.strip() if r.status_code == 200 else ""
     except Exception:
         vendor = ""
-    _mac_vendor_cache[oui] = vendor
-    if len(_mac_vendor_cache) > _MAC_CACHE_MAX:
-        _mac_vendor_cache.popitem(last=False)  # evict least recently used
+    if vendor:  # не кешируем пустые результаты — при следующем запросе попробуем снова
+        _mac_vendor_cache[oui] = vendor
+        if len(_mac_vendor_cache) > _MAC_CACHE_MAX:
+            _mac_vendor_cache.popitem(last=False)  # evict least recently used
     return {"vendor": vendor}
 
 async def _rotate_log():
@@ -1148,8 +1151,11 @@ async def get_devices():
             if mac_configs[mac].get('current_ip') != ip:
                 mac_configs[mac]['current_ip'] = ip
                 changed = True
-            mac_configs[mac]['last_seen'] = time.time()
-            changed = True
+            now = time.time()
+            prev_seen = mac_configs[mac].get('last_seen', 0)
+            if now - prev_seen >= 30:
+                mac_configs[mac]['last_seen'] = now
+                changed = True
 
     if new_mac_entries:
         mac_configs.update(new_mac_entries)
@@ -2400,6 +2406,7 @@ async def get_connections():
     conns.sort(key=lambda x: -(x['upload'] + x['download']))
     return {"connections": conns[:100]}
 
+
 @app.get("/api/feedback")
 async def get_feedback():
     try:
@@ -2561,6 +2568,62 @@ async def get_proxies_list():
     except Exception:
         pass
     return {"nodes": sorted(nodes), "groups": sorted(groups)}
+
+@app.get("/api/backup")
+async def download_backup():
+    buf = io.BytesIO()
+    files = ["rules.json", "rulesets.json", "devices.json", "subscription.json"]
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for fname in files:
+            fpath = GSG_CONFIG_DIR / fname
+            if fpath.exists():
+                async with aiofiles.open(fpath, "r") as f:
+                    content = await f.read()
+                zf.writestr(fname, content)
+        meta = {
+            "version": GSG_VERSION,
+            "created_at": time.time(),
+            "created_at_iso": datetime.now().isoformat()
+        }
+        zf.writestr("backup_meta.json", json.dumps(meta, indent=2))
+    buf.seek(0)
+    filename = f"gsg-backup-{datetime.now().strftime('%Y%m%d-%H%M%S')}.zip"
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@app.post("/api/restore")
+async def restore_backup(file: UploadFile = File(...)):
+    if not file.filename.endswith(".zip"):
+        raise HTTPException(400, "Нужен .zip файл")
+    content = await file.read()
+    buf = io.BytesIO(content)
+    allowed = {"rules.json", "rulesets.json", "devices.json", "subscription.json"}
+    restored = []
+    errors = []
+    try:
+        with zipfile.ZipFile(buf, "r") as zf:
+            for name in zf.namelist():
+                if name not in allowed:
+                    continue
+                try:
+                    data = zf.read(name).decode("utf-8")
+                    json.loads(data)  # валидация JSON
+                    fpath = GSG_CONFIG_DIR / name
+                    async with aiofiles.open(fpath, "w") as f:
+                        await f.write(data)
+                    restored.append(name)
+                except Exception as e:
+                    errors.append(f"{name}: {e}")
+    except zipfile.BadZipFile:
+        raise HTTPException(400, "Повреждённый ZIP файл")
+    (GSG_CONFIG_DIR / ".reload_nftables").touch()
+    (GSG_CONFIG_DIR / ".reload_mihomo").touch()
+    return {"restored": restored, "errors": errors}
+
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
