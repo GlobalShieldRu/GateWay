@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Добавлено
+- App-to-node routing visualization: новый endpoint `/api/app-routes` и динамические бейджи в колонке ПРИЛОЖЕНИЯ — показывают через какой узел идёт каждое активное приложение устройства
+- Бэкап и восстановление конфигурации: `GET /api/backup` (ZIP-архив с rules.json, rulesets.json, devices.json, subscription.json) и `POST /api/restore` (загрузка и применение бэкапа); кнопки в шапке сайдбара
+
 ## [1.7.4] — 2026-04-09
 
 ### Добавлено

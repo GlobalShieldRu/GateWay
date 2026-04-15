@@ -39,7 +39,7 @@ def main():
     if url:
         headers = {"User-Agent": "Mihomo/1.18.10 (GSG-Smart-Gateway)"}
         try:
-            r = httpx.get(url, headers=headers, timeout=15.0, follow_redirects=True)
+            r = httpx.get(url, headers=headers, timeout=5.0, follow_redirects=True)
             r.raise_for_status()
             parsed_yaml = yaml.safe_load(r.text)
             if isinstance(parsed_yaml, dict):
@@ -214,14 +214,14 @@ def main():
     proxy_groups = user_rules.get("proxy_groups")
     if not proxy_groups:
         proxy_groups = [
-            {"id": "auto", "name": "Auto", "node_filter": "", "type": "fallback", "builtin": True, "rules": []},
+            {"id": "auto", "name": "Auto", "node_filter": "", "type": "url-test", "builtin": True, "rules": []},
         ]
-        # Миграция AI
+        # Миграция AI — тип берём из ai_settings если есть, иначе fallback
         ai_s = user_rules.get("ai_settings", {})
         ai_domains = ai_s.get("domains") or ["gemini", "openai", "chatgpt", "anthropic", "claude", "aistudio.google.com"]
         proxy_groups.append({
             "id": "ai", "name": "AI", "node_filter": ai_s.get("node_filter", "NY"),
-            "type": "fallback", "builtin": True, "rules": ai_domains
+            "type": ai_s.get("type", "fallback"), "builtin": True, "rules": ai_domains
         })
         # Bypass (direct) — встроенная группа
         direct_list = user_rules.get("direct", [])
@@ -273,13 +273,6 @@ def main():
         proxy_list = user_rules.get("proxy", [])
         if proxy_list:
             proxy_groups[0]["rules"] = proxy_list  # Auto — первый элемент
-
-    # Применяем типы групп из rules.json поверх того что пришло из подписки
-    pg_type_override = {pg["id"]: pg.get("type", "url-test") for pg in proxy_groups if "id" in pg}
-    for g in server_config["proxy-groups"]:
-        gname = g.get("name", "")
-        if gname in pg_type_override:
-            g["type"] = pg_type_override[gname]
 
     # Создаём Mihomo proxy-groups
     print(f"\n[GSG] === PROXY GROUPS ({len(proxy_groups)}) ===", flush=True)

@@ -35,6 +35,9 @@ table inet gsg {{
         tcp dport 5223 return
         udp dport 5223 return
 
+        # Steam/игровой UDP bypass — предотвращаем conntrack flood от игровых клиентов
+        udp dport {{ 27000-28000 }} return
+
         # Отсекаем мусорный трафик умного дома (Multicast и Broadcast)
         ip daddr {{ 224.0.0.0/4, 255.255.255.255/32 }} return
 

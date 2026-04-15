@@ -31,7 +31,7 @@ def generate():
         "domain-needed",
         "bogus-priv",
         "no-resolv",
-        f"server={conf['dns']}",
+        "server=127.0.0.1#1053",
         f"dhcp-range={conf['pool_start']},{conf['pool_end']},24h",
         f"dhcp-option=option:router,{conf['gateway']}",
         f"dhcp-option=option:dns-server,{conf['dns']}",
