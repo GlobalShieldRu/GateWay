@@ -1787,12 +1787,14 @@ async def test_routes():
         devices = {}
 
     device_tests = []
-    for ip, dev in devices.items():
+    for key, dev in devices.items():
+        # devices.json может быть в двух форматах: ключ=MAC (новый) или ключ=IP (старый)
+        actual_ip = dev.get("reserved_ip") or dev.get("static_ip") or dev.get("current_ip") or key
         mode = dev.get("mode", "smart")
-        name = dev.get("custom_name") or dev.get("hostname") or ip
+        name = dev.get("custom_name") or dev.get("hostname") or actual_ip
         assigned = dev.get("assigned_node", "auto")
         dev_result = {
-            "ip": ip,
+            "ip": actual_ip,
             "name": name,
             "mode": mode,
             "assigned_node": assigned,
@@ -1807,7 +1809,7 @@ async def test_routes():
                 issue = f"Назначенный узел '{assigned}' не найден"
                 dev_result["issues"].append(issue)
                 dev_result["ok"] = False
-                results["errors"].append(f"Устройство {name} ({ip}): {issue}")
+                results["errors"].append(f"Устройство {name} ({actual_ip}): {issue}")
 
         # Проверяем что blocked-устройства не обходят блокировку через доменные правила
         if mode == "block":
@@ -1818,19 +1820,19 @@ async def test_routes():
                 issue = "Режим Block: доменные правила групп имеют приоритет — трафик к доменам из Auto/AI может пройти через VPN"
                 dev_result["issues"].append(issue)
                 dev_result["ok"] = False
-                results["warnings"].append(f"Устройство {name} ({ip}): {issue}")
+                results["warnings"].append(f"Устройство {name} ({actual_ip}): {issue}")
 
         # Проверяем что для smart-устройства sub-rules существуют в Mihomo
         if mode == "smart":
             has_sub = any(
-                r.get("type") == "SubRules" and ip in (r.get("payload", "") or "")
+                r.get("type") == "SubRules" and actual_ip in (r.get("payload", "") or "")
                 for r in mihomo_rules
             )
             if not has_sub:
                 issue = "Sub-rules не найдены в Mihomo — конфиг мог не примениться"
                 dev_result["issues"].append(issue)
                 dev_result["ok"] = False
-                results["warnings"].append(f"Устройство {name} ({ip}): {issue}")
+                results["warnings"].append(f"Устройство {name} ({actual_ip}): {issue}")
 
         device_tests.append(dev_result)
 

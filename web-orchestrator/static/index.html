@@ -1563,8 +1563,6 @@
             { id: 'claude',    title: 'Claude (только US)', color: '#d97706', ny: true, alwaysActive: true },
             { id: 'chatgpt',   title: 'ChatGPT (только US)',color: '#10a37f', ny: true, alwaysActive: true },
             { id: 'netflix',   title: 'Netflix (только US)', color: '#E50914', ny: true },
-            { id: 'myip',      title: 'Мой IP', color: '#38bdf8', ny: false, hint: 'MenuBar IP, 2ip.ru и другие приложения, которые показывают ваш внешний IP. Должны идти через VPN — иначе покажут реальный IP.' },
-
         ];
 
         // Полные списки доменов для каждого приложения (для добавления в proxy-группы)
@@ -1593,12 +1591,6 @@
             megogo:    ['megogo.net'],
             apple:     ['apple.com', 'icloud.com', 'apple-cloudkit.com', 'mzstatic.com', 'cdn-apple.com'],
             google:    ['google.com', 'googleapis.com', 'gstatic.com', 'google.ru', 'google.co'],
-            myip:      ['api.ipify.org', 'ipify.org', 'ifconfig.me', 'freeipapi.com', 'ip-api.com',
-                        'api.iplocation.net', 'iplocation.net', 'trackip.net',
-                        'ipgeolocation.abstractapi.com', 'abstractapi.com',
-                        '2ip.ru', '2ip.io', 'static.2ip.io',
-                        'ipinfo.io', 'myip.com', 'checkip.amazonaws.com',
-                        'myexternalip.com', 'wtfismyip.com', 'ipecho.net'],
         };
 
         // Port → protocol name
@@ -1640,7 +1632,6 @@
             [/spotify\.|scdn\.co/i, 'spotify', '#1db954', 'Spotify', 'https://open.spotify.com/favicon.ico'],
             [/twitch\.|twitchsvc\./i, 'twitch', '#9146ff', 'Twitch', 'https://twitch.tv/favicon.ico'],
             [/discord\./i, 'discord', '#5865f2', 'Discord', 'https://discord.com/favicon.ico'],
-            [/ipify\.org|ifconfig\.me|freeipapi\.com|ip-api\.com|iplocation\.net|trackip\.net|abstractapi\.com|2ip\.|ipinfo\.io|myip\.com|checkip\.amazonaws|myexternalip|wtfismyip|ipecho\.net/i, 'myip', '#38bdf8', 'Мой IP'],
             [/globalshield\.ru/i, 'globalshield', '#fbbf24', 'GlobalShield', 'https://www.globalshield.ru/favicon.svg'],
             [/google\.|googleapis\.|gstatic\./i, 'google', '#4285f4', 'Google', 'https://google.com/favicon.ico'],
         ];
@@ -1663,7 +1654,6 @@
             ['claude',    /claude|anthropic/i],
             ['chatgpt',   /openai|chatgpt/i],
             ['netflix',   /netflix\.com|nflxvideo\.net/i],
-            ['myip',      /ipify\.org|ifconfig\.me|freeipapi\.com|ip-api\.com|iplocation\.net|trackip\.net|abstractapi\.com|2ip\.|ipinfo\.io|myip\.com|checkip\.amazonaws|myexternalip|wtfismyip|ipecho\.net/i],
         ];
 
         const DEVICE_ICONS = {
