@@ -910,6 +910,7 @@ class DeviceUpdate(BaseModel):
     custom_name: str = ""
     static_ip: str = ""
     mac: str = ""
+    block_vpn_app: bool = False
 
 class RulesUpdate(BaseModel):
     direct: List[str]
@@ -1186,6 +1187,7 @@ async def get_devices():
             "reserved_ip": reserved_ip,
             "current_ip": current_ip,
             "is_reserved": bool(reserved_ip) and reserved_ip == current_ip,
+            "block_vpn_app": conf.get("block_vpn_app", False),
         })
     return result
 
@@ -1276,6 +1278,7 @@ async def update_device(ip: str, data: DeviceUpdate):
             "static_ip": new_reserved,   # обратная совместимость с dnsmasq
             "mac": new_mac,
             "current_ip": existing.get('current_ip', ip),
+            "block_vpn_app": data.block_vpn_app,
         }
 
         # Сохраняем под MAC-ключом (или IP если MAC неизвестен)
@@ -1301,7 +1304,8 @@ async def update_device(ip: str, data: DeviceUpdate):
     routing_changed = (
         data.mode != existing.get("mode") or
         data.assigned_node != existing.get("assigned_node", "auto") or
-        data.tiktok_node != existing.get("tiktok_node", "auto")
+        data.tiktok_node != existing.get("tiktok_node", "auto") or
+        data.block_vpn_app != existing.get("block_vpn_app", False)
     )
     if routing_changed:
         async with aiofiles.open(GSG_CONFIG_DIR / ".reload_nftables", 'w') as f:

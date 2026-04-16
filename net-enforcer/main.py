@@ -46,9 +46,11 @@ table inet gsg {{
         ip daddr {{ 127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 }} return
         ip saddr @bypass_devices return
 
-        # Блокируем прямые подключения LAN-устройств к нашим VPN нодам.
+        # Блокируем прямые подключения выбранных устройств к нашим VPN нодам.
         # VPN-приложение на телефоне теряет соединение (timeout) → iOS снимает туннель →
         # трафик идёт через Wi-Fi → GSG перехватывает через TPROXY и маршрутизирует сам.
+        # Важно: Mihomo соединяется с нодами от имени GSG (10.10.1.139), а не от устройства,
+        # поэтому DROP для устройства не ломает проксирование через GSG.
 {node_drop_rule}
         meta l4proto tcp tproxy ip to 127.0.0.1:{tproxy_port} meta mark set 1 accept
         meta l4proto udp tproxy ip to 127.0.0.1:{tproxy_port} meta mark set 1 accept
@@ -121,11 +123,49 @@ class NetEnforcer:
                 data = json.loads(await f.read())
         except: data = {}
 
-        bp = [i.get("reserved_ip", ip) for ip, i in data.items() if i.get("mode") == "bypass"]
+        # Bypass-устройства: идут напрямую, минуя TPROXY
+        bp = []
+        for key, i in data.items():
+            if i.get("mode") == "bypass":
+                ip = i.get("reserved_ip") or i.get("current_ip") or key
+                if ip and ":" not in ip:  # исключаем MAC-ключи
+                    bp.append(ip)
         bp = bp or ["127.0.0.99"]
+
+        # block_vpn_app: устройства которым запрещено напрямую подключаться к нодам.
+        # Их прямые TCP-соединения к node_servers DROP'аются до TPROXY.
+        # Mihomo при этом продолжает проксировать их трафик (соединяется с нодой от своего IP).
+        vpn_block_ips = []
+        for key, i in data.items():
+            if i.get("block_vpn_app"):
+                ip = i.get("reserved_ip") or i.get("current_ip") or key
+                if ip and ":" not in ip:
+                    vpn_block_ips.append(ip)
 
         node_drop_set  = ""
         node_drop_rule = ""
+
+        if vpn_block_ips:
+            node_ips = []
+            try:
+                async with aiofiles.open(GSG_NODES_FILE, 'r') as f:
+                    nodes_data = json.loads(await f.read())
+                node_ips = _resolve_node_ips(nodes_data)
+            except Exception as e:
+                print(f"[WARN] Не удалось загрузить nodes.json: {e}", flush=True)
+
+            if node_ips:
+                node_drop_set = (
+                    f'    set node_servers {{ type ipv4_addr; '
+                    f'elements = {{ {", ".join(node_ips)} }}; }}'
+                )
+                node_drop_rule = (
+                    f'        ip saddr {{ {", ".join(vpn_block_ips)} }} '
+                    f'ip daddr @node_servers drop'
+                )
+                print(f"[INFO] VPN-app block: {vpn_block_ips} → {len(node_ips)} нод", flush=True)
+            else:
+                print("[WARN] block_vpn_app задан, но ноды не резолвятся — правило не добавлено", flush=True)
 
         conf = NFT_TEMPLATE.format(
             bypass_ips=", ".join(bp),

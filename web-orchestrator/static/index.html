@@ -2297,6 +2297,17 @@
                                     return pills;
                                 })()}
                             </div>
+                            ${dev.mode === 'smart' ? `<div style="margin-top:4px;">
+                                <span class="vpn-block-toggle" data-ip="${dev.ip}" data-mac="${dev.mac||''}" data-active="${dev.block_vpn_app ? '1' : '0'}"
+                                    title="Блокировать прямые подключения к VPN-нодам — VPN-приложения на устройстве не смогут установить туннель. Трафик продолжит идти через GSG."
+                                    style="display:inline-flex;align-items:center;gap:3px;padding:2px 5px;border-radius:5px;font-size:8px;font-weight:700;cursor:pointer;transition:all 0.15s;
+                                    ${dev.block_vpn_app
+                                        ? 'background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.5);color:#f87171;'
+                                        : 'background:transparent;border:1px solid rgba(255,255,255,0.06);color:rgba(100,116,139,0.5);'}">
+                                    <svg viewBox="0 0 16 16" width="9" height="9" fill="currentColor"><path d="M8 0C5.8 0 4 1.8 4 4v1H2v11h12V5h-2V4c0-2.2-1.8-4-4-4zm0 1.5c1.4 0 2.5 1.1 2.5 2.5v1h-5V4C5.5 2.6 6.6 1.5 8 1.5zm0 7a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z"/></svg>
+                                    VPN-блок
+                                </span>
+                            </div>` : ''}
                         </div>
                         </div><!-- end mobile-right -->
                         </div><!-- end dev-row-mobile -->
@@ -5871,11 +5882,12 @@
                 if (!_deviceDebounceMap.has(ip)) {
                     _deviceDebounceMap.set(ip, utils.debounce(async (_ip, _mode, _assigned, _tiktok, _static) => {
                         const dev = state.devices.find(d => d.ip === _ip);
-                        const curTiktok = _tiktok   !== undefined ? _tiktok  : (dev?.tiktok_node || 'auto');
-                        const curStatic = _static   !== undefined ? _static  : (dev?.static_ip   || '');
-                        const curCustom = dev?.custom_name || '';
-                        const curMac    = dev?.mac || '';
-                        const result = await utils.apiCall(`/devices/${_ip}`, { method: 'PUT', body: JSON.stringify({ mode: _mode, assigned_node: _assigned, tiktok_node: curTiktok, custom_name: curCustom, static_ip: curStatic, mac: curMac }) });
+                        const curTiktok      = _tiktok !== undefined ? _tiktok : (dev?.tiktok_node || 'auto');
+                        const curStatic      = _static !== undefined ? _static : (dev?.static_ip   || '');
+                        const curCustom      = dev?.custom_name || '';
+                        const curMac         = dev?.mac || '';
+                        const curBlockVpn    = dev?.block_vpn_app || false;
+                        const result = await utils.apiCall(`/devices/${_ip}`, { method: 'PUT', body: JSON.stringify({ mode: _mode, assigned_node: _assigned, tiktok_node: curTiktok, custom_name: curCustom, static_ip: curStatic, mac: curMac, block_vpn_app: curBlockVpn }) });
                         if (result) {
                             const name = dev?.custom_name || dev?.hostname || _ip;
                             const modeLabel = {smart:'Smart',global:'Прокси',bypass:'Напрямую',block:'Блок'}[_mode] || _mode;
@@ -7284,6 +7296,31 @@
                     const node = nodePill.dataset.node;
                     const dev = state.devices.find(d => d.ip === ip);
                     actions.updateDeviceSettings(ip, dev?.mode || 'smart', node);
+                    return;
+                }
+                // VPN-block toggle
+                const vpnToggle = e.target.closest('.vpn-block-toggle');
+                if (vpnToggle) {
+                    const ip = vpnToggle.dataset.ip;
+                    const curActive = vpnToggle.dataset.active === '1';
+                    const newActive = !curActive;
+                    const dev = state.devices.find(d => d.ip === ip);
+                    if (!dev) return;
+                    // Optimistic UI
+                    dev.block_vpn_app = newActive;
+                    vpnToggle.dataset.active = newActive ? '1' : '0';
+                    if (newActive) {
+                        vpnToggle.style.background = 'rgba(239,68,68,0.12)';
+                        vpnToggle.style.border = '1px solid rgba(239,68,68,0.5)';
+                        vpnToggle.style.color = '#f87171';
+                    } else {
+                        vpnToggle.style.background = 'transparent';
+                        vpnToggle.style.border = '1px solid rgba(255,255,255,0.06)';
+                        vpnToggle.style.color = 'rgba(100,116,139,0.5)';
+                    }
+                    const name = dev.custom_name || dev.hostname || ip;
+                    utils.apiCall(`/devices/${ip}`, { method: 'PUT', body: JSON.stringify({ mode: dev.mode, assigned_node: dev.assigned_node || 'auto', tiktok_node: dev.tiktok_node || 'auto', custom_name: dev.custom_name || '', static_ip: dev.static_ip || '', mac: dev.mac || '', block_vpn_app: newActive }) })
+                        .then(r => { if (r) { ui.addEvent('🔒', `${name}: VPN-блок → ${newActive ? 'вкл' : 'выкл'}`, newActive ? '#f87171' : '#94a3b8'); actions.fetchData(); } });
                     return;
                 }
                 // App chip — show info popup
