@@ -20,7 +20,7 @@ GEOSITE_URL="https://github.com/runetfreedom/russia-v2ray-rules-dat/releases/lat
 GEOSITE_PATH="/etc/mihomo/geosite.dat"
 GEOSITE_MARKER="/etc/mihomo/.geosite-runetfreedom"
 
-if wget -qO /tmp/geosite.dat.tmp --timeout=20 "$GEOSITE_URL" 2>/dev/null \
+if curl -sL --connect-timeout 20 -o /tmp/geosite.dat.tmp "$GEOSITE_URL" 2>/dev/null \
    && [ -s /tmp/geosite.dat.tmp ]; then
     mv /tmp/geosite.dat.tmp "$GEOSITE_PATH"
     touch "$GEOSITE_MARKER"

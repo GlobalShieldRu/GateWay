@@ -1,8 +1,9 @@
-import os, sys, json, asyncio, aiofiles
+import os, sys, json, asyncio, aiofiles, socket
 from pathlib import Path
 
 GSG_CONFIG_DIR = Path("/etc/gsg")
 GSG_DEVICES_FILE = GSG_CONFIG_DIR / "devices.json"
+GSG_NODES_FILE  = GSG_CONFIG_DIR / "nodes.json"
 RELOAD_SIGNAL_FILE = GSG_CONFIG_DIR / ".reload_nftables"
 GATEWAY_IP = os.getenv("GSG_GATEWAY_IP", "10.10.1.139")
 TPROXY_PORT = int(os.getenv("GSG_TPROXY_PORT", "12345"))
@@ -12,7 +13,7 @@ table inet gsg {{ }}
 delete table inet gsg
 table inet gsg {{
     set bypass_devices {{ type ipv4_addr; elements = {{ {bypass_ips} }}; }}
-
+{node_drop_set}
     chain prerouting_nat {{
         type nat hook prerouting priority dstnat; policy accept;
         iif lo return
@@ -45,6 +46,10 @@ table inet gsg {{
         ip daddr {{ 127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 }} return
         ip saddr @bypass_devices return
 
+        # Блокируем прямые подключения LAN-устройств к нашим VPN нодам.
+        # VPN-приложение на телефоне теряет соединение (timeout) → iOS снимает туннель →
+        # трафик идёт через Wi-Fi → GSG перехватывает через TPROXY и маршрутизирует сам.
+{node_drop_rule}
         meta l4proto tcp tproxy ip to 127.0.0.1:{tproxy_port} meta mark set 1 accept
         meta l4proto udp tproxy ip to 127.0.0.1:{tproxy_port} meta mark set 1 accept
     }}
@@ -59,6 +64,32 @@ table inet gsg {{
     }}
 }}
 '''
+
+def _resolve_node_ips(nodes_data: dict) -> list[str]:
+    """Резолвим hostname нод в IP-адреса для DROP правила.
+    Блокируем только ноды с суффиксом *.nodes.globalshield.ru — это наши
+    выделенные серверы с уникальными IP. CDN-ноды (cdn.*, Cloudflare) пропускаем:
+    они используют shared IP-адреса за которыми сидят тысячи других сервисов."""
+    seen = set()
+    ips = []
+    for n in nodes_data.get("nodes", []):
+        server = n.get("server", "").strip()
+        if not server or server in seen:
+            continue
+        seen.add(server)
+        # Только выделенные ноды, не CDN/Cloudflare
+        if not server.endswith(".nodes.globalshield.ru"):
+            continue
+        try:
+            socket.inet_aton(server)  # уже IP
+            ips.append(server)
+        except OSError:
+            try:
+                ip = socket.gethostbyname(server)
+                ips.append(ip)
+            except Exception as e:
+                print(f"[WARN] Не удалось резолвить {server}: {e}", flush=True)
+    return list(dict.fromkeys(ips))  # уникальные, сохраняя порядок
 
 class NetEnforcer:
     async def setup_os_routing(self):
@@ -84,13 +115,24 @@ class NetEnforcer:
 
     async def apply(self):
         await self.setup_os_routing()
+
         try:
             async with aiofiles.open(GSG_DEVICES_FILE, 'r') as f:
                 data = json.loads(await f.read())
         except: data = {}
 
-        bp = [ip for ip, i in data.items() if i.get("mode") == "bypass"] or ["127.0.0.99"]
-        conf = NFT_TEMPLATE.format(bypass_ips=", ".join(bp), tproxy_port=TPROXY_PORT)
+        bp = [i.get("reserved_ip", ip) for ip, i in data.items() if i.get("mode") == "bypass"]
+        bp = bp or ["127.0.0.99"]
+
+        node_drop_set  = ""
+        node_drop_rule = ""
+
+        conf = NFT_TEMPLATE.format(
+            bypass_ips=", ".join(bp),
+            node_drop_set=node_drop_set,
+            node_drop_rule=node_drop_rule,
+            tproxy_port=TPROXY_PORT,
+        )
 
         async with aiofiles.open("/tmp/gsg.nft", 'w') as f: await f.write(conf)
         p = await asyncio.create_subprocess_exec("nft", "-f", "/tmp/gsg.nft", stderr=asyncio.subprocess.PIPE)
