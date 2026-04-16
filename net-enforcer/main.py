@@ -13,7 +13,7 @@ table inet gsg {{ }}
 delete table inet gsg
 table inet gsg {{
     set bypass_devices {{ type ipv4_addr; elements = {{ {bypass_ips} }}; }}
-{node_drop_set}
+{node_set}
     chain prerouting_nat {{
         type nat hook prerouting priority dstnat; policy accept;
         iif lo return
@@ -46,12 +46,12 @@ table inet gsg {{
         ip daddr {{ 127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 }} return
         ip saddr @bypass_devices return
 
-        # Блокируем прямые подключения выбранных устройств к нашим VPN нодам.
-        # VPN-приложение на телефоне теряет соединение (timeout) → iOS снимает туннель →
-        # трафик идёт через Wi-Fi → GSG перехватывает через TPROXY и маршрутизирует сам.
-        # Важно: Mihomo соединяется с нодами от имени GSG (10.10.1.139), а не от устройства,
-        # поэтому DROP для устройства не ломает проксирование через GSG.
-{node_drop_rule}
+        # Пропускаем трафик напрямую к нашим VPN-нодам — не перехватываем TPROXY.
+        # Если на устройстве запущен Stash/Shadowrocket с нашей подпиской, он сам
+        # шифрует трафик и отправляет на ноду. TPROXY перехватит это как непрозрачный
+        # blob → двойное проксирование → YouTube и др. не работают.
+        # Mihomo сам подключается к нодам с lo (iif lo return выше) — это правило его не задевает.
+{node_direct_rule}
         meta l4proto tcp tproxy ip to 127.0.0.1:{tproxy_port} meta mark set 1 accept
         meta l4proto udp tproxy ip to 127.0.0.1:{tproxy_port} meta mark set 1 accept
     }}
@@ -68,10 +68,10 @@ table inet gsg {{
 '''
 
 def _resolve_node_ips(nodes_data: dict) -> list[str]:
-    """Резолвим hostname нод в IP-адреса для DROP правила.
-    Блокируем только ноды с суффиксом *.nodes.globalshield.ru — это наши
-    выделенные серверы с уникальными IP. CDN-ноды (cdn.*, Cloudflare) пропускаем:
-    они используют shared IP-адреса за которыми сидят тысячи других сервисов."""
+    """Резолвим hostname нод в IP-адреса.
+    Берём только *.nodes.globalshield.ru — выделенные серверы с уникальными IP.
+    CDN-ноды (Cloudflare и др.) пропускаем: их shared IP за которыми тысячи сервисов,
+    добавлять их в bypass опасно — весь HTTPS мог бы пойти мимо TPROXY."""
     seen = set()
     ips = []
     for n in nodes_data.get("nodes", []):
@@ -79,7 +79,6 @@ def _resolve_node_ips(nodes_data: dict) -> list[str]:
         if not server or server in seen:
             continue
         seen.add(server)
-        # Только выделенные ноды, не CDN/Cloudflare
         if not server.endswith(".nodes.globalshield.ru"):
             continue
         try:
@@ -91,7 +90,7 @@ def _resolve_node_ips(nodes_data: dict) -> list[str]:
                 ips.append(ip)
             except Exception as e:
                 print(f"[WARN] Не удалось резолвить {server}: {e}", flush=True)
-    return list(dict.fromkeys(ips))  # уникальные, сохраняя порядок
+    return list(dict.fromkeys(ips))
 
 class NetEnforcer:
     async def setup_os_routing(self):
@@ -132,45 +131,33 @@ class NetEnforcer:
                     bp.append(ip)
         bp = bp or ["127.0.0.99"]
 
-        # block_vpn_app: устройства которым запрещено напрямую подключаться к нодам.
-        # Их прямые TCP-соединения к node_servers DROP'аются до TPROXY.
-        # Mihomo при этом продолжает проксировать их трафик (соединяется с нодой от своего IP).
-        vpn_block_ips = []
-        for key, i in data.items():
-            if i.get("block_vpn_app"):
-                ip = i.get("reserved_ip") or i.get("current_ip") or key
-                if ip and ":" not in ip:
-                    vpn_block_ips.append(ip)
+        # Всегда загружаем IP наших нод и добавляем их в bypass TPROXY.
+        # Если на устройстве запущен VPN-клиент (Stash/Shadowrocket) с нашей подпиской,
+        # он сам шифрует и маршрутизирует трафик — TPROXY не должен его перехватывать,
+        # иначе возникает двойное проксирование и трафик не проходит.
+        node_set          = ""
+        node_direct_rule  = ""
 
-        node_drop_set  = ""
-        node_drop_rule = ""
-
-        if vpn_block_ips:
+        try:
+            async with aiofiles.open(GSG_NODES_FILE, 'r') as f:
+                nodes_data = json.loads(await f.read())
+            node_ips = _resolve_node_ips(nodes_data)
+        except Exception as e:
+            print(f"[WARN] Не удалось загрузить nodes.json: {e}", flush=True)
             node_ips = []
-            try:
-                async with aiofiles.open(GSG_NODES_FILE, 'r') as f:
-                    nodes_data = json.loads(await f.read())
-                node_ips = _resolve_node_ips(nodes_data)
-            except Exception as e:
-                print(f"[WARN] Не удалось загрузить nodes.json: {e}", flush=True)
 
-            if node_ips:
-                node_drop_set = (
-                    f'    set node_servers {{ type ipv4_addr; '
-                    f'elements = {{ {", ".join(node_ips)} }}; }}'
-                )
-                node_drop_rule = (
-                    f'        ip saddr {{ {", ".join(vpn_block_ips)} }} '
-                    f'ip daddr @node_servers drop'
-                )
-                print(f"[INFO] VPN-app block: {vpn_block_ips} → {len(node_ips)} нод", flush=True)
-            else:
-                print("[WARN] block_vpn_app задан, но ноды не резолвятся — правило не добавлено", flush=True)
+        if node_ips:
+            node_set = (
+                f'    set node_servers {{ type ipv4_addr; '
+                f'elements = {{ {", ".join(node_ips)} }}; }}'
+            )
+            node_direct_rule = f'        ip daddr @node_servers return'
+            print(f"[INFO] Node bypass (no TPROXY): {len(node_ips)} нод", flush=True)
 
         conf = NFT_TEMPLATE.format(
             bypass_ips=", ".join(bp),
-            node_drop_set=node_drop_set,
-            node_drop_rule=node_drop_rule,
+            node_set=node_set,
+            node_direct_rule=node_direct_rule,
             tproxy_port=TPROXY_PORT,
         )
 
