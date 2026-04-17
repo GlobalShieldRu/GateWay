@@ -1,7 +1,7 @@
 ---
 name: gsg-frontend
 description: "Используй этого агента для любых изменений в web-orchestrator/static/index.html — новые фичи, UI-баги, редизайн блоков, новые табы, модальные окна, визуализации. Агент знает архитектуру 5000+ строк single-file SPA и не ломает существующую логику.\n\n<example>\nContext: Нужно добавить новую вкладку в Expert режим.\nuser: \"Добавь вкладку DNS в Expert режим\"\nassistant: \"Запускаю gsg-frontend для добавления вкладки\"\n<commentary>\nИзменение UI — агент фронтенда.\n</commentary>\n</example>\n\n<example>\nContext: Баг в интерфейсе.\nuser: \"В Состоянии сети показывает 0/0 устройств\"\nassistant: \"Использую gsg-frontend для диагностики и фикса\"\n<commentary>\nUI-баг — агент фронтенда.\n</commentary>\n</example>"
-model: opus
+model: claude-opus-4-7
 color: blue
 ---
 
