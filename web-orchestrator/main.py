@@ -55,7 +55,7 @@ _feedback_lock     = asyncio.Lock()
 # ── Auth helpers ─────────────────────────────────────────────────────────────
 
 def _hash_password(password: str, salt: str) -> str:
-    return hashlib.sha256(f"{salt}{password}".encode()).hexdigest()
+    return hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), iterations=100_000).hex()
 
 def _load_auth() -> dict:
     try:
@@ -2462,7 +2462,14 @@ async def login(req: LoginRequest):
         raise HTTPException(status_code=500, detail="Auth not configured")
     expected = _hash_password(req.password, auth["salt"])
     if not secrets.compare_digest(expected, auth["hash"]):
-        raise HTTPException(status_code=401, detail="Неверный пароль")
+        # Миграция: проверяем старый sha256 хэш
+        legacy = hashlib.sha256(f"{auth['salt']}{req.password}".encode()).hexdigest()
+        if not secrets.compare_digest(legacy, auth["hash"]):
+            raise HTTPException(status_code=401, detail="Неверный пароль")
+        # Пароль верный (legacy) — мигрируем на pbkdf2
+        new_salt = secrets.token_hex(16)
+        auth["salt"] = new_salt
+        auth["hash"] = _hash_password(req.password, new_salt)
     token = secrets.token_urlsafe(32)
     auth["token"] = token
     _save_auth(auth)
@@ -2484,7 +2491,9 @@ async def change_password(req: ChangePasswordRequest):
     auth = _load_auth()
     expected = _hash_password(req.current_password, auth["salt"])
     if not secrets.compare_digest(expected, auth["hash"]):
-        raise HTTPException(status_code=401, detail="Неверный текущий пароль")
+        legacy = hashlib.sha256(f"{auth['salt']}{req.current_password}".encode()).hexdigest()
+        if not secrets.compare_digest(legacy, auth["hash"]):
+            raise HTTPException(status_code=401, detail="Неверный текущий пароль")
     new_salt = secrets.token_hex(16)
     auth["salt"]  = new_salt
     auth["hash"]  = _hash_password(req.new_password, new_salt)
