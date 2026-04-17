@@ -2188,7 +2188,7 @@
                         }
                     }
 
-                    return `<div data-ip="${dev.ip}" data-device-ip="${dev.ip}" class="device-row-item dev-row-grid" onmouseover="this.style.background='rgba(255,255,255,0.025)'" onmouseout="this.style.background=''">
+                    return `<div data-ip="${dev.ip}" data-device-ip="${dev.ip}" class="device-row-item dev-row-grid" style="cursor:pointer;" onmouseover="this.style.background='rgba(255,255,255,0.025)'" onmouseout="this.style.background=''">
                         <div class="dev-row-mobile" style="display:contents;">
                         <div class="dev-row-mobile-body" style="display:contents;">
                         <!-- Col 1: CLIENT -->
@@ -2223,8 +2223,11 @@
                             </div>
                         </div>
                         <!-- Col 2: ACTIVITY -->
-                        <div class="dev-col-spark dev-spark" data-ip="${dev.ip}" style="display:flex;align-items:center;gap:1px;height:26px;padding:2px 0;overflow:hidden;">
-                            ${ui.makeSparkBars(state.deviceTrafficHistory[dev.ip] || [], state.deviceChainHistory[dev.ip], state._deviceUpHistory?.[dev.ip])}
+                        <div class="dev-col-spark" data-ip="${dev.ip}" style="display:flex;flex-direction:column;gap:2px;padding:2px 0;overflow:hidden;cursor:pointer;" title="Клик — соединения устройства" onclick="event.stopPropagation();GatewayApp.ui.openConnectionsForDevice('${dev.ip}')">
+                            <div class="dev-spark" data-ip="${dev.ip}" style="display:flex;align-items:center;gap:1px;height:26px;overflow:hidden;">
+                                ${ui.makeSparkBars(state.deviceTrafficHistory[dev.ip] || [], state.deviceChainHistory[dev.ip], state._deviceUpHistory?.[dev.ip])}
+                            </div>
+                            <span class="dev-conn-badge" data-ip="${dev.ip}" style="font-size:8px;font-family:'JetBrains Mono',monospace;color:rgba(148,163,184,0.35);line-height:1;white-space:nowrap;"></span>
                         </div>
                         <!-- Col 3: TRAFFIC -->
                         <div class="dev-col-trafik">
@@ -5171,6 +5174,127 @@
                 setTimeout(() => { modal.style.display = 'none'; }, 200);
             },
 
+            openConnectionsForDevice: (ip) => {
+                const navEl = document.getElementById('nav-connections');
+                ui.switchTab('tab-connections', navEl);
+                const input = document.getElementById('connFilterText');
+                if (input) { input.value = ip; ui.applyConnFilter(); }
+            },
+
+            openDeviceSettingsModal: (ip) => {
+                const dev = state.devices.find(d => d.ip === ip);
+                if (!dev) return;
+                window._dsmIp = ip;
+                const modal = document.getElementById('deviceSettingsModal');
+                if (!modal) return;
+                const displayName = dev.custom_name || dev.hostname || dev.ip;
+                // Header
+                document.getElementById('dsm-title').textContent = displayName;
+                document.getElementById('dsm-subtitle').textContent = (dev.reserved_ip || dev.static_ip || dev.ip) + (dev.mac ? '  ·  ' + dev.mac : '');
+                // Name input
+                const nameInput = document.getElementById('dsm-name-input');
+                nameInput.value = displayName;
+                nameInput.dataset.orig = displayName;
+                nameInput.dataset.ip = ip;
+                // IP input
+                const curIp = dev.reserved_ip || dev.static_ip || dev.ip;
+                const prefix = curIp.split('.').slice(0,3).join('.') + '.';
+                document.getElementById('dsm-ip-prefix').textContent = prefix;
+                const ipInput = document.getElementById('dsm-ip-octet');
+                ipInput.value = curIp.split('.')[3] || '';
+                ipInput.dataset.ip = ip;
+                ipInput.dataset.prefix = prefix;
+                // Connections
+                ui._dsmRefresh();
+                // Show
+                modal.style.display = 'flex';
+                requestAnimationFrame(() => { modal.style.opacity = '1'; });
+                if (window._dsmTimer) clearInterval(window._dsmTimer);
+                window._dsmTimer = setInterval(ui._dsmRefresh, 2000);
+            },
+
+            closeDeviceSettingsModal: () => {
+                if (window._dsmTimer) { clearInterval(window._dsmTimer); window._dsmTimer = null; }
+                window._dsmIp = null;
+                const modal = document.getElementById('deviceSettingsModal');
+                if (!modal) return;
+                modal.style.opacity = '0';
+                setTimeout(() => { modal.style.display = 'none'; }, 200);
+            },
+
+            _dsmSaveName: async () => {
+                const ip = window._dsmIp; if (!ip) return;
+                const input = document.getElementById('dsm-name-input');
+                if (!input) return;
+                const newName = input.value.trim();
+                if (newName === input.dataset.orig) return;
+                const dev = state.devices.find(d => d.ip === ip);
+                if (!dev) return;
+                await utils.apiCall(`/devices/${ip}`, { method: 'PUT', body: JSON.stringify({ mode: dev.mode, assigned_node: dev.assigned_node||'auto', tiktok_node: dev.tiktok_node||'auto', custom_name: newName, static_ip: dev.static_ip||'', mac: dev.mac||'', block_vpn_app: dev.block_vpn_app||false }) });
+                input.dataset.orig = newName;
+                document.getElementById('dsm-title').textContent = newName || dev.hostname || ip;
+                dev.custom_name = newName;
+                ui.addEvent('✏️', `${ip}: переименован → ${newName || '(сброшено)'}`, '#93c5fd');
+                actions.fetchData();
+            },
+
+            _dsmSaveIp: async () => {
+                const ip = window._dsmIp; if (!ip) return;
+                const input = document.getElementById('dsm-ip-octet');
+                if (!input) return;
+                const octet = parseInt(input.value.trim(), 10);
+                if (isNaN(octet) || octet < 1 || octet > 254) return;
+                const prefix = input.dataset.prefix || ip.split('.').slice(0,3).join('.') + '.';
+                const newIp = prefix + octet;
+                const dev = state.devices.find(d => d.ip === ip);
+                if (!dev) return;
+                actions.updateDeviceSettings(ip, dev.mode, dev.assigned_node||'auto', dev.tiktok_node||'auto', newIp);
+                document.getElementById('dsm-subtitle').textContent = newIp + (dev.mac ? '  ·  ' + dev.mac : '');
+                ui.addEvent('📌', `${ip}: статичный IP → ${newIp}`, '#a78bfa');
+            },
+
+            _dsmRefresh: () => {
+                const ip = window._dsmIp;
+                if (!ip) return;
+                const conns = (state.allConnections || []).filter(c => c.src === ip);
+                const badge = document.getElementById('dsm-conn-badge');
+                const box = document.getElementById('dsm-conn-list');
+                if (badge) {
+                    if (conns.length) {
+                        badge.textContent = conns.length;
+                        badge.style.display = 'inline-flex';
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                }
+                if (!box) return;
+                if (conns.length === 0) {
+                    box.innerHTML = '<div style="text-align:center;padding:18px 0;color:#475569;font-size:12px;">Нет активных соединений</div>';
+                    return;
+                }
+                const fmtSpd = (bps) => {
+                    if (!bps || bps < 100) return '';
+                    if (bps < 1024) return Math.round(bps) + 'B/s';
+                    if (bps < 1048576) return (bps/1024).toFixed(1) + 'K/s';
+                    return (bps/1048576).toFixed(2) + 'M/s';
+                };
+                const shown = conns.slice(0, 10);
+                box.innerHTML = shown.map((c, i) => {
+                    const chain = c.chain || 'DIRECT';
+                    const isDirect = chain === 'DIRECT';
+                    const host = c.host || c.dst || '?';
+                    const speedKey = `${c.src}|${c.host||''}|${chain}`;
+                    const spd = (state._connSpeeds || {})[speedKey] || {};
+                    const spdStr = fmtSpd(spd.down);
+                    const isLast = i === shown.length - 1 && conns.length <= 10;
+                    return `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;${isLast ? '' : 'border-bottom:1px solid rgba(255,255,255,0.04);'}">
+                        <div style="flex:1;min-width:0;font-size:11px;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${host}">${host}</div>
+                        ${spdStr ? `<div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#34d399;flex-shrink:0;">↓${spdStr}</div>` : ''}
+                        <div style="font-size:10px;flex-shrink:0;white-space:nowrap;padding:1px 6px;border-radius:4px;background:${isDirect ? 'rgba(148,163,184,0.08)' : 'rgba(96,165,250,0.08)'};color:${isDirect ? '#64748b' : '#60a5fa'};">${isDirect ? 'Напрямую' : chain}</div>
+                    </div>`;
+                }).join('') + (conns.length > 10 ? `<div style="text-align:center;padding:6px 0;font-size:10px;color:#475569;">+${conns.length - 10} ещё</div>` : '');
+            },
+
             renderMetrics: (data) => {
                 if (!data) return;
                 const cpuColor = data.cpu_percent > 80 ? '#f87171' : '#34d399';
@@ -6309,6 +6433,15 @@
                     state.appRoutesData = _newAppRoutes;
                     // Патч только классов чипов — без перестройки всей таблицы устройств
                     if (state.devices?.length) ui.updateDeviceAppChips();
+                    // Обновляем бейджи соединений в строках устройств
+                    const _connCountMap = {};
+                    state.allConnections.forEach(c => { if (c.src) _connCountMap[c.src] = (_connCountMap[c.src] || 0) + 1; });
+                    document.querySelectorAll('.dev-conn-badge[data-ip]').forEach(el => {
+                        const n = _connCountMap[el.dataset.ip] || 0;
+                        el.textContent = n ? n + ' conn' : '';
+                    });
+                    // Обновляем модал устройства если открыт
+                    if (window._dsmIp) ui._dsmRefresh();
                     ui.applyConnFilter();
                 } catch (e) {
                     if (box) box.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#ef4444;font-size:13px;">${e.message}</div>`;
@@ -7287,6 +7420,11 @@
                     actions.updateDeviceSettings(ip, dev?.mode || 'smart', node);
                     return;
                 }
+                // Device row click → settings modal (excludes interactive controls)
+                if (!e.target.closest('button, input, a, .mode-pill, .node-pill, .app-chip, .dev-col-spark')) {
+                    const rowItem = e.target.closest('.device-row-item');
+                    if (rowItem?.dataset.ip) { ui.openDeviceSettingsModal(rowItem.dataset.ip); return; }
+                }
                 // App chip — show info popup
                 const chip = e.target.closest('.app-chip');
                 if (!chip) return;
@@ -7854,6 +7992,59 @@
 </div>
 
 <!-- Traffic History Modal -->
+<div id="deviceSettingsModal" style="display:none;opacity:0;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;transition:opacity 0.2s;" onclick="if(event.target===this)GatewayApp.ui.closeDeviceSettingsModal()">
+    <div style="position:absolute;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(6px);"></div>
+    <div class="glass" style="position:relative;z-index:1;width:min(480px,92vw);max-height:85vh;display:flex;flex-direction:column;border-radius:20px;border:1px solid rgba(255,255,255,0.1);">
+        <!-- Header -->
+        <div style="padding:20px 20px 0;display:flex;align-items:flex-start;justify-content:space-between;flex-shrink:0;">
+            <div>
+                <div style="font-size:15px;font-weight:800;color:#f1f5f9;" id="dsm-title">Устройство</div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);margin-top:2px;" id="dsm-subtitle"></div>
+            </div>
+            <button onclick="GatewayApp.ui.closeDeviceSettingsModal()" style="width:28px;height:28px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:var(--muted);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">×</button>
+        </div>
+        <!-- Body (scrollable) -->
+        <div style="padding:16px 20px;overflow-y:auto;display:flex;flex-direction:column;gap:14px;">
+            <!-- Name -->
+            <div>
+                <div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">Название</div>
+                <input id="dsm-name-input" type="text" maxlength="32" placeholder="Имя устройства"
+                    style="width:100%;padding:8px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#f1f5f9;font-size:13px;font-family:'Syne',sans-serif;outline:none;box-sizing:border-box;"
+                    onfocus="this.style.borderColor='rgba(99,102,241,0.5)'" onblur="this.style.borderColor='rgba(255,255,255,0.1)';GatewayApp.ui._dsmSaveName()"
+                    onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape'){this.value=this.dataset.orig;this.blur();}">
+            </div>
+            <!-- Static IP -->
+            <div>
+                <div style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">Статичный IP (DHCP-резерв)</div>
+                <div style="display:flex;align-items:center;gap:6px;">
+                    <span id="dsm-ip-prefix" style="font-family:'JetBrains Mono',monospace;font-size:13px;color:#94a3b8;flex-shrink:0;"></span>
+                    <input id="dsm-ip-octet" type="number" min="1" max="254"
+                        style="width:70px;padding:8px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#f1f5f9;font-size:13px;font-family:'JetBrains Mono',monospace;outline:none;"
+                        onfocus="this.style.borderColor='rgba(99,102,241,0.5)'" onblur="this.style.borderColor='rgba(255,255,255,0.1)'"
+                        onkeydown="if(event.key==='Enter')document.getElementById('dsm-ip-save').click()">
+                    <button id="dsm-ip-save" onclick="GatewayApp.ui._dsmSaveIp()"
+                        style="padding:8px 14px;border-radius:8px;background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.3);color:#a5b4fc;font-size:12px;font-weight:700;cursor:pointer;">
+                        Сохранить
+                    </button>
+                </div>
+            </div>
+            <!-- Connections -->
+            <div>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <span style="font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;">Активные соединения</span>
+                        <span id="dsm-conn-badge" style="display:none;padding:1px 6px;border-radius:10px;background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.3);color:#34d399;font-size:10px;font-weight:700;font-family:'JetBrains Mono',monospace;"></span>
+                    </div>
+                    <button onclick="GatewayApp.ui.openConnectionsForDevice(window._dsmIp);GatewayApp.ui.closeDeviceSettingsModal();"
+                        style="font-size:11px;color:#60a5fa;background:none;border:none;cursor:pointer;padding:2px 0;">
+                        Все →
+                    </button>
+                </div>
+                <div id="dsm-conn-list" style="border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);padding:4px 10px;min-height:48px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
 <div id="historyModal" style="display:none;opacity:0;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;transition:opacity 0.2s;" onclick="if(event.target===this)GatewayApp.ui.closeHistoryModal()">
     <div style="position:absolute;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(6px);"></div>
     <div class="glass" style="position:relative;z-index:1;width:min(520px,92vw);padding:24px;border-radius:20px;border:1px solid rgba(255,255,255,0.1);">
