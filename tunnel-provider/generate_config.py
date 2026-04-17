@@ -118,8 +118,8 @@ def main():
     server_config["allow-lan"] = True
     server_config["external-controller"] = "0.0.0.0:9090"
     server_config["log-level"] = "silent"
-    server_config["keep-alive-interval"] = 300   # TCP keepalive каждые 5 мин (оптимально для роутера)
-    server_config["keep-alive-idle-time"] = 600  # начинать keepalive после 10 мин простоя
+    server_config["keep-alive-interval"] = 15    # TCP keepalive каждые 15с — быстро детектируем мёртвые соединения
+    server_config["keep-alive-idle-time"] = 15   # начинать keepalive через 15с простоя (было 600 — 10 мин!)
     server_config["unified-delay"] = True        # Нормализует latency для url-test групп
     server_config["find-process-mode"] = "off"   # Не определять процессы (не нужно для TPROXY)
     server_config["profile"] = {
@@ -214,7 +214,7 @@ def main():
     proxy_groups = user_rules.get("proxy_groups")
     if not proxy_groups:
         proxy_groups = [
-            {"id": "auto", "name": "Auto", "node_filter": "", "type": "url-test", "builtin": True, "rules": []},
+            {"id": "auto", "name": "Auto", "node_filter": "", "type": "fallback", "builtin": True, "rules": []},
         ]
         # Миграция AI — тип берём из ai_settings если есть, иначе fallback
         ai_s = user_rules.get("ai_settings", {})
@@ -295,18 +295,24 @@ def main():
 
         proxies = matched if matched else (node_names if node_names else ["GSG-FALLBACK"])
 
+        group_cfg = {
+            "name": g_id, "type": g_type, "proxies": proxies,
+            "url": "http://www.gstatic.com/generate_204", "interval": 600, "lazy": True,
+            "timeout": 5000,          # Таймаут health-check (5 сек)
+            "max-failed-times": 3,    # Выводить узел из ротации после 3 ошибок
+        }
+        if g_type == "url-test":
+            group_cfg["tolerance"] = 50
         if g_id not in existing_group_names:
-            group_cfg = {
-                "name": g_id, "type": g_type, "proxies": proxies,
-                "url": "http://www.gstatic.com/generate_204", "interval": 600, "lazy": True,
-                "timeout": 5000,          # Таймаут health-check (5 сек)
-                "max-failed-times": 3,    # Выводить узел из ротации после 3 ошибок
-            }
-            if g_type == "url-test":
-                group_cfg["tolerance"] = 50
             server_config["proxy-groups"].append(group_cfg)
             existing_group_names.append(g_id)
-            print(f"  {pg.get('name',g_id)} [{g_id}] — {g_type}, {len(proxies)} узлов, {len(_get_rules(pg))} правил", flush=True)
+        else:
+            # Перезаписываем группу из подписки нашими настройками (тип, ноды, параметры)
+            for i, eg in enumerate(server_config["proxy-groups"]):
+                if eg.get("name") == g_id:
+                    server_config["proxy-groups"][i] = group_cfg
+                    break
+        print(f"  {pg.get('name',g_id)} [{g_id}] — {g_type}, {len(proxies)} узлов, {len(_get_rules(pg))} правил", flush=True)
 
     custom_groups = user_rules.get("custom_groups", [])
 
