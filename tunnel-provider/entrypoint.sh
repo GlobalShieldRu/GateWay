@@ -96,6 +96,10 @@ inotifywait -m -e close_write,moved_to,create "$GSG_CONFIG_DIR" 2>/dev/null | wh
             http://127.0.0.1:9090/proxies/GLOBAL > /dev/null || true
         echo "[INFO] GLOBAL selector восстановлен: auto"
 
+        # Закрываем все активные соединения — переподключатся по новым правилам
+        curl -s -X DELETE http://127.0.0.1:9090/connections > /dev/null || true
+        echo "[INFO] Соединения сброшены после reload"
+
         rm -f "$GSG_CONFIG_DIR/.reload_singbox"
     fi
 done &

@@ -297,7 +297,7 @@ def main():
 
         group_cfg = {
             "name": g_id, "type": g_type, "proxies": proxies,
-            "url": "http://www.gstatic.com/generate_204", "interval": 600, "lazy": True,
+            "url": "http://www.gstatic.com/generate_204", "interval": 120, "lazy": g_id != "auto",
             "timeout": 5000,          # Таймаут health-check (5 сек)
             "max-failed-times": 3,    # Выводить узел из ротации после 3 ошибок
         }

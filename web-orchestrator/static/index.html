@@ -669,15 +669,17 @@
             }
             .dev-row-mobile-right {
                 display: flex !important;
-                flex-direction: row !important;
-                flex-wrap: wrap;
+                flex-direction: column !important;
                 gap: 6px;
                 padding: 0 14px 12px;
                 width: 100%;
                 box-sizing: border-box;
+                overflow: hidden;
             }
-            .dev-row-mobile-right > div { flex: 1; min-width: 0; }
+            .dev-row-mobile-right > div { width: 100%; min-width: 0; overflow: hidden; }
             .dev-col-spark, .dev-col-trafik, .dev-col-route { display: none !important; }
+            /* Node pills on mobile — allow wrapping, no overflow */
+            .dev-row-mobile-right .node-pill { max-width: calc(50% - 4px); overflow: hidden; text-overflow: ellipsis; }
 
             /* Device header reset controls — wrap & compact */
             #devicesHeader-controls { flex-wrap: wrap; gap: 6px !important; }

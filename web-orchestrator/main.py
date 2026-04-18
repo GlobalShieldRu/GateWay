@@ -658,6 +658,44 @@ async def _connection_watchdog():
         await asyncio.sleep(CONN_WATCHDOG_INTERVAL)
 
 
+async def _stale_connection_cleaner():
+    """Каждые 60 секунд закрывает соединения с нулевым трафиком старше 120 секунд.
+    Решает проблему зависания Telegram и других долгоживущих соединений через мёртвые ноды."""
+    await asyncio.sleep(60)
+    while True:
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                r = await client.get("http://127.0.0.1:9090/connections")
+                if r.status_code == 200:
+                    conns = r.json().get("connections", [])
+                    now = time.time()
+                    closed = 0
+                    for c in conns:
+                        dl = c.get("download", 0)
+                        ul = c.get("upload", 0)
+                        start = c.get("start", "")
+                        cid = c.get("id", "")
+                        if not cid or not start:
+                            continue
+                        try:
+                            from datetime import datetime, timezone
+                            dt = datetime.fromisoformat(start.replace("Z", "+00:00"))
+                            age = now - dt.timestamp()
+                        except Exception:
+                            continue
+                        if age > 120 and (dl + ul) == 0:
+                            try:
+                                await client.delete(f"http://127.0.0.1:9090/connections/{cid}", timeout=2.0)
+                                closed += 1
+                            except Exception:
+                                pass
+                    if closed:
+                        logging.info(f"[STALE] Закрыто {closed} idle-соединений (0 байт, >120s)")
+        except Exception as e:
+            logging.debug(f"[STALE] Ошибка: {e}")
+        await asyncio.sleep(60)
+
+
 async def _evict_stale_devices():
     """Раз в сутки удаляет устройства, не появлявшиеся более DEVICE_EVICT_DAYS дней."""
     while True:
@@ -719,6 +757,7 @@ async def startup_event():
     asyncio.create_task(_rotate_log())
     asyncio.create_task(_evict_stale_devices())
     asyncio.create_task(_connection_watchdog())
+    asyncio.create_task(_stale_connection_cleaner())
     async def _delayed_heartbeat():
         await asyncio.sleep(60)  # ждём пока monitor и traffic_history наполнятся
         await send_heartbeat()
