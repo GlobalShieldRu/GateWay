@@ -39,7 +39,7 @@ def main():
     if url:
         headers = {"User-Agent": "Mihomo/1.18.10 (GSG-Smart-Gateway)"}
         try:
-            r = httpx.get(url, headers=headers, timeout=5.0, follow_redirects=True)
+            r = httpx.get(url, headers=headers, timeout=15.0, follow_redirects=True)
             r.raise_for_status()
             parsed_yaml = yaml.safe_load(r.text)
             if isinstance(parsed_yaml, dict):
@@ -294,6 +294,12 @@ def main():
             matched = list(node_names)
 
         proxies = matched if matched else (node_names if node_names else ["GSG-FALLBACK"])
+
+        # Для fallback-групп добавляем DIRECT последним — если все ноды упали,
+        # незаблокированные сайты продолжат работать вместо полного отсутствия интернета.
+        # Для url-test НЕ добавляем: DIRECT имеет нулевую латентность и выиграет конкуренцию.
+        if g_type == "fallback" and "DIRECT" not in proxies:
+            proxies = proxies + ["DIRECT"]
 
         group_cfg = {
             "name": g_id, "type": g_type, "proxies": proxies,

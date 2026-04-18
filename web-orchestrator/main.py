@@ -683,7 +683,7 @@ async def _stale_connection_cleaner():
                             age = now - dt.timestamp()
                         except Exception:
                             continue
-                        if age > 120 and (dl + ul) == 0:
+                        if age > 30 and (dl + ul) == 0:
                             try:
                                 await client.delete(f"http://127.0.0.1:9090/connections/{cid}", timeout=2.0)
                                 closed += 1
@@ -758,10 +758,12 @@ async def startup_event():
     asyncio.create_task(_evict_stale_devices())
     asyncio.create_task(_connection_watchdog())
     asyncio.create_task(_stale_connection_cleaner())
-    async def _delayed_heartbeat():
-        await asyncio.sleep(60)  # ждём пока monitor и traffic_history наполнятся
-        await send_heartbeat()
-    asyncio.create_task(_delayed_heartbeat())
+    async def _periodic_heartbeat():
+        await asyncio.sleep(60)  # первый — через минуту после старта
+        while True:
+            await send_heartbeat()
+            await asyncio.sleep(300)  # каждые 5 минут
+    asyncio.create_task(_periodic_heartbeat())
 
 @app.get("/api/traffic")
 async def get_traffic():

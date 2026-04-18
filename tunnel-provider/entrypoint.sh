@@ -80,9 +80,22 @@ else
 fi
 
 # ── Мониторинг изменений (на лету) ───────────────────────────
+RELOAD_TRIGGER_FILE="/tmp/gsg_reload_pending"
+
+# Слушаем события и выставляем флаг — debounce обработает их пачкой
 inotifywait -m -e close_write,moved_to,create "$GSG_CONFIG_DIR" 2>/dev/null | while read path action file; do
     if [ "$file" = ".reload_singbox" ] || [ "$file" = "devices.json" ] || [ "$file" = "subscription.json" ]; then
-        echo "[INFO] Hot-Reload: $file изменён"
+        echo "[INFO] Hot-Reload trigger: $file"
+        touch "$RELOAD_TRIGGER_FILE"
+    fi
+done &
+
+# Debounce-обработчик: ждёт 1 секунду тишины после последнего события, затем делает один reload
+while true; do
+    if [ -f "$RELOAD_TRIGGER_FILE" ]; then
+        sleep 1  # ждём накопления событий
+        rm -f "$RELOAD_TRIGGER_FILE"
+        echo "[INFO] Hot-Reload: применяем изменения"
         python3 /usr/local/bin/generate_config.py
 
         curl -s -X PUT -H "Content-Type: application/json" \
@@ -102,6 +115,7 @@ inotifywait -m -e close_write,moved_to,create "$GSG_CONFIG_DIR" 2>/dev/null | wh
 
         rm -f "$GSG_CONFIG_DIR/.reload_singbox"
     fi
+    sleep 0.5
 done &
 
 echo "[INFO] Запуск Mihomo Core..."
