@@ -295,10 +295,11 @@ def main():
 
         proxies = matched if matched else (node_names if node_names else ["GSG-FALLBACK"])
 
-        # Для fallback-групп добавляем DIRECT последним — если все ноды упали,
-        # незаблокированные сайты продолжат работать вместо полного отсутствия интернета.
-        # Для url-test НЕ добавляем: DIRECT имеет нулевую латентность и выиграет конкуренцию.
-        if g_type == "fallback" and "DIRECT" not in proxies:
+        # DIRECT fallback только для группы auto — общий трафик должен деградировать
+        # gracefully если все ноды упали (хотя бы незаблокированные сайты работают).
+        # Для ai/myip и других специализированных групп DIRECT НЕ добавляем:
+        # там важен конкретный IP-регион (NY), российский IP недопустим.
+        if g_id == "auto" and g_type == "fallback" and "DIRECT" not in proxies:
             proxies = proxies + ["DIRECT"]
 
         group_cfg = {
