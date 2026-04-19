@@ -684,14 +684,14 @@ async def _stale_connection_cleaner():
                             age = now - dt.timestamp()
                         except Exception:
                             continue
-                        if age > 30 and (dl + ul) == 0:
+                        if age > 120 and (dl + ul) == 0:
                             try:
                                 await client.delete(f"http://127.0.0.1:9090/connections/{cid}", timeout=2.0)
                                 closed += 1
                             except Exception:
                                 pass
                     if closed:
-                        logging.info(f"[STALE] Закрыто {closed} idle-соединений (0 байт, >120s)")
+                        logging.info(f"[STALE] Закрыто {closed} idle-соединений (0 байт, >120с)")
         except Exception as e:
             logging.debug(f"[STALE] Ошибка: {e}")
         await asyncio.sleep(60)
