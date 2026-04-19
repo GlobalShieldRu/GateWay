@@ -28,6 +28,7 @@ app = FastAPI(title="GSG Smart Gateway API")
 
 GSG_CONFIG_DIR = Path("/etc/gsg")
 GSG_DEVICES_FILE = GSG_CONFIG_DIR / "devices.json"
+GSG_ACTIVITY_FILE = GSG_CONFIG_DIR / "devices_activity.json"  # last_seen отдельно, не триггерит inotifywait
 GSG_NODES_FILE = GSG_CONFIG_DIR / "nodes.json"
 GSG_SUBSCRIPTION_FILE = GSG_CONFIG_DIR / "subscription.json"
 GSG_RULES_FILE = GSG_CONFIG_DIR / "rules.json"
@@ -702,11 +703,16 @@ async def _evict_stale_devices():
         await asyncio.sleep(86400)  # первый запуск через 24ч после старта
         try:
             threshold = time.time() - DEVICE_EVICT_DAYS * 86400
+            try:
+                activity = json.loads(GSG_ACTIVITY_FILE.read_text())
+            except Exception:
+                activity = {}
             async with _devices_lock:
                 configs = await read_json(GSG_DEVICES_FILE, {})
                 to_delete = []
                 for key, cfg in configs.items():
-                    last_seen = cfg.get('last_seen')
+                    # last_seen теперь в devices_activity.json
+                    last_seen = activity.get(key) or cfg.get('last_seen')
                     if last_seen is None:
                         # Старая запись без last_seen — пропускаем, grace period
                         continue
@@ -1168,6 +1174,11 @@ async def get_devices():
 
     changed = False
     new_mac_entries: dict = {}
+    activity: dict = {}
+    try:
+        activity = json.loads(GSG_ACTIVITY_FILE.read_text())
+    except Exception:
+        pass
 
     for d in active_devices:
         mac = d.get('mac', '')
@@ -1185,22 +1196,28 @@ async def get_devices():
                 "reserved_ip": ip,
                 "mac": mac,
                 "current_ip": ip,
-                "last_seen": time.time(),
             }
+            activity[mac] = time.time()
             changed = True
         else:
-            # Обновляем current_ip и last_seen в конфиге
+            # Обновляем current_ip если изменился — это важно для маршрутизации
             if mac_configs[mac].get('current_ip') != ip:
                 mac_configs[mac]['current_ip'] = ip
                 changed = True
+            # last_seen — пишем в отдельный файл, НЕ в devices.json
+            # devices.json не триггерит inotifywait → нет лишних Mihomo hot-reload
             now = time.time()
-            prev_seen = mac_configs[mac].get('last_seen', 0)
-            if now - prev_seen >= 30:
-                mac_configs[mac]['last_seen'] = now
-                changed = True
+            if now - activity.get(mac, 0) >= 30:
+                activity[mac] = now
 
     if new_mac_entries:
         mac_configs.update(new_mac_entries)
+
+    # Пишем activity отдельно — inotifywait его не смотрит
+    try:
+        GSG_ACTIVITY_FILE.write_text(json.dumps(activity))
+    except Exception:
+        pass
 
     if changed:
         # Перестраиваем configs: только MAC-ключи
