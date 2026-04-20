@@ -38,6 +38,7 @@ GSG_LOG_FILE = GSG_CONFIG_DIR / "sing-box.log"
 GSG_TRAFFIC_HISTORY_FILE = GSG_CONFIG_DIR / "traffic_history.json"
 GSG_FEEDBACK_FILE = GSG_CONFIG_DIR / "feedback.json"
 GSG_DEVICE_FILE = GSG_CONFIG_DIR / "device.json"
+GSG_SETTINGS_FILE = GSG_CONFIG_DIR / "settings.json"
 GSG_AUTH_FILE   = GSG_CONFIG_DIR / "auth.json"
 DNSMASQ_LEASES  = Path("/var/lib/misc/dnsmasq.leases")
 
@@ -737,6 +738,34 @@ async def _evict_stale_devices():
             logging.warning(f"[EVICT] Ошибка при чистке устройств: {e}")
 
 
+async def _auto_update_loop():
+    """Ежечасная проверка: если включено автообновление и вышла новая версия — запускаем OTA."""
+    await asyncio.sleep(300)  # ждём 5 минут после старта
+    while True:
+        try:
+            settings = await read_json(GSG_SETTINGS_FILE, {"auto_update": False})
+            if settings.get("auto_update"):
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    r = await client.get(f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest")
+                    r.raise_for_status()
+                    data = r.json()
+                    latest = data.get("tag_name", "").lstrip("v")
+                    if latest and latest != GSG_VERSION and latest > GSG_VERSION:
+                        if not UPDATE_TRIGGER.exists():
+                            logging.info(f"[AUTO-UPDATE] Обнаружена новая версия {latest}, запускаем OTA")
+                            import os as _os
+                            fd = _os.open(str(UPDATE_TRIGGER), _os.O_CREAT | _os.O_EXCL | _os.O_WRONLY, 0o644)
+                            with _os.fdopen(fd, 'w') as f:
+                                f.write(f"auto_update_triggered_at={datetime.now().isoformat()}\n")
+                        else:
+                            logging.info("[AUTO-UPDATE] Обновление уже запущено, пропускаем")
+        except FileExistsError:
+            pass
+        except Exception as e:
+            logging.warning(f"[AUTO-UPDATE] Ошибка проверки: {e}")
+        await asyncio.sleep(21600)  # проверка каждые 6 часов
+
+
 @app.on_event("startup")
 async def startup_event():
     # Ensure DNS works (resolv.conf may be empty in network_mode:host containers)
@@ -770,6 +799,7 @@ async def startup_event():
             await send_heartbeat()
             await asyncio.sleep(300)  # каждые 5 минут
     asyncio.create_task(_periodic_heartbeat())
+    asyncio.create_task(_auto_update_loop())
 
 @app.get("/api/traffic")
 async def get_traffic():
@@ -2311,6 +2341,20 @@ async def get_version():
 GITHUB_REPO = "GlobalShieldRu/GateWay"
 UPDATE_TRIGGER = GSG_CONFIG_DIR / ".update_trigger"
 UPDATE_LOG = GSG_CONFIG_DIR / ".update_log"
+
+# ── Settings ──────────────────────────────────────────────────────────────────
+
+@app.get("/api/settings")
+async def get_settings():
+    return await read_json(GSG_SETTINGS_FILE, {"auto_update": False})
+
+@app.patch("/api/settings")
+async def patch_settings(data: dict):
+    current = await read_json(GSG_SETTINGS_FILE, {"auto_update": False})
+    current.update(data)
+    async with aiofiles.open(GSG_SETTINGS_FILE, 'w') as f:
+        await f.write(json.dumps(current, indent=2))
+    return current
 
 @app.get("/api/check-update")
 async def check_update():

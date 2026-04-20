@@ -803,6 +803,9 @@
                         <button id="gsgUpdateBtn" onclick="GatewayApp.actions.checkUpdate()" data-tip="Проверить наличие обновления GSG и запустить OTA-обновление" style="display:flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.25);cursor:pointer;color:var(--gold);padding:0;">
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4"/></svg>
                         </button>
+                        <button id="gsgAutoUpdateBtn" onclick="GatewayApp.actions.toggleAutoUpdate()" data-tip="Автообновление выключено — нажмите чтобы включить" style="display:flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:rgba(100,116,139,0.08);border:1px solid rgba(100,116,139,0.25);cursor:pointer;color:#64748b;padding:0;">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+                        </button>
                         <button id="gsgRollbackBtn" onclick="GatewayApp.actions.triggerRollback()" data-tip="Откатить к предыдущей версии GSG" style="display:none;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.35);cursor:pointer;color:#ef4444;padding:0;">
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
                         </button>
@@ -7282,6 +7285,29 @@
                 const time = document.getElementById('scheduleTimeInput')?.value || '00:00';
                 await utils.apiCall('/traffic/schedule', { method: 'PUT', body: JSON.stringify({ type, time }) });
                 ui.showToast('Расписание сохранено', 'success');
+            },
+
+            toggleAutoUpdate: async () => {
+                const btn = document.getElementById('gsgAutoUpdateBtn');
+                const current = btn?.dataset.autoUpdate === 'true';
+                const next = !current;
+                const data = await utils.apiCall('/settings', { method: 'PATCH', body: JSON.stringify({ auto_update: next }) });
+                if (!data) { ui.showToast('Ошибка сохранения настройки', 'error'); return; }
+                if (btn) {
+                    btn.dataset.autoUpdate = next ? 'true' : 'false';
+                    if (next) {
+                        btn.style.background = 'rgba(34,197,94,0.15)';
+                        btn.style.borderColor = 'rgba(34,197,94,0.5)';
+                        btn.style.color = '#22c55e';
+                        btn.dataset.tip = 'Автообновление включено — нажмите чтобы выключить';
+                    } else {
+                        btn.style.background = 'rgba(100,116,139,0.08)';
+                        btn.style.borderColor = 'rgba(100,116,139,0.25)';
+                        btn.style.color = '#64748b';
+                        btn.dataset.tip = 'Автообновление выключено — нажмите чтобы включить';
+                    }
+                }
+                ui.showToast(next ? 'Автообновление включено' : 'Автообновление выключено', 'success');
             }
         };
 
@@ -7622,6 +7648,24 @@
                 if (!btn) return;
                 if (s?.can_rollback) {
                     btn.style.display = 'flex';
+                }
+            });
+            // Кнопка авто-обновления — восстанавливаем состояние из настроек
+            utils.apiCall('/settings').then(s => {
+                const btn = document.getElementById('gsgAutoUpdateBtn');
+                if (!btn) return;
+                const enabled = !!s?.auto_update;
+                btn.dataset.autoUpdate = enabled ? 'true' : 'false';
+                if (enabled) {
+                    btn.style.background = 'rgba(34,197,94,0.15)';
+                    btn.style.borderColor = 'rgba(34,197,94,0.5)';
+                    btn.style.color = '#22c55e';
+                    btn.dataset.tip = 'Автообновление включено — нажмите чтобы выключить';
+                } else {
+                    btn.style.background = 'rgba(100,116,139,0.08)';
+                    btn.style.borderColor = 'rgba(100,116,139,0.25)';
+                    btn.style.color = '#64748b';
+                    btn.dataset.tip = 'Автообновление выключено — нажмите чтобы включить';
                 }
             });
 
