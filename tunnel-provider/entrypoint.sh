@@ -114,6 +114,25 @@ while true; do
     sleep 0.5
 done &
 
+# ── Периодическое обновление подписки каждые 6 часов ────────
+# Нужно чтобы подхватывать изменения на серверах (смена портов, UUID и т.д.)
+# без ручного вмешательства или перезапуска контейнера.
+(
+    while true; do
+        sleep 21600  # 6 часов
+        echo "[INFO] Плановое обновление подписки..."
+        python3 /usr/local/bin/generate_config.py
+        curl -s -X PUT -H "Content-Type: application/json" \
+            -d '{"path": "/etc/mihomo/config.yaml"}' \
+            http://127.0.0.1:9090/configs > /dev/null || true
+        sleep 2
+        curl -s -X PUT -H "Content-Type: application/json" \
+            -d '{"name": "auto"}' \
+            http://127.0.0.1:9090/proxies/GLOBAL > /dev/null || true
+        echo "[INFO] Подписка обновлена"
+    done
+) &
+
 echo "[INFO] Запуск Mihomo Core..."
 # Выставляем GLOBAL → auto после старта (в фоне, ждём готовности API)
 (
