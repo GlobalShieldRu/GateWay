@@ -792,7 +792,7 @@ async def startup_event():
     asyncio.create_task(_rotate_log())
     asyncio.create_task(_evict_stale_devices())
     asyncio.create_task(_connection_watchdog())
-    asyncio.create_task(_stale_connection_cleaner())
+    # asyncio.create_task(_stale_connection_cleaner())  # отключено: убивало Discord WebSocket (keep-alive с нулевым трафиком)
     async def _periodic_heartbeat():
         await asyncio.sleep(60)  # первый — через минуту после старта
         while True:

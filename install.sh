@@ -189,7 +189,7 @@ sysctl_set net.ipv4.tcp_tw_reuse 1
 # Conntrack (требует модуль nf_conntrack)
 if modprobe nf_conntrack 2>/dev/null || sysctl -n net.netfilter.nf_conntrack_max &>/dev/null; then
     sysctl_set net.netfilter.nf_conntrack_max 131072
-    sysctl_set net.netfilter.nf_conntrack_tcp_timeout_established 600
+    sysctl_set net.netfilter.nf_conntrack_tcp_timeout_established 7200
     sysctl_set net.netfilter.nf_conntrack_tcp_timeout_time_wait 30
     sysctl_set net.netfilter.nf_conntrack_tcp_timeout_close_wait 30
     sysctl_set net.netfilter.nf_conntrack_tcp_timeout_fin_wait 30

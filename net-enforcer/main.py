@@ -99,7 +99,7 @@ class NetEnforcer:
         # net-enforcer НЕ переопределяет conntrack_max — оно задаётся через /etc/sysctl.d/99-gsg.conf
         # Здесь только гарантируем минимум на случай если sysctl.d не применился
         os.system("sysctl -w net.netfilter.nf_conntrack_max=131072 2>/dev/null || true")
-        os.system("sysctl -w net.netfilter.nf_conntrack_tcp_timeout_established=600 2>/dev/null || true")
+        os.system("sysctl -w net.netfilter.nf_conntrack_tcp_timeout_established=7200 2>/dev/null || true")
         # Swappiness — низкое значение чтобы ядро не свопировало без нужды
         os.system("sysctl -w vm.swappiness=10 2>/dev/null || true")
         # Отключаем ICMP redirect — иначе bypass-клиенты получат редирект и обойдут GSG
