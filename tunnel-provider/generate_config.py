@@ -305,10 +305,10 @@ def main():
         group_cfg = {
             "name": g_id, "type": g_type, "proxies": proxies,
             "url": "http://www.gstatic.com/generate_204",
-            "interval": 30 if g_id == "auto" else 120,   # auto: чаще, чтобы быстро обнаруживать падение нод
-            "lazy": g_id != "auto",
-            "timeout": 3000,          # Таймаут health-check (3 сек)
-            "max-failed-times": 1,    # Выводить узел из ротации после 1 ошибки
+            "interval": 120,           # Мягкий интервал — не рвёт долгие сессии (Gemini, Discord, Telegram)
+            "lazy": True,             # Проверять только при реальном трафике
+            "timeout": 5000,          # Таймаут health-check (5 сек)
+            "max-failed-times": 3,    # Выводить узел из ротации после 3 ошибок подряд
         }
         if g_type == "url-test":
             group_cfg["tolerance"] = 50
