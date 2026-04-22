@@ -154,7 +154,28 @@ def main():
             "HTTP": {"ports": [80, 8080], "override-destination": True},
             "TLS": {"ports": [443, 8443], "override-destination": True},
             "QUIC": {"ports": [443], "override-destination": True}
-        }
+        },
+        "skip-domain": [
+            "+.yandex.ru",
+            "+.yandex.net",
+            "+.yandex.com",
+            "+.yandex.kz",
+            "+.ya.ru",
+            "+.yastatic.net",
+            "+.wildberries.ru",
+            "+.wb.ru",
+            "+.wbbasket.ru",
+            "+.ozon.ru",
+            "+.ozone.ru",
+            "+.sber.ru",
+            "+.sberbank.ru",
+            "+.vk.com",
+            "+.vk.ru",
+            "+.mail.ru",
+            "+.avito.ru",
+            "+.dzen.ru",
+            "+.gosuslugi.ru"
+        ]
     }
 
     if "proxies" not in server_config or not server_config["proxies"]:
