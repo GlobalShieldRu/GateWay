@@ -5,6 +5,12 @@
 ## [Unreleased]
 
 ### Исправлено
+- WhatsApp Web QR-код не загружался на устройствах: Meta CDN-трафик шёл через DIRECT без SNI → РКН блокировал. Добавлены в группу `ai` (NY-узел) в начало rules списка: `whatsapp.net`, `whatsapp.com`, `wa.me`, `fbcdn.net`, `cdninstagram.com` и 6 IP-CIDR блоков Meta (`31.13.24.0/21`, `31.13.64.0/18`, `157.240.0.0/16`, `57.144.0.0/14`, `179.60.192.0/22`, `185.60.216.0/22`). Правила встают до rkn-domains и GEOSITE,ru-available-only-inside.
+
+### Добавлено
+- Sniffer `skip-domain`: 19 российских доменов (`+.yandex.ru`, `+.yandex.net`, `+.yandex.com`, `+.yandex.kz`, `+.ya.ru`, `+.yastatic.net`, `+.wildberries.ru`, `+.wb.ru`, `+.wbbasket.ru`, `+.ozon.ru`, `+.ozone.ru`, `+.sber.ru`, `+.sberbank.ru`, `+.vk.com`, `+.vk.ru`, `+.mail.ru`, `+.avito.ru`, `+.dzen.ru`, `+.gosuslugi.ru`) исключены из TLS/QUIC sniff. Устраняет задержку «кружок загрузки» при первом подключении к российским сервисам — Mihomo больше не парсит TLS ClientHello для доменов, которые и так идут DIRECT.
+
+### Исправлено
 - Discord WebSocket обрывался каждые ~2 минуты: отключён `_stale_connection_cleaner` в web-orchestrator — он закрывал keep-alive соединения с нулевым счётчиком трафика старше 120 с, к которым относятся Discord/Telegram WebSocket gateway heartbeat-сессии. Функция сохранена в коде, только вызов закомментирован.
 - Долгоживущие WebSocket-соединения (Discord, Telegram) рвались из-за истечения conntrack: `nf_conntrack_tcp_timeout_established` увеличен с 600 с (10 мин) до 7200 с (2 ч) в net-enforcer/main.py и install.sh.
 - Реверт агрессивного health-check: параметры proxy-groups возвращены к мягким значениям (`interval: 120`, `lazy: true`, `timeout: 5000ms`, `max-failed-times: 3`) для всех групп без исключений. Предыдущие значения (`interval: 30` для auto, `lazy: false`, `timeout: 3000ms`, `max-failed-times: 1`) разрывали долгие сессии Gemini, Discord и Telegram из-за частых переключений активного узла.
