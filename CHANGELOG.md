@@ -4,10 +4,13 @@
 
 ## [Unreleased]
 
+## [1.7.9] — 2026-04-20
+
 ### Исправлено
 - WhatsApp Web QR-код не загружался на устройствах: Meta CDN-трафик шёл через DIRECT без SNI → РКН блокировал. Добавлены в группу `ai` (NY-узел) в начало rules списка: `whatsapp.net`, `whatsapp.com`, `wa.me`, `fbcdn.net`, `cdninstagram.com` и 6 IP-CIDR блоков Meta (`31.13.24.0/21`, `31.13.64.0/18`, `157.240.0.0/16`, `57.144.0.0/14`, `179.60.192.0/22`, `185.60.216.0/22`). Правила встают до rkn-domains и GEOSITE,ru-available-only-inside.
 
 ### Добавлено
+- Node watchdog в tunnel-provider: `entrypoint.sh` каждые 60 секунд опрашивает `/proxies` Mihomo и считает мёртвые прямые VLESS-ноды (delay=0, без учёта групп). Если 3+ нод подряд помечены мёртвыми — немедленно триггерится переподписка (`fetch_subscription.sh` + reload Mihomo), не дожидаясь планового обновления. Плановая переподписка каждые 6 часов сохранена как fallback.
 - Sniffer `skip-domain`: 19 российских доменов (`+.yandex.ru`, `+.yandex.net`, `+.yandex.com`, `+.yandex.kz`, `+.ya.ru`, `+.yastatic.net`, `+.wildberries.ru`, `+.wb.ru`, `+.wbbasket.ru`, `+.ozon.ru`, `+.ozone.ru`, `+.sber.ru`, `+.sberbank.ru`, `+.vk.com`, `+.vk.ru`, `+.mail.ru`, `+.avito.ru`, `+.dzen.ru`, `+.gosuslugi.ru`) исключены из TLS/QUIC sniff. Устраняет задержку «кружок загрузки» при первом подключении к российским сервисам — Mihomo больше не парсит TLS ClientHello для доменов, которые и так идут DIRECT.
 
 ### Исправлено
