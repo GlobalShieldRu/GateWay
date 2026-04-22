@@ -114,22 +114,50 @@ while true; do
     sleep 0.5
 done &
 
-# ── Периодическое обновление подписки каждые 6 часов ────────
-# Нужно чтобы подхватывать изменения на серверах (смена портов, UUID и т.д.)
-# без ручного вмешательства или перезапуска контейнера.
+# ── Watchdog: переподписка при падении нод ───────────────────
+# Если backend изменил конфиг серверов (RemnaWave), ноды станут недоступны.
+# Watchdog обнаруживает это и немедленно перечитывает подписку.
+# Дополнительно — плановое обновление раз в 6 часов на случай тихих изменений.
+LAST_REFRESH=0
 (
+    sleep 90  # ждём пока Mihomo полностью стартует
     while true; do
-        sleep 21600  # 6 часов
-        echo "[INFO] Плановое обновление подписки..."
-        python3 /usr/local/bin/generate_config.py
-        curl -s -X PUT -H "Content-Type: application/json" \
-            -d '{"path": "/etc/mihomo/config.yaml"}' \
-            http://127.0.0.1:9090/configs > /dev/null || true
-        sleep 2
-        curl -s -X PUT -H "Content-Type: application/json" \
-            -d '{"name": "auto"}' \
-            http://127.0.0.1:9090/proxies/GLOBAL > /dev/null || true
-        echo "[INFO] Подписка обновлена"
+        NOW=$(date +%s)
+        # Считаем мёртвые прямые ноды (не CDN) через Mihomo API
+        DEAD=$(curl -s http://127.0.0.1:9090/proxies 2>/dev/null | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+dead=0
+for name,p in d.get('proxies',{}).items():
+    is_direct = ('Stockholm' in name or 'NY' in name) and 'Обход' not in name
+    if not is_direct: continue
+    last=p.get('history',[{}])[-1].get('delay',0) if p.get('history') else 0
+    if not p.get('alive',True) or last==0:
+        dead+=1
+print(dead)
+" 2>/dev/null || echo 0)
+
+        ELAPSED=$(( NOW - LAST_REFRESH ))
+        # Обновляем если: 3+ прямых нод мертво и прошло >5 мин с последнего обновления
+        # ИЛИ плановое обновление каждые 6 часов
+        if { [ "$DEAD" -ge 3 ] && [ "$ELAPSED" -ge 300 ]; } || [ "$ELAPSED" -ge 21600 ]; then
+            if [ "$DEAD" -ge 3 ]; then
+                echo "[WARN] Node watchdog: ${DEAD} прямых нод недоступны — обновляем подписку"
+            else
+                echo "[INFO] Плановое обновление подписки (6ч)"
+            fi
+            python3 /usr/local/bin/generate_config.py
+            curl -s -X PUT -H "Content-Type: application/json" \
+                -d '{"path": "/etc/mihomo/config.yaml"}' \
+                http://127.0.0.1:9090/configs > /dev/null || true
+            sleep 2
+            curl -s -X PUT -H "Content-Type: application/json" \
+                -d '{"name": "auto"}' \
+                http://127.0.0.1:9090/proxies/GLOBAL > /dev/null || true
+            LAST_REFRESH=$(date +%s)
+            echo "[INFO] Подписка обновлена"
+        fi
+        sleep 60  # проверка каждую минуту
     done
 ) &
 
