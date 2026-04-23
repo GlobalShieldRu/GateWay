@@ -4,6 +4,38 @@
 
 ## [Unreleased]
 
+## [1.8.0] — 2026-04-22
+
+Крупный пакет стабильности: proactive-мониторинг туннеля, kernel/TCP tuning для TPROXY под нагрузкой, IPv6 protection против Happy Eyeballs таймаутов.
+
+### Добавлено
+- **Health-watchdog** в `tunnel-provider/entrypoint.sh`: каждые 30с опрашивает группы `auto` и `ai` через Mihomo API (`/group/{name}/delay`). При 2 подряд провалах (60с «мертвы» все узлы) запрашивает hard-restart контейнера через `POST /api/tunnel-hard-restart`.
+- **Endpoint `POST /api/tunnel-hard-restart`** в `web-orchestrator/main.py`: принимает вызовы от внутреннего watchdog по токену `X-Internal-Token` (env `GSG_INTERNAL_TOKEN`), cooldown 90с, пишет файл-триггер `.tunnel_restart_request` в shared volume (подхватывает `update-watcher.sh` на хосте), отправляет Telegram-уведомление об авто-восстановлении.
+- **Post-reload force health-check**: после каждого `PUT /configs` (hot-reload) forced-опрос всех fallback/url-test/loadbalance групп через `/group/*/delay`. Заполняет history сразу — устраняет «призрачные» health-check состояния, когда fallback-группы первые секунды после reload думают, что все узлы мертвы.
+- **Startup health-check**: прогрев всех fallback/url-test групп сразу после старта Mihomo — устройства получают живой proxy без задержки первого запроса.
+- **IPv6 FORWARD REJECT** в `net-enforcer/main.py`: `ip6tables -I FORWARD 1 -j REJECT --reject-with icmp6-no-route`. Клиенты с чужим DNS (например Mac с 8.8.8.8) получают AAAA-записи и пытаются IPv6-коннект; без REJECT пакеты тихо дропались → Safari Happy Eyeballs ждал 60-70с таймаута. Теперь мгновенный ICMPv6 unreach — клиент сразу откатывается на IPv4.
+
+### Изменено
+- **Hard-restart после переподписки**: node watchdog и плановое обновление (6ч) теперь запрашивают hard-restart контейнера вместо API reload (`PUT /configs`). Избавляет от «испорченного state» в Mihomo после смены списка нод. Fallback на API reload при недоступности `/api/tunnel-hard-restart`.
+- **Debounce hot-reload**: минимальный интервал между reload повышен с 1с до **30с** — частые inotify-события (пачка записей rules.json/devices.json) объединяются в один reload. Предотвращает гонку состояний в Mihomo.
+- **Группа `myip`**: тип изменён с `fallback` на `url-test`, интервал health-check 600с — устраняет IP-flapping в MenuBar когда несколько нод чередуются.
+
+### Kernel/TCP tuning (net-enforcer/main.py + install.sh)
+Долгоживущие idle SSE/WebSocket переставали работать; SYN/burst терялись при нагрузке; UDP-паузы рвали TikTok/QUIC сессии. Применяется при старте net-enforcer и при установке GSG.
+- `net.ipv4.tcp_keepalive_time`: 7200 → **120с** (+ `intvl=15`, `probes=3`) — idle SSE/WebSocket больше не протухают через NAT/conntrack
+- `net.ipv4.tcp_max_syn_backlog`: 128 → **4096** — нет дропа SYN при burst трафика
+- `net.ipv4.tcp_max_tw_buckets`: 4096 → **65536** — TIME_WAIT flood больше не бьёт по портам
+- `net.ipv4.tcp_mtu_probing`: 0 → **1** — PMTU discovery при потерях больших пакетов
+- `net.ipv4.tcp_slow_start_after_idle`: 1 → **0** — SSE/WebSocket после паузы не стартуют заново с нуля
+- `net.ipv4.tcp_retries2`: 15 → **8** — быстрее отваливаемся от мёртвых соединений
+- `net.ipv4.tcp_fin_timeout`: 60 → **15** — экономия портов при активной работе
+- `net.netfilter.nf_conntrack_udp_timeout`: 30 → **180с** — TikTok/QUIC паузы теперь держат NAT
+- `net.netfilter.nf_conntrack_udp_timeout_stream`: 120 → **600с** — длинные voice/видео звонки не рвутся
+- `net.netfilter.nf_conntrack_generic_timeout`: 600 → **300с** — быстрее освобождаем мёртвые entry
+- `net.netfilter.nf_conntrack_buckets` (hashsize): 8192 → **32768** — меньше collisions при 131k conntrack_max
+- `net.core.netdev_max_backlog`: 5000 → **10000** — RX queue при burst трафике
+- `net.core.somaxconn`: → **4096** (install.sh)
+
 ## [1.7.9] — 2026-04-20
 
 ### Исправлено
