@@ -323,10 +323,14 @@ def main():
         if g_id == "auto" and g_type == "fallback" and "DIRECT" not in proxies:
             proxies = proxies + ["DIRECT"]
 
+        # myip: принудительно url-test с длинным интервалом — исключает IP-flapping в MenuBar
+        if g_id == "myip":
+            g_type = "url-test"
+
         group_cfg = {
             "name": g_id, "type": g_type, "proxies": proxies,
             "url": "http://www.gstatic.com/generate_204",
-            "interval": 120,           # Мягкий интервал — не рвёт долгие сессии (Gemini, Discord, Telegram)
+            "interval": 600 if g_id == "myip" else 120,
             "lazy": True,             # Проверять только при реальном трафике
             "timeout": 5000,          # Таймаут health-check (5 сек)
             "max-failed-times": 3,    # Выводить узел из ротации после 3 ошибок подряд

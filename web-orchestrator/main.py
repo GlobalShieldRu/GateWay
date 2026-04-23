@@ -76,7 +76,7 @@ def _verify_token(token: str | None) -> bool:
     return token == auth.get("token")
 
 # Public paths that don't require authentication
-_PUBLIC = {"/api/login", "/api/auth/check", "/api/auth/setup", "/api/version"}
+_PUBLIC = {"/api/login", "/api/auth/check", "/api/auth/setup", "/api/version", "/api/tunnel-hard-restart"}
 
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -2341,6 +2341,78 @@ async def get_version():
 GITHUB_REPO = "GlobalShieldRu/GateWay"
 UPDATE_TRIGGER = GSG_CONFIG_DIR / ".update_trigger"
 UPDATE_LOG = GSG_CONFIG_DIR / ".update_log"
+
+# ── Tunnel hard-restart (авто-восстановление health-check) ────────────────────
+# Внутренний токен для вызова из gsg-tunnel контейнера (watchdog)
+INTERNAL_RESTART_TOKEN = os.getenv("GSG_INTERNAL_TOKEN", "gsg-internal-restart-v1")
+_last_tunnel_restart: float = 0.0   # timestamp последнего hard-restart
+_RESTART_COOLDOWN = 90              # секунд между рестартами (защита от флаппинга)
+
+TUNNEL_RESTART_TRIGGER = GSG_CONFIG_DIR / ".tunnel_restart_request"
+
+async def _do_tunnel_hard_restart(reason: str) -> dict:
+    """Запрашивает docker restart gsg-tunnel через файл-триггер (подхватывает update-watcher.sh на хосте)."""
+    global _last_tunnel_restart
+    now = time.time()
+    since_last = now - _last_tunnel_restart
+    if since_last < _RESTART_COOLDOWN:
+        wait = int(_RESTART_COOLDOWN - since_last)
+        return {"ok": False, "error": f"cooldown: подождите ещё {wait}с", "cooldown": True}
+
+    _last_tunnel_restart = now
+    logging.info(f"[tunnel-restart] Запрос hard-restart: {reason}")
+
+    # Пишем файл-триггер в shared volume /etc/gsg — update-watcher.sh на хосте подхватит его
+    try:
+        import json as _json
+        TUNNEL_RESTART_TRIGGER.write_text(_json.dumps({
+            "reason": reason,
+            "requested_at": datetime.now().isoformat()
+        }))
+    except Exception as e:
+        logging.error(f"[tunnel-restart] Не удалось записать триггер: {e}")
+        return {"ok": False, "error": str(e)}
+
+    logging.info(f"[tunnel-restart] Триггер записан, ждём выполнения update-watcher.sh")
+
+    # Telegram-уведомление
+    tg_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    tg_chat  = os.getenv("TELEGRAM_NOTIFY_USERS_CHAT_ID", "").strip()
+    if tg_token and tg_chat:
+        try:
+            text = (
+                f"🔄 <b>Авто-восстановление tunnel</b>\n"
+                f"➖➖➖➖➖➖➖➖➖\n"
+                f"Причина: {reason}\n"
+                f"Контейнер <code>gsg-tunnel</code> перезапущен автоматически."
+            )
+            async with httpx.AsyncClient(proxy="http://127.0.0.1:2080") as client:
+                await client.post(
+                    f"https://api.telegram.org/bot{tg_token}/sendMessage",
+                    json={"chat_id": tg_chat, "text": text, "parse_mode": "HTML"},
+                    timeout=10.0
+                )
+        except Exception:
+            pass
+
+    return {"ok": True, "reason": reason}
+
+@app.post("/api/tunnel-hard-restart")
+async def tunnel_hard_restart(request: Request):
+    """Перезапускает gsg-tunnel. Вызывается watchdog'ом внутри tunnel-контейнера."""
+    token = request.headers.get("X-Internal-Token", "")
+    if token != INTERNAL_RESTART_TOKEN:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    reason = "unknown"
+    try:
+        body = await request.json()
+        reason = body.get("reason", "unknown")
+    except Exception:
+        pass
+    result = await _do_tunnel_hard_restart(reason)
+    if not result["ok"] and result.get("cooldown"):
+        raise HTTPException(status_code=429, detail=result["error"])
+    return result
 
 # ── Settings ──────────────────────────────────────────────────────────────────
 

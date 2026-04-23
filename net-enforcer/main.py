@@ -100,6 +100,35 @@ class NetEnforcer:
         # Здесь только гарантируем минимум на случай если sysctl.d не применился
         os.system("sysctl -w net.netfilter.nf_conntrack_max=131072 2>/dev/null || true")
         os.system("sysctl -w net.netfilter.nf_conntrack_tcp_timeout_established=7200 2>/dev/null || true")
+        # TCP keepalive: дефолт 7200с (2ч idle) слишком велик для роутера/TPROXY —
+        # долгие idle-соединения (TikTok/YouTube паузы, WebSocket, SSE API) умирают
+        # тихо из-за NAT/conntrack timeout. Уменьшаем до 120с + быстрые пробы.
+        os.system("sysctl -w net.ipv4.tcp_keepalive_time=120 2>/dev/null || true")
+        os.system("sysctl -w net.ipv4.tcp_keepalive_intvl=15 2>/dev/null || true")
+        os.system("sysctl -w net.ipv4.tcp_keepalive_probes=3 2>/dev/null || true")
+        # Router TCP/UDP tuning для TPROXY под нагрузкой:
+        # - syn_backlog 128→4096: без этого SYN теряются при burst'е (страница недоступна)
+        # - tw_buckets 4096→65536: TIME_WAIT flood при большом кол-ве коротких соединений
+        # - mtu_probing 0→1: PMTU discovery, иначе большие пакеты дропаются без fallback
+        # - slow_start_after_idle 1→0: SSE/WebSocket после паузы не стартуют заново
+        # - retries2 15→8: быстрее закрывать мёртвые соединения (мобильные сети)
+        # - fin_timeout 60→15: экономия портов при активной работе
+        # - conntrack udp 30→180: TikTok/QUIC паузы теряют NAT за 30с — теперь держим 3 мин
+        # - conntrack udp_stream 120→600: длинные UDP голос/видео звонки
+        # - conntrack generic 600→300: быстрее освобождаем мёртвые entry
+        # - netdev_max_backlog 5000→10000: RX queue при burst
+        # - conntrack hashsize 8192→32768: scale для 131k max (меньше collisions)
+        os.system("sysctl -w net.ipv4.tcp_max_syn_backlog=4096 2>/dev/null || true")
+        os.system("sysctl -w net.ipv4.tcp_max_tw_buckets=65536 2>/dev/null || true")
+        os.system("sysctl -w net.ipv4.tcp_mtu_probing=1 2>/dev/null || true")
+        os.system("sysctl -w net.ipv4.tcp_slow_start_after_idle=0 2>/dev/null || true")
+        os.system("sysctl -w net.ipv4.tcp_retries2=8 2>/dev/null || true")
+        os.system("sysctl -w net.ipv4.tcp_fin_timeout=15 2>/dev/null || true")
+        os.system("sysctl -w net.netfilter.nf_conntrack_udp_timeout=180 2>/dev/null || true")
+        os.system("sysctl -w net.netfilter.nf_conntrack_udp_timeout_stream=600 2>/dev/null || true")
+        os.system("sysctl -w net.netfilter.nf_conntrack_generic_timeout=300 2>/dev/null || true")
+        os.system("sysctl -w net.core.netdev_max_backlog=10000 2>/dev/null || true")
+        os.system("echo 32768 > /sys/module/nf_conntrack/parameters/hashsize 2>/dev/null || true")
         # Swappiness — низкое значение чтобы ядро не свопировало без нужды
         os.system("sysctl -w vm.swappiness=10 2>/dev/null || true")
         # Отключаем ICMP redirect — иначе bypass-клиенты получат редирект и обойдут GSG
@@ -113,6 +142,10 @@ class NetEnforcer:
         # добавляем явный ACCEPT для LAN, если правила ещё нет
         os.system("iptables -C FORWARD -s 10.0.0.0/8 -j ACCEPT 2>/dev/null || iptables -I FORWARD 1 -s 10.0.0.0/8 -j ACCEPT")
         os.system("iptables -C FORWARD -d 10.0.0.0/8 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || iptables -I FORWARD 2 -d 10.0.0.0/8 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT")
+        # IPv6 REJECT: клиенты с чужим DNS (8.8.8.8) получают AAAA, пытаются IPv6-connect;
+        # без REJECT пакеты дропались → Safari Happy Eyeballs ждал 60-70с.
+        # Мгновенный ICMPv6 unreach заставляет клиента сразу откатиться на IPv4.
+        os.system("ip6tables -C FORWARD -j REJECT --reject-with icmp6-no-route 2>/dev/null || ip6tables -I FORWARD 1 -j REJECT --reject-with icmp6-no-route")
 
     async def apply(self):
         await self.setup_os_routing()

@@ -180,7 +180,19 @@ sysctl_set net.core.rmem_max 16777216
 sysctl_set net.core.wmem_max 16777216
 sysctl_set net.ipv4.tcp_rmem "4096 87380 16777216"
 sysctl_set net.ipv4.tcp_wmem "4096 16384 16777216"
-sysctl_set net.core.netdev_max_backlog 5000
+sysctl_set net.core.netdev_max_backlog 10000
+sysctl_set net.core.somaxconn 4096
+
+# TCP tuning (критично для роутера/TPROXY под нагрузкой)
+sysctl_set net.ipv4.tcp_max_syn_backlog 4096     # дефолт 128 — SYN теряются при burst
+sysctl_set net.ipv4.tcp_max_tw_buckets 65536      # дефолт 4096 — TIME_WAIT flood
+sysctl_set net.ipv4.tcp_mtu_probing 1             # PMTU discovery при потерях
+sysctl_set net.ipv4.tcp_slow_start_after_idle 0   # не стартовать заново для idle SSE/WS
+sysctl_set net.ipv4.tcp_retries2 8                # быстрее отваливаться от мёртвых
+sysctl_set net.ipv4.tcp_fin_timeout 15            # экономия портов
+sysctl_set net.ipv4.tcp_keepalive_time 120        # дефолт 7200 — idle соединения мрут
+sysctl_set net.ipv4.tcp_keepalive_intvl 15
+sysctl_set net.ipv4.tcp_keepalive_probes 3
 
 # Порты и TIME_WAIT
 sysctl_set net.ipv4.ip_local_port_range "1024 65535"
@@ -193,6 +205,11 @@ if modprobe nf_conntrack 2>/dev/null || sysctl -n net.netfilter.nf_conntrack_max
     sysctl_set net.netfilter.nf_conntrack_tcp_timeout_time_wait 30
     sysctl_set net.netfilter.nf_conntrack_tcp_timeout_close_wait 30
     sysctl_set net.netfilter.nf_conntrack_tcp_timeout_fin_wait 30
+    sysctl_set net.netfilter.nf_conntrack_udp_timeout 180          # дефолт 30 — TikTok/QUIC паузы
+    sysctl_set net.netfilter.nf_conntrack_udp_timeout_stream 600   # дефолт 120 — voice звонки
+    sysctl_set net.netfilter.nf_conntrack_generic_timeout 300      # быстрее освобождаем entry
+    # Hash buckets — должно быть ≈ conntrack_max/4 для минимума collisions
+    echo 32768 > /sys/module/nf_conntrack/parameters/hashsize 2>/dev/null || true
     success "Conntrack настроен"
 else
     warn "nf_conntrack недоступен — пропущено"
