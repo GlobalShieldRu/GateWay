@@ -1,0 +1,16 @@
+[Unit]
+Description=GSG Smart Gateway Watchdog (host-level)
+Documentation=https://github.com/GlobalShieldRu/GateWay
+After=docker.service network-online.target
+Wants=docker.service network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/gsg-watchdog.sh
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/gsg-watchdog.log
+StandardError=append:/var/log/gsg-watchdog.log
+
+[Install]
+WantedBy=multi-user.target

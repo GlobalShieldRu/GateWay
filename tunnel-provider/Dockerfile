@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && pip3 install --no-cache-dir --break-system-packages --index-url "$PIP_INDEX_URL" httpx PyYAML \
     && rm -rf /var/lib/apt/lists/*
 
-ENV MIHOMO_VERSION="v1.18.10"
+ENV MIHOMO_VERSION="v1.19.24"
 
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then PKG="linux-arm64"; \

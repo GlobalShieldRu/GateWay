@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 
+## [1.9.0] — 2026-04-22
+
+Обновление Mihomo на 14 минорных релизов вперёд ради стабильности fallback/url-test групп после API reload и свежих фиксов DNS/fake-ip/sniffer/TLS.
+
+### Изменено
+- **Mihomo v1.18.10 → v1.19.24** (`tunnel-provider/Dockerfile`): 14 промежуточных upstream-релизов с багфиксами proxy reload, DNS, fake-ip, sniffer, TLS. В v1.18 фиксировался баг, из-за которого после API reload (`PUT /configs`) портился internal state proxy instances — fallback-группы начинали считать живые узлы мёртвыми. В v1.19 зашёл ряд связанных фиксов. Upstream issue #2588 (fallback + health-check) всё ещё open, поэтому гарантий нет, но апгрейд даёт новейшие исправления и снижает вероятность «призрачных» мёртвых узлов.
+
+### Добавлено
+- **Host-level watchdog (подготовка)**: файлы `gsg-watchdog.sh` и `gsg-watchdog.service` добавлены в репозиторий для будущего использования. В `install.sh` оставлен NOTE-комментарий — watchdog **не устанавливается** в этом релизе, требует отладки логики `check_group` для fallback-групп с `lazy: true` (в первой версии был circle-of-death: watchdog сам триггерил рестарты, которые триггерили следующий watchdog-цикл). Будет включён в следующем релизе.
+
 ## [1.8.0] — 2026-04-22
 
 Крупный пакет стабильности: proactive-мониторинг туннеля, kernel/TCP tuning для TPROXY под нагрузкой, IPv6 protection против Happy Eyeballs таймаутов.

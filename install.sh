@@ -290,6 +290,9 @@ systemctl restart gsg-updater
 git config --global --add safe.directory "${INSTALL_DIR}" 2>/dev/null || true
 success "Update Watcher: systemd (gsg-updater.service)"
 
+# NOTE: gsg-watchdog (host-level) временно отключён — требует отладки логики
+# check_group для fallback-групп с lazy: true. Будет включён в следующем релизе.
+
 # ── Docker конфиг ─────────────────────────────
 info "Запись конфигурации..."
 cat > "$INSTALL_DIR/.env" << EOF
