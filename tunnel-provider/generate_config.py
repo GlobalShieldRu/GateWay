@@ -332,7 +332,7 @@ def main():
             "url": "http://www.gstatic.com/generate_204",
             "interval": 600 if g_id == "myip" else 120,
             "lazy": True,             # Проверять только при реальном трафике
-            "timeout": 5000,          # Таймаут health-check (5 сек)
+            "timeout": 15000,         # Таймаут health-check (15 сек) — CDN WebSocket узлы типа NY Обход блокировок делают handshake 5-8 сек, меньше 15000 они ошибочно считаются мёртвыми
             "max-failed-times": 3,    # Выводить узел из ротации после 3 ошибок подряд
         }
         if g_type == "url-test":

@@ -165,8 +165,12 @@ dead=0
 for name,p in d.get('proxies',{}).items():
     is_direct = ('Stockholm' in name or 'NY' in name) and 'Обход' not in name
     if not is_direct: continue
-    last=p.get('history',[{}])[-1].get('delay',0) if p.get('history') else 0
-    if not p.get('alive',True) or last==0:
+    hist = p.get('history') or []
+    # Не считаем 'мёртвым' узлы без истории — это 'ещё не проверен после reload'.
+    # Только явный fail: alive==False И последнее измерение delay==0.
+    if not hist: continue
+    last = hist[-1].get('delay', 0)
+    if p.get('alive') is False and last == 0:
         dead+=1
 print(dead)
 " 2>/dev/null || echo 0)
