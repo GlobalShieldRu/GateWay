@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+## [1.9.1] — 2026-04-22
+
+Хотфикс для устранения ложных срабатываний health-check и node watchdog, которые приводили к обрывам трафика и Telegram-спаму переподписок.
+
+### Исправлено
+- **Health-check timeout 5000ms → 15000ms** для всех proxy-групп (`tunnel-provider/generate_config.py`). CDN WebSocket узлы (VLESS поверх WS через Cloudflare, например `NY | Обход блокировок`) делают handshake 5–8 секунд из-за цепочки CF → WS upgrade → VLESS inner handshake → HTTP GET `generate_204`. Прежний timeout 5000ms отсекал живой узел как мёртвый → fallback-группа `ai` ошибочно переключалась на резервный узел → пользователи видели обрывы при работе с Meta/Gemini/Discord. При `timeout=15000` узел корректно показывает `delay=156ms`.
+- **Node watchdog корректно различает «мёртвый» vs «ещё не проверен»** (`tunnel-provider/entrypoint.sh`). Было: `if not p.get('alive', True) or last == 0 → dead` — ложно считал мёртвыми любые ещё-не-проверенные узлы сразу после reload (у них `history` пуста, `alive` отсутствует), из-за чего запускался circle-of-death: watchdog триггерил переподписку → переподписка делала reload → свежие узлы опять без history → watchdog опять считал их мёртвыми → повторная переподписка и Telegram-спам. Стало: skip если `history` пустая (узел ещё не проверен); `dead` только если `alive == False` И `delay == 0`.
+
 ## [1.9.0] — 2026-04-22
 
 Обновление Mihomo на 14 минорных релизов вперёд ради стабильности fallback/url-test групп после API reload и свежих фиксов DNS/fake-ip/sniffer/TLS.
