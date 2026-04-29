@@ -1,0 +1,16 @@
+[Unit]
+Description=GSG Claude/Anthropic auto-route watcher
+Documentation=https://github.com/GlobalShieldRu/GateWay
+After=docker.service network-online.target
+Wants=docker.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/gsg-claude-watcher.sh
+Restart=always
+RestartSec=15
+StandardOutput=append:/var/log/gsg-claude-watcher.log
+StandardError=append:/var/log/gsg-claude-watcher.log
+
+[Install]
+WantedBy=multi-user.target
