@@ -153,6 +153,10 @@ done
 # Watchdog обнаруживает это и немедленно перечитывает подписку.
 # Дополнительно — плановое обновление раз в 6 часов на случай тихих изменений.
 LAST_REFRESH=0
+# WATCHDOG ОТКЛЮЧЁН: ложные срабатывания (alive=True но history пустая после reload)
+# приводили к Telegram-спаму и регулярным 15-сек обрывам. Будет переписан на чтение
+# реального backend-сигнала об изменении подписки, а не угадывание по delay.
+if false; then
 (
     sleep 90  # ждём пока Mihomo полностью стартует
     while true; do
@@ -176,16 +180,13 @@ print(dead)
 " 2>/dev/null || echo 0)
 
         ELAPSED=$(( NOW - LAST_REFRESH ))
-        # Обновляем если: 3+ прямых нод мертво и прошло >5 мин с последнего обновления
-        # ИЛИ плановое обновление каждые 6 часов
-        if { [ "$DEAD" -ge 3 ] && [ "$ELAPSED" -ge 300 ]; } || [ "$ELAPSED" -ge 21600 ]; then
-            if [ "$DEAD" -ge 3 ]; then
-                RESTART_REASON="subscription refresh: ${DEAD} мёртвых прямых нод"
-                echo "[WARN] Node watchdog: ${DEAD} прямых нод недоступны — обновляем подписку и hard-restart"
-            else
-                RESTART_REASON="плановое обновление подписки (6ч)"
-                echo "[INFO] Плановое обновление подписки (6ч) + hard-restart"
-            fi
+        # Обновляем ТОЛЬКO при реальной аварии: 3+ прямых нод мертво и прошло >5 мин.
+        # Плановое 6-часовое обновление убрано — оно создавало 15-секундные обрывы у
+        # всех клиентов 4 раза в сутки без необходимости. Backend уведомляет об
+        # изменениях через подписку напрямую, plan-update не нужен.
+        if [ "$DEAD" -ge 3 ] && [ "$ELAPSED" -ge 300 ]; then
+            RESTART_REASON="subscription refresh: ${DEAD} мёртвых прямых нод"
+            echo "[WARN] Node watchdog: ${DEAD} прямых нод недоступны — обновляем подписку и hard-restart"
             python3 /usr/local/bin/generate_config.py
             # После переподписки делаем hard-restart через web-orchestrator
             # чтобы избежать "призрачных" health-check состояний после API reload
@@ -215,6 +216,7 @@ print(dead)
         sleep 60  # проверка каждую минуту
     done
 ) &
+fi  # if false (Node watchdog disabled)
 
 # ── Health watchdog: авто-восстановление при "призрачных" health-check ───────
 # Проверяет группы auto и ai каждые 30 секунд.
