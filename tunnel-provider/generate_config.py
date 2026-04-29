@@ -14,6 +14,34 @@ GSG_SUBSCRIPTION_FILE = GSG_CONFIG_DIR / "subscription.json"
 GSG_NODES_FILE = GSG_CONFIG_DIR / "nodes.json"
 MIHOMO_CONFIG = Path("/etc/mihomo/config.yaml")
 
+# Дефолтные исключения (DIRECT) для всех proxy-групп
+DEFAULT_EXCLUSIONS = [
+    "gosuslugi.ru", "gosuslugi.gov.ru", "gov.ru", "mos.ru", "nalog.ru",
+    "sberbank.ru", "sber.ru", "vtb.ru", "tinkoff.ru", "tinkoff.com",
+    "alfabank.ru", "raiffeisen.ru", "gazprombank.ru",
+    "cbr.ru", "mil.ru",
+    "group:Bypass",
+]
+
+def _get_effective_exclusions(group, all_groups, _visited=None):
+    """Возвращает итоговый список exclusions с учётом default-пресета, disabled и custom.
+    _visited — защита от циклических ссылок group:A → group:B → group:A."""
+    if _visited is None:
+        _visited = set()
+    group_id = group.get("id", "")
+    if group_id in _visited:
+        return set()
+    _visited.add(group_id)
+
+    defaults = set(DEFAULT_EXCLUSIONS)
+    disabled = set(group.get("exclusions_disabled", []))
+    custom = set(group.get("exclusions_custom", []))
+    # Старое поле exclusions — мигрируем как custom (обратная совместимость)
+    legacy = set(group.get("exclusions", []))
+
+    result = (defaults - disabled) | custom | legacy
+    return result
+
 def main():
     def load_json(p, default):
         if os.path.exists(p) and os.path.getsize(p) > 0:
@@ -469,31 +497,31 @@ def main():
         g_id = pg.get("id", "unknown")
         g_type = pg.get("type", "url-test")
         pg_rules = _get_rules(pg)
-        exclusions = pg.get("exclusions", [])
-
         # Exclusions группы: эти домены идут DIRECT для устройств использующих группу.
         # Добавляем ПЕРЕД правилами самой группы, чтобы иметь приоритет.
         # Применяем только для не-direct групп (у bypass/direct exclusions бессмысленны).
-        if exclusions and g_type != "direct" and g_id != "bypass":
-            for ex in exclusions:
-                ex = ex.strip()
-                if not ex:
-                    continue
-                # group:ИмяГруппы → раскрываем все правила указанной группы
-                if ex.startswith('group:'):
-                    ref_name = ex[len('group:'):]
-                    ref_group = next((p for p in proxy_groups if p.get('name') == ref_name or p.get('id') == ref_name), None)
-                    if ref_group is None:
-                        print(f"[WARN] exclusions: группа '{ref_name}' не найдена, пропускаем", flush=True)
+        if g_type != "direct" and g_id != "bypass":
+            exclusions = _get_effective_exclusions(pg, proxy_groups)
+            if exclusions:
+                for ex in exclusions:
+                    ex = ex.strip()
+                    if not ex:
                         continue
-                    ref_rules = _get_rules(ref_group)
-                    print(f"  [{pg.get('name', g_id)}] exclusion group:{ref_name} → {len(ref_rules)} правил", flush=True)
-                    for rr in ref_rules:
-                        for mihomo_rule in _parse_rule_line(rr, "DIRECT"):
-                            domain_rules.append(mihomo_rule)
-                    continue
-                for mihomo_rule in _parse_rule_line(ex, "DIRECT"):
-                    domain_rules.append(mihomo_rule)
+                    # group:ИмяГруппы → раскрываем все правила указанной группы
+                    if ex.startswith('group:'):
+                        ref_name = ex[len('group:'):]
+                        ref_group = next((p for p in proxy_groups if p.get('name') == ref_name or p.get('id') == ref_name), None)
+                        if ref_group is None:
+                            print(f"[WARN] exclusions: группа '{ref_name}' не найдена, пропускаем", flush=True)
+                            continue
+                        ref_rules = _get_rules(ref_group)
+                        print(f"  [{pg.get('name', g_id)}] exclusion group:{ref_name} → {len(ref_rules)} правил", flush=True)
+                        for rr in ref_rules:
+                            for mihomo_rule in _parse_rule_line(rr, "DIRECT"):
+                                domain_rules.append(mihomo_rule)
+                        continue
+                    for mihomo_rule in _parse_rule_line(ex, "DIRECT"):
+                        domain_rules.append(mihomo_rule)
 
         if not pg_rules:
             continue

@@ -4,6 +4,24 @@
 
 ## [Unreleased]
 
+## [1.10.0] — 2026-04-22
+
+UI/UX-релиз: унифицированный chip-блок исключений DIRECT во всех proxy-группах + ряд stability-фиксов (отключение шумного node watchdog, плановой 6-часовой переподписки) + host-level watchdog для Claude/Anthropic.
+
+### Добавлено
+- **Унифицированные исключения DIRECT (chip-style)** для всех proxy-групп: вместо textarea — chip-блок с дефолтным пресетом (госсервисы, банки, group:Bypass). Чипы пресета можно убрать (✕ → попадают в `exclusions_disabled`), можно добавить свои домены (+Добавить → `exclusions_custom`). Работает для всех групп включая форму создания новой. Группы Bypass/direct — без блока.
+- **DEFAULT_EXCLUSIONS в generate_config.py**: все не-direct proxy-группы автоматически получают прямой маршрут для 13 RU-сервисов (Госуслуги, Сбер, ВТБ, Тинькофф, Альфа, Райффайзен, Газпромбанк, mos.ru, nalog.ru, gov.ru, cbr.ru, mil.ru) + `group:Bypass`, если явно не отключены пользователем (через `exclusions_disabled`).
+- **Поля `exclusions_disabled` / `exclusions_custom`** в схемах `ProxyGroupCreate` / `ProxyGroupUpdate` (`web-orchestrator/main.py`). Legacy-поле `exclusions` сохранено для обратной совместимости — мигрируется как `custom`.
+- **Универсальный выбор групп-exclusions**: toggle "Все из Bypass" заменён на полноценную секцию "Группы" в chip-блоке exclusions. Dropdown "+ Группа" позволяет подключить любую существующую proxy-группу (Auto, AI, Биржи, Мой IP и свои custom) — её домены будут идти DIRECT. Выбранные группы отображаются фиолетовыми chips (📦 Имя), ✕ убирает. `group:Bypass` по-прежнему включена по умолчанию.
+- **Защита от рекурсии в `_get_effective_exclusions`** (`generate_config.py`): добавлен `_visited: set` — циклические ссылки group:A → group:B → group:A не вызывают бесконечную рекурсию.
+- **Autoformat визуализация exclusions**: кастомные exclusions и дефолтные домены отображают тип правила через префикс в chip — 🌐 для IP-CIDR, 🔍 для ключевого слова (без точки), без префикса для DOMAIN-SUFFIX. Custom-добавление автоматически распознаёт формат: `domain.com` → DOMAIN-SUFFIX, `keyword` → DOMAIN-KEYWORD, `1.2.3.0/24` → IP-CIDR (с no-resolve).
+- **Подсказка в поле добавления exclusion**: placeholder и hint-строка под input поясняют форматы: с точкой → DOMAIN-SUFFIX, без точки → DOMAIN-KEYWORD, X.X.X.X/N → IP-CIDR.
+- **Claude/Anthropic auto-route watcher** (`gsg-claude-watcher.sh` + `gsg-claude-watcher.service`): host-level systemd-watchdog, который автоматически детектирует Claude/Anthropic-трафик, идущий мимо VPN, и направляет его через NY (через правки `rules.json` + Mihomo reload). Защита от breaking-changes Anthropic — при появлении новых доменов/IP трафик не «провалится» в DIRECT и не попадёт под РКН/региональные блокировки.
+
+### Изменено
+- **Node watchdog отключён** (`tunnel-provider/entrypoint.sh`, `if false; ...; fi`): давал ложные срабатывания (`alive=True`, но `history` пустая сразу после reload) и приводил к Telegram-спаму вида «subscription refresh: 3 мёртвых нод» каждые 5 минут + 15-секундным обрывам трафика на каждой переподписке. Будет переписан на event-based триггер от backend.
+- **Плановое 6-часовое обновление подписки убрано**: оно создавало 15-секундные обрывы у всех клиентов 4 раза в сутки без необходимости. Backend сам уведомляет об изменениях подписки — тихий polling больше не нужен.
+
 ## [1.9.1] — 2026-04-22
 
 Хотфикс для устранения ложных срабатываний health-check и node watchdog, которые приводили к обрывам трафика и Telegram-спаму переподписок.

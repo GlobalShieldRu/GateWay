@@ -1683,6 +1683,8 @@ class ProxyGroupCreate(BaseModel):
     type: str = "url-test"
     rules: List[str] = []
     exclusions: List[str] = []
+    exclusions_disabled: List[str] = []
+    exclusions_custom: List[str] = []
     # Обратная совместимость: старое поле
     domains: Optional[List[str]] = None
 
@@ -1692,6 +1694,8 @@ class ProxyGroupUpdate(BaseModel):
     type: Optional[str] = None
     rules: Optional[List[str]] = None
     exclusions: Optional[List[str]] = None
+    exclusions_disabled: Optional[List[str]] = None
+    exclusions_custom: Optional[List[str]] = None
     # Обратная совместимость: старое поле
     domains: Optional[List[str]] = None
 
@@ -2045,7 +2049,9 @@ async def create_group(req: ProxyGroupCreate):
         "id": new_id, "name": req.name, "node_filter": req.node_filter,
         "type": req.type, "builtin": False,
         "rules": [d.strip() for d in rules_list if d.strip()],
-        "exclusions": [d.strip() for d in req.exclusions if d.strip()]
+        "exclusions": [d.strip() for d in req.exclusions if d.strip()],
+        "exclusions_disabled": [d.strip() for d in req.exclusions_disabled if d.strip()],
+        "exclusions_custom": [d.strip() for d in req.exclusions_custom if d.strip()],
     }
     rules["proxy_groups"].append(new_group)
 
@@ -2086,6 +2092,10 @@ async def update_group(group_id: str, req: ProxyGroupUpdate):
         found.pop("domains", None)  # убираем старое поле если было
     if req.exclusions is not None:
         found["exclusions"] = [d.strip() for d in req.exclusions if d.strip()]
+    if req.exclusions_disabled is not None:
+        found["exclusions_disabled"] = [d.strip() for d in req.exclusions_disabled if d.strip()]
+    if req.exclusions_custom is not None:
+        found["exclusions_custom"] = [d.strip() for d in req.exclusions_custom if d.strip()]
 
     await _backup_rules()
     async with aiofiles.open(GSG_RULES_FILE, 'w') as f:

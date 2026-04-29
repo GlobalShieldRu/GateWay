@@ -1218,9 +1218,8 @@
                             <div style="font-size:10px;color:var(--muted);margin-top:4px;">Тип определяется автоматически: с точкой → SUFFIX, без точки → KEYWORD, IP/CIDR → IP-CIDR.</div>
                         </div>
                         <div>
-                            <div class="section-label" style="margin-bottom:6px;">Исключения (DIRECT)</div>
-                            <textarea id="groupEditExclusions_new" class="gsg-textarea" rows="7" placeholder="gosuslugi.ru&#10;sberbank.ru&#10;vtb.ru&#10;group:Bypass"></textarea>
-                            <div style="font-size:10px;color:var(--muted);margin-top:4px;">Эти домены пойдут напрямую. Напишите <code style="background:rgba(255,255,255,0.08);padding:1px 4px;border-radius:3px;">group:Bypass</code> чтобы исключить все домены другой группы.</div>
+                            <div class="section-label" style="margin-bottom:6px;">Защищённые сервисы (DIRECT)</div>
+                            <div id="exclContainer_new"></div>
                         </div>
                     </div>
                     <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end;">
@@ -1597,6 +1596,158 @@
             apple:     ['apple.com', 'icloud.com', 'apple-cloudkit.com', 'mzstatic.com', 'cdn-apple.com'],
             google:    ['google.com', 'googleapis.com', 'gstatic.com', 'google.ru', 'google.co'],
         };
+
+        // Дефолтный пресет exclusions (DIRECT) — совпадает с DEFAULT_EXCLUSIONS в generate_config.py
+        // group:* — групповые ссылки, управляются через секцию "Группы"
+        const DEFAULT_EXCLUSIONS = [
+            "gosuslugi.ru", "gosuslugi.gov.ru", "gov.ru", "mos.ru", "nalog.ru",
+            "sberbank.ru", "sber.ru", "vtb.ru", "tinkoff.ru", "tinkoff.com",
+            "alfabank.ru", "raiffeisen.ru", "gazprombank.ru",
+            "cbr.ru", "mil.ru",
+            "group:Bypass",
+        ];
+        // Домены из DEFAULT_EXCLUSIONS (без group:*) — рендерятся как обычные chips
+        const DEFAULT_EXCLUSIONS_DOMAINS = DEFAULT_EXCLUSIONS.filter(e => !e.startsWith('group:'));
+        // Группы из DEFAULT_EXCLUSIONS — рендерятся как group-chips
+        const DEFAULT_EXCLUSIONS_GROUPS = DEFAULT_EXCLUSIONS.filter(e => e.startsWith('group:')).map(e => e.slice(6));
+
+        /**
+         * Определяет визуальный тип exclusion для отображения в chip.
+         * Возвращает { prefix, title } где prefix — строка перед значением (может быть пустой).
+         */
+        function _exclChipMeta(label) {
+            if (/\//.test(label) && /^\d/.test(label)) {
+                return { prefix: '🌐 ', title: 'IP-CIDR → будет IP-CIDR правило' };
+            }
+            if (!/\./.test(label)) {
+                return { prefix: '🔍 ', title: 'Ключевое слово → будет DOMAIN-KEYWORD правило' };
+            }
+            return { prefix: '', title: 'Домен → будет DOMAIN-SUFFIX правило' };
+        }
+
+        /**
+         * Рендерит chip-блок "Защищённые сервисы (DIRECT)" для формы редактирования/создания группы.
+         * containerId — id контейнера div куда вставляем HTML
+         * pg — объект группы (или {} для новой), из которого берём exclusions_disabled, exclusions_custom, exclusions(legacy)
+         * Состояние хранится в state._excl[containerId] = { disabled: Set, custom: Set }
+         * group:* управляются через секцию "Группы" (отдельная подсекция с dropdown).
+         */
+        function renderExclusionChips(containerId, pg) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            if (!state._excl) state._excl = {};
+            if (!state._excl[containerId]) {
+                // Первая инициализация — берём данные из pg
+                const disabledSet = new Set((pg.exclusions_disabled || []));
+                // legacy exclusions → custom (если exclusions_custom пусто)
+                const customArr = (pg.exclusions_custom && pg.exclusions_custom.length > 0)
+                    ? pg.exclusions_custom
+                    : (pg.exclusions || []).filter(e => !DEFAULT_EXCLUSIONS.includes(e));
+                state._excl[containerId] = {
+                    disabled: disabledSet,
+                    custom: new Set(customArr),
+                };
+            }
+            const excl = state._excl[containerId];
+            const disabled = excl.disabled;
+            const custom = excl.custom;
+
+            // --- Вычисляем активные группы-exclusions ---
+            // Активная = входит в DEFAULT_EXCLUSIONS_GROUPS или в custom как group:X, И не в disabled
+            const defaultGroupNames = new Set(DEFAULT_EXCLUSIONS_GROUPS); // ['Bypass']
+            const customGroupNames = new Set([...custom].filter(e => e.startsWith('group:')).map(e => e.slice(6)));
+            // Все группы-кандидаты (дефолтные + custom group:*)
+            const allCandidateGroups = new Set([...defaultGroupNames, ...customGroupNames]);
+            // Активные = не в disabled
+            const activeGroupNames = new Set([...allCandidateGroups].filter(n => !disabled.has('group:' + n)));
+
+            // Текущий group id (чтобы исключить саму себя из dropdown)
+            const currentGroupId = containerId.startsWith('exclContainer_') ? containerId.slice('exclContainer_'.length) : '';
+
+            // Все доступные proxy-groups для dropdown (кроме текущей и direct/bypass)
+            const allAvailableGroups = (state.proxyGroups || []).filter(g =>
+                g.id !== currentGroupId &&
+                g.id !== 'bypass' &&
+                g.type !== 'direct' &&
+                !activeGroupNames.has(g.name)
+            );
+
+            // --- Рендер group-chips ---
+            const _renderGroupChip = (groupName, isDefault) => {
+                const style = isDefault
+                    ? 'display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:6px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.4);font-size:11px;color:#818cf8;white-space:nowrap;cursor:default;font-weight:600;'
+                    : 'display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:6px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);font-size:11px;color:#a78bfa;white-space:nowrap;cursor:default;font-weight:600;';
+                const esc = groupName.replace(/'/g, "\\'");
+                return `<span style="${style}">📦 ${groupName}<span onclick="GatewayApp.ui.exclRemoveGroup('${containerId}','${esc}')" title="Убрать группу" style="cursor:pointer;opacity:0.5;margin-left:2px;font-size:10px;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.5">✕</span></span>`;
+            };
+
+            const groupChips = [...activeGroupNames].map(n => {
+                const isDefault = defaultGroupNames.has(n);
+                return _renderGroupChip(n, isDefault);
+            }).join('');
+
+            // Dropdown кнопка "+ Группа"
+            const dropdownId = containerId + '_grp_dd';
+            const hasDropdownItems = allAvailableGroups.length > 0;
+            const dropdownItems = allAvailableGroups.map(g => {
+                const esc = g.name.replace(/'/g, "\\'");
+                return `<div onclick="GatewayApp.ui.exclAddGroup('${containerId}','${esc}');document.getElementById('${dropdownId}').style.display='none';" style="padding:6px 12px;font-size:12px;color:#cbd5e1;cursor:pointer;white-space:nowrap;border-radius:4px;transition:background 0.1s;" onmouseover="this.style.background='rgba(99,102,241,0.15)'" onmouseout="this.style.background=''">${g.name}</div>`;
+            }).join('');
+
+            const addGroupBtn = hasDropdownItems
+                ? `<div style="position:relative;display:inline-block;">
+                    <button onclick="(function(dd){dd.style.display=dd.style.display==='none'?'block':'none';})(document.getElementById('${dropdownId}'))" style="padding:3px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.3);color:#818cf8;white-space:nowrap;">+ Группа</button>
+                    <div id="${dropdownId}" style="display:none;position:absolute;top:100%;left:0;margin-top:4px;background:#1e2433;border:1px solid rgba(99,102,241,0.3);border-radius:8px;padding:4px;z-index:999;min-width:140px;box-shadow:0 8px 24px rgba(0,0,0,0.4);">${dropdownItems}</div>
+                </div>`
+                : `<span style="font-size:11px;color:#334155;padding:3px 6px;">все группы добавлены</span>`;
+
+            // --- Рендер обычных domain-chips ---
+            const _renderChip = (label, isDefault, isDisabled) => {
+                if (isDefault) {
+                    if (isDisabled) return '';
+                    const meta = _exclChipMeta(label);
+                    const displayLabel = meta.prefix + label;
+                    return `<span class="excl-chip excl-chip-default" data-container="${containerId}" data-label="${label}" title="${meta.title}" style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:6px;background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.3);font-size:11px;color:#34d399;white-space:nowrap;cursor:default;">${displayLabel}<span data-remove="${label}" onclick="GatewayApp.ui.exclRemoveDefault('${containerId}','${label}')" title="Убрать" style="cursor:pointer;opacity:0.5;margin-left:2px;font-size:10px;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.5">✕</span></span>`;
+                } else {
+                    const meta = _exclChipMeta(label);
+                    const displayLabel = meta.prefix + label;
+                    return `<span class="excl-chip excl-chip-custom" data-container="${containerId}" data-label="${label}" title="${meta.title}" style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:6px;background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.25);font-size:11px;color:#94a3b8;white-space:nowrap;cursor:default;">${displayLabel}<span data-remove="${label}" onclick="GatewayApp.ui.exclRemoveCustom('${containerId}','${label}')" title="Убрать" style="cursor:pointer;opacity:0.5;margin-left:2px;font-size:10px;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.5">✕</span></span>`;
+                }
+            };
+
+            // Domain-custom chips (фильтруем group:* — они в секции Групп)
+            const customDomainChips = [...custom].filter(e => !e.startsWith('group:')).map(e => _renderChip(e, false, false)).join('');
+            const defaultChips = DEFAULT_EXCLUSIONS_DOMAINS.map(e => _renderChip(e, true, disabled.has(e))).join('');
+
+            container.innerHTML = `
+                <div style="font-size:10px;color:var(--muted);margin-bottom:8px;line-height:1.5;">Эти домены идут напрямую, минуя VPN. Подходит для гос-сервисов и банков.</div>
+                <div style="margin-bottom:6px;">
+                    <div style="font-size:10px;color:#818cf8;font-weight:600;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.05em;">Группы</div>
+                    <div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;min-height:24px;">${groupChips}${addGroupBtn}</div>
+                    <div style="margin-top:5px;font-size:10px;color:#475569;line-height:1.4;">Все правила выбранных групп будут идти DIRECT (минуя VPN). Полезно если у группы Bypass или другой группы есть актуальный список доменов.</div>
+                </div>
+                <div style="border-top:1px solid rgba(255,255,255,0.05);margin:8px 0;"></div>
+                <div id="${containerId}_chips" style="display:flex;flex-wrap:wrap;gap:5px;min-height:24px;">${defaultChips}${customDomainChips}</div>
+                <div style="margin-top:8px;display:flex;gap:6px;align-items:center;">
+                    <input id="${containerId}_input" type="text" class="gsg-input" placeholder="Домен, ключевое слово или IP/CIDR..." style="flex:1;padding:5px 10px;font-size:12px;" title="С точкой → DOMAIN-SUFFIX; без точки → DOMAIN-KEYWORD; X.X.X.X/N → IP-CIDR" onkeydown="if(event.key==='Enter'){event.preventDefault();GatewayApp.ui.exclAddCustom('${containerId}');}">
+                    <button onclick="GatewayApp.ui.exclAddCustom('${containerId}')" style="padding:5px 10px;border-radius:6px;background:rgba(52,211,153,0.12);color:#34d399;border:1px solid rgba(52,211,153,0.25);cursor:pointer;font-size:12px;">+ Добавить</button>
+                </div>
+                <div style="margin-top:4px;font-size:10px;color:#475569;">Подсказка: с точкой → суффикс домена; без точки → ключевое слово; X.X.X.X/N → IP-CIDR</div>`;
+
+            // Закрываем dropdown при клике вне
+            setTimeout(() => {
+                const dd = document.getElementById(dropdownId);
+                if (dd) {
+                    const closeHandler = (e) => {
+                        if (!dd.parentElement?.contains(e.target)) {
+                            dd.style.display = 'none';
+                            document.removeEventListener('click', closeHandler, true);
+                        }
+                    };
+                    document.addEventListener('click', closeHandler, true);
+                }
+            }, 100);
+        }
 
         // Port → protocol name
         const PORT_PROTO = {
@@ -2875,9 +3026,8 @@
                                     <div style="font-size:10px;color:var(--muted);margin-top:4px;">Тип определяется автоматически: с точкой → SUFFIX, без точки → KEYWORD, IP/CIDR → IP-CIDR (максимальный приоритет).</div>
                                 </div>
                                 ${(pg.type !== 'direct' && pg.id !== 'bypass') ? `<div>
-                                    <div class="section-label" style="margin-bottom:6px;">Исключения (DIRECT)</div>
-                                    <textarea id="groupEditExclusions" class="gsg-textarea" rows="8" placeholder="gosuslugi.ru&#10;sberbank.ru&#10;vtb.ru&#10;group:Bypass">${(pg.exclusions || []).join('\n')}</textarea>
-                                    <div style="font-size:10px;color:var(--muted);margin-top:4px;">Эти домены пойдут напрямую. Напишите <code style="background:rgba(255,255,255,0.08);padding:1px 4px;border-radius:3px;">group:Bypass</code> чтобы исключить все домены другой группы.</div>
+                                    <div class="section-label" style="margin-bottom:6px;">Защищённые сервисы (DIRECT)</div>
+                                    <div id="exclContainer_${pg.id}"></div>
                                 </div>` : ''}
                             </div>
                             <div style="margin-top:14px;display:flex;gap:8px;justify-content:space-between;">
@@ -2888,11 +3038,22 @@
                     </div>`;
                 }).join('');
 
-                // Инициализируем превью узлов для открытого редактора
-                if (expanded) setTimeout(() => GatewayApp.ui.updateGroupPreview(), 50);
+                // Инициализируем превью узлов и chip-блок exclusions для открытого редактора
+                if (expanded) setTimeout(() => {
+                    GatewayApp.ui.updateGroupPreview();
+                    const editPg = state.proxyGroups.find(g => g.id === expanded);
+                    if (editPg && editPg.type !== 'direct' && editPg.id !== 'bypass') {
+                        const cid = 'exclContainer_' + editPg.id;
+                        renderExclusionChips(cid, editPg);
+                    }
+                }, 50);
             },
 
             toggleGroup: (groupId) => {
+                // При закрытии редактора — сбрасываем кэш exclusions
+                if (state._editingGroupId) {
+                    ui.exclClear('exclContainer_' + state._editingGroupId);
+                }
                 if (state._editingGroupId === groupId) {
                     state._editingGroupId = null;
                 } else {
@@ -2911,14 +3072,15 @@
                 document.getElementById('groupEditFilter_new').value = '';
                 document.getElementById('groupEditType_new').value = 'url-test';
                 document.getElementById('groupEditDomains_new').value = '';
-                const excEl = document.getElementById('groupEditExclusions_new');
-                if (excEl) excEl.value = '';
+                ui.exclClear('exclContainer_new');
                 editor.style.display = 'block';
+                setTimeout(() => renderExclusionChips('exclContainer_new', {}), 0);
             },
 
             hideGroupEditor: () => {
                 const editor = document.getElementById('group-editor');
                 if (editor) editor.style.display = 'none';
+                ui.exclClear('exclContainer_new');
             },
 
             updateGroupPreview: () => {
@@ -2934,6 +3096,70 @@
                     .filter(n => filters.some(f => n.tag.toLowerCase().includes(f)))
                     .map(n => `<span style="padding:2px 6px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.2);border-radius:4px;font-size:10px;">${n.tag}</span>`);
                 previewBox.innerHTML = matched.length > 0 ? matched.join('') : '<span style="color:#ef4444;">Нет совпадений</span>';
+            },
+
+            // --- Exclusion chips helpers ---
+            exclRemoveDefault: (containerId, label) => {
+                if (!state._excl || !state._excl[containerId]) return;
+                state._excl[containerId].disabled.add(label);
+                renderExclusionChips(containerId, {});
+            },
+            exclRemoveCustom: (containerId, label) => {
+                if (!state._excl || !state._excl[containerId]) return;
+                state._excl[containerId].custom.delete(label);
+                renderExclusionChips(containerId, {});
+            },
+            exclAddCustom: (containerId) => {
+                const input = document.getElementById(containerId + '_input');
+                if (!input) return;
+                const val = input.value.trim();
+                if (!val) return;
+                if (!state._excl || !state._excl[containerId]) return;
+                state._excl[containerId].custom.add(val);
+                input.value = '';
+                renderExclusionChips(containerId, {});
+            },
+            // Добавить группу как exclusion (через dropdown)
+            exclAddGroup: (containerId, groupName) => {
+                if (!state._excl || !state._excl[containerId]) return;
+                const excl = state._excl[containerId];
+                const key = 'group:' + groupName;
+                // Если была в disabled — убираем оттуда (реактивация)
+                excl.disabled.delete(key);
+                // Если это не дефолтная группа — добавляем в custom
+                if (!DEFAULT_EXCLUSIONS_GROUPS.includes(groupName)) {
+                    excl.custom.add(key);
+                }
+                renderExclusionChips(containerId, {});
+            },
+            // Убрать группу из exclusions (✕ на chip)
+            exclRemoveGroup: (containerId, groupName) => {
+                if (!state._excl || !state._excl[containerId]) return;
+                const excl = state._excl[containerId];
+                const key = 'group:' + groupName;
+                if (DEFAULT_EXCLUSIONS_GROUPS.includes(groupName)) {
+                    // Дефолтная группа — добавляем в disabled
+                    excl.disabled.add(key);
+                } else {
+                    // Custom-группа — удаляем из custom
+                    excl.custom.delete(key);
+                }
+                renderExclusionChips(containerId, {});
+            },
+            // Возвращает { exclusions_disabled, exclusions_custom } для сохранения
+            exclGetData: (containerId) => {
+                if (!state._excl || !state._excl[containerId]) {
+                    return { exclusions_disabled: [], exclusions_custom: [] };
+                }
+                const excl = state._excl[containerId];
+                return {
+                    exclusions_disabled: [...excl.disabled],
+                    exclusions_custom: [...excl.custom],
+                };
+            },
+            // Сбросить кэш для контейнера (при закрытии редактора)
+            exclClear: (containerId) => {
+                if (state._excl) delete state._excl[containerId];
             },
 
             showUpdateProgress: () => {
@@ -6608,13 +6834,15 @@
                 const filterEl = document.getElementById('groupEditFilter' + suffix);
                 const typeEl = document.getElementById('groupEditType' + suffix);
                 const domainsEl = document.getElementById('groupEditDomains' + suffix);
-                const exclusionsEl = document.getElementById('groupEditExclusions' + suffix);
 
                 const name = (nameEl?.value || '').trim();
                 const node_filter = (filterEl?.value || '').trim();
                 const type = typeEl?.value || 'url-test';
                 const rules = (domainsEl?.value || '').split('\n').map(d => d.trim()).filter(d => d && !d.startsWith('#'));
-                const exclusions = (exclusionsEl?.value || '').split('\n').map(d => d.trim()).filter(d => d);
+
+                // Получаем exclusions из chip-блока
+                const exclContainerId = editId ? 'exclContainer_' + editId : 'exclContainer_new';
+                const exclData = ui.exclGetData(exclContainerId);
 
                 if (!name && !editId) { alert('Введите название группы'); return; }
 
@@ -6640,15 +6868,17 @@
 
                 let res;
                 if (editId) {
-                    const payload = { node_filter, type, rules, exclusions };
+                    const payload = { node_filter, type, rules, ...exclData };
                     // Имя можно менять только для не-builtin
                     const pg = state.proxyGroups.find(g => g.id === editId);
                     if (!pg?.builtin && name) payload.name = name;
                     res = await utils.apiCall(`/groups/${editId}`, { method: 'PUT', body: JSON.stringify(payload) });
                 } else {
-                    res = await utils.apiCall('/groups', { method: 'POST', body: JSON.stringify({ name, node_filter, type, rules, exclusions }) });
+                    res = await utils.apiCall('/groups', { method: 'POST', body: JSON.stringify({ name, node_filter, type, rules, ...exclData }) });
                 }
                 if (res) {
+                    // Сбрасываем кэш exclusions для сохранённой группы
+                    ui.exclClear(exclContainerId);
                     ui.hideGroupEditor();
                     await actions.fetchGroups();
                 }
