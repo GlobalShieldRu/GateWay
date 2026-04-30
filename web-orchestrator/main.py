@@ -40,6 +40,7 @@ GSG_FEEDBACK_FILE = GSG_CONFIG_DIR / "feedback.json"
 GSG_DEVICE_FILE = GSG_CONFIG_DIR / "device.json"
 GSG_SETTINGS_FILE = GSG_CONFIG_DIR / "settings.json"
 GSG_AUTH_FILE   = GSG_CONFIG_DIR / "auth.json"
+GSG_APPS_FILE   = GSG_CONFIG_DIR / "apps.json"
 DNSMASQ_LEASES  = Path("/var/lib/misc/dnsmasq.leases")
 
 GLOBALSHIELD_DOMAIN = "globalshield.ru"
@@ -1263,18 +1264,14 @@ async def get_devices():
     for d in active_devices:
         mac = d.get('mac', '')
         conf = mac_configs.get(mac, {})
-        reserved_ip = conf.get('reserved_ip') or conf.get('static_ip') or ''
-        current_ip  = d['ip']
+        current_ip = d['ip']
         result.append({
             **d,
             "mode": conf.get("mode", "smart"),
             "assigned_node": conf.get("assigned_node", "auto"),
             "tiktok_node": conf.get("tiktok_node", "auto"),
             "custom_name": conf.get("custom_name", ""),
-            "static_ip": reserved_ip,   # обратная совместимость с UI
-            "reserved_ip": reserved_ip,
             "current_ip": current_ip,
-            "is_reserved": bool(reserved_ip) and reserved_ip == current_ip,
             "block_vpn_app": conf.get("block_vpn_app", False),
         })
     return result
@@ -1353,21 +1350,23 @@ async def update_device(ip: str, data: DeviceUpdate):
         if not new_mac:
             new_mac = existing.get('mac', '')
 
-        # Определяем reserved_ip: если передан static_ip — используем его,
-        # иначе если нет reserved_ip — автоматически резервируем текущий IP
-        new_reserved = data.static_ip or existing.get('reserved_ip') or existing.get('static_ip') or ip
+        # reserved_ip: если пользователь передал static_ip — обновляем,
+        # иначе сохраняем существующее значение (для dnsmasq, не трогаем без явного запроса)
+        new_reserved = data.static_ip or existing.get('reserved_ip') or existing.get('static_ip') or ''
 
         new_cfg = {
             "mode": data.mode,
             "assigned_node": data.assigned_node,
             "tiktok_node": data.tiktok_node,
             "custom_name": data.custom_name,
-            "reserved_ip": new_reserved,
-            "static_ip": new_reserved,   # обратная совместимость с dnsmasq
             "mac": new_mac,
             "current_ip": existing.get('current_ip', ip),
             "block_vpn_app": data.block_vpn_app,
         }
+        # Сохраняем reserved_ip/static_ip только если есть (не засоряем новые записи)
+        if new_reserved:
+            new_cfg["reserved_ip"] = new_reserved
+            new_cfg["static_ip"] = new_reserved   # обратная совместимость с dnsmasq
 
         # Сохраняем под MAC-ключом (или IP если MAC неизвестен)
         save_key = new_mac if (new_mac and _looks_like_mac(new_mac)) else ip
@@ -1885,7 +1884,7 @@ async def test_routes():
     device_tests = []
     for key, dev in devices.items():
         # devices.json может быть в двух форматах: ключ=MAC (новый) или ключ=IP (старый)
-        actual_ip = dev.get("reserved_ip") or dev.get("static_ip") or dev.get("current_ip") or key
+        actual_ip = dev.get("current_ip") or key
         mode = dev.get("mode", "smart")
         name = dev.get("custom_name") or dev.get("hostname") or actual_ip
         assigned = dev.get("assigned_node", "auto")
@@ -2822,6 +2821,172 @@ async def restore_backup(file: UploadFile = File(...)):
     (GSG_CONFIG_DIR / ".reload_nftables").touch()
     (GSG_CONFIG_DIR / ".reload_mihomo").touch()
     return {"restored": restored, "errors": errors}
+
+
+# ── Apps management ──────────────────────────────────────────────────────────
+
+_BUILTIN_APPS_DEFAULT = [
+    {"id": "telegram",  "title": "Telegram",           "color": "#229ED9", "ny": False, "alwaysActive": False, "builtin": True,
+     "favicon": None,
+     "domains": ["telegram.org", "t.me", "telesco.pe", "telegram-cdn.org", "tdesktop.com", "tg.dev", "telegra.ph"]},
+    {"id": "tiktok",    "title": "TikTok",             "color": "#ee1d52", "ny": False, "alwaysActive": False, "builtin": True,
+     "favicon": None,
+     "domains": ["tiktok.com", "tiktokcdn.com", "tiktokv.com", "tiktokcdn-us.com", "tiktok-row.com",
+                 "bytedance.com", "byteoversea.com", "bytecdn.cn", "ibyteimg.com",
+                 "musical.ly", "muscdn.com", "tiktokstaticb.com", "tiktokstaticcdn.com",
+                 "ttwstatic.com", "ttlivecdn.com", "tiktokio.com"]},
+    {"id": "youtube",   "title": "YouTube",            "color": "#ff0000", "ny": False, "alwaysActive": False, "builtin": True,
+     "favicon": None,
+     "domains": ["youtube.com", "youtu.be", "ytimg.com", "yt3.ggpht.com",
+                 "googlevideo.com", "youtube-nocookie.com", "youtubei.googleapis.com"]},
+    {"id": "instagram", "title": "Instagram",          "color": "#e1306c", "ny": False, "alwaysActive": False, "builtin": True,
+     "favicon": None,
+     "domains": ["instagram.com", "cdninstagram.com", "fbcdn.net", "facebook.com",
+                 "instagram-brand.com", "ig.me"]},
+    {"id": "vk",        "title": "VK",                 "color": "#0077ff", "ny": False, "alwaysActive": False, "builtin": True,
+     "favicon": "https://vk.com/favicon.ico",
+     "domains": ["vk.com", "vk.ru", "userapi.com", "vkuseraudio.com", "vk-cdn.net", "vkontakte.ru"]},
+    {"id": "ok",        "title": "OK",                 "color": "#ee8208", "ny": False, "alwaysActive": False, "builtin": True,
+     "favicon": "https://ok.ru/favicon.ico",
+     "domains": ["ok.ru", "odnoklassniki.ru"]},
+    {"id": "kinopoisk", "title": "Kinopoisk",          "color": "#ff6600", "ny": False, "alwaysActive": False, "builtin": True,
+     "favicon": "https://www.kinopoisk.ru/favicon.ico",
+     "domains": ["kinopoisk.ru", "kinopoisk.com", "hd.kinopoisk.ru", "yastatic.net"]},
+    {"id": "yandex",    "title": "Yandex",             "color": "#ff0000", "ny": False, "alwaysActive": False, "builtin": True,
+     "favicon": "https://yandex.ru/favicon.ico",
+     "domains": ["yandex.ru", "yandex.com", "ya.ru", "yandex.net", "yandexcloud.net"]},
+    {"id": "discord",   "title": "Discord",            "color": "#5865f2", "ny": False, "alwaysActive": False, "builtin": True,
+     "favicon": "https://discord.com/favicon.ico",
+     "domains": ["discord.com", "discord.gg", "discordapp.com", "discordapp.net", "discord.media"]},
+    {"id": "spotify",   "title": "Spotify",            "color": "#1db954", "ny": False, "alwaysActive": False, "builtin": True,
+     "favicon": "https://open.spotify.com/favicon.ico",
+     "domains": ["spotify.com", "scdn.co", "spotifycdn.com", "pscdn.co"]},
+    {"id": "twitch",    "title": "Twitch",             "color": "#9146ff", "ny": False, "alwaysActive": False, "builtin": True,
+     "favicon": "https://twitch.tv/favicon.ico",
+     "domains": ["twitch.tv", "twitchsvc.net", "jtvnw.net", "twitchapps.com"]},
+    {"id": "megogo",    "title": "Megogo",             "color": "#1db954", "ny": False, "alwaysActive": False, "builtin": True,
+     "favicon": "https://megogo.net/favicon.ico",
+     "domains": ["megogo.net"]},
+    {"id": "gemini",    "title": "Gemini (только US)", "color": "#8ab4f8", "ny": True,  "alwaysActive": True,  "builtin": True,
+     "favicon": None,
+     "domains": ["gemini.google.com", "generativelanguage.googleapis.com", "aistudio.google.com"]},
+    {"id": "claude",    "title": "Claude (только US)", "color": "#d97706", "ny": True,  "alwaysActive": True,  "builtin": True,
+     "favicon": None,
+     "domains": ["claude.ai", "claude.com", "anthropic.com", "api.anthropic.com",
+                 "a-api.anthropic.com", "s-cdn.anthropic.com", "platform.claude.com",
+                 "console.anthropic.com", "statsig-anthropic.com", "sentry-anthropic.io",
+                 "stripe.com", "stripe.network", "js.stripe.com", "checkout.stripe.com",
+                 "api.stripe.com", "m.stripe.com",
+                 "datadoghq.com", "datadoghq.eu", "ddog-gov.com",
+                 "nel.cloudflare.com",
+                 "160.79.104.0/22", "160.79.108.0/22"]},
+    {"id": "chatgpt",   "title": "ChatGPT (только US)","color": "#10a37f", "ny": True,  "alwaysActive": True,  "builtin": True,
+     "favicon": None,
+     "domains": ["chat.openai.com", "openai.com", "chatgpt.com", "api.openai.com", "oaistatic.com"]},
+    {"id": "netflix",   "title": "Netflix (только US)", "color": "#E50914", "ny": True,  "alwaysActive": False, "builtin": True,
+     "favicon": None,
+     "domains": ["netflix.com", "nflxvideo.net", "nflximg.com", "nflxso.net",
+                 "nflximg.net", "netflix.net", "nflx.net"]},
+]
+
+def _build_app_regex(domains: list) -> str:
+    """Строит regex для определения приложения по доменному имени."""
+    roots = set()
+    for d in domains:
+        if "/" in d:
+            continue  # IP-CIDR пропускаем
+        parts = d.split(".")
+        if len(parts) >= 2:
+            name = parts[-2].split("-")[0]
+            if len(name) >= 4:
+                roots.add(name.lower())
+    return "|".join(sorted(roots)) if roots else ""
+
+async def _load_apps() -> list:
+    """Загружает apps.json; при отсутствии файла создаёт его из дефолтов."""
+    if not GSG_APPS_FILE.exists():
+        data = {"apps": _BUILTIN_APPS_DEFAULT}
+        # добавляем regex для каждого
+        for app in data["apps"]:
+            app["regex"] = _build_app_regex(app["domains"])
+        GSG_APPS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        async with aiofiles.open(GSG_APPS_FILE, "w") as f:
+            await f.write(json.dumps(data, ensure_ascii=False, indent=2))
+        return data["apps"]
+    raw = await read_json(GSG_APPS_FILE, {"apps": _BUILTIN_APPS_DEFAULT})
+    apps = raw.get("apps", _BUILTIN_APPS_DEFAULT)
+    # Проверяем наличие builtin-приложений, добавляем отсутствующие
+    existing_ids = {a["id"] for a in apps}
+    added = False
+    for builtin in _BUILTIN_APPS_DEFAULT:
+        if builtin["id"] not in existing_ids:
+            app_copy = dict(builtin)
+            app_copy["regex"] = _build_app_regex(app_copy["domains"])
+            apps.append(app_copy)
+            added = True
+    if added:
+        async with aiofiles.open(GSG_APPS_FILE, "w") as f:
+            await f.write(json.dumps({"apps": apps}, ensure_ascii=False, indent=2))
+    return apps
+
+async def _save_apps(apps: list):
+    async with aiofiles.open(GSG_APPS_FILE, "w") as f:
+        await f.write(json.dumps({"apps": apps}, ensure_ascii=False, indent=2))
+
+@app.get("/api/apps")
+async def get_apps():
+    apps = await _load_apps()
+    return {"apps": apps}
+
+@app.post("/api/apps")
+async def create_app(data: dict):
+    import uuid as _uuid
+    apps = await _load_apps()
+    new_id = data.get("id") or ("custom_" + _uuid.uuid4().hex[:8])
+    # проверяем уникальность id
+    if any(a["id"] == new_id for a in apps):
+        raise HTTPException(400, f"App с id '{new_id}' уже существует")
+    new_app = {
+        "id":          new_id,
+        "title":       data.get("title", "Новое приложение"),
+        "color":       data.get("color", "#94a3b8"),
+        "ny":          bool(data.get("ny", False)),
+        "alwaysActive":bool(data.get("alwaysActive", False)),
+        "builtin":     False,
+        "favicon":     data.get("favicon") or None,
+        "domains":     data.get("domains", []),
+    }
+    new_app["regex"] = _build_app_regex(new_app["domains"])
+    apps.append(new_app)
+    await _save_apps(apps)
+    return new_app
+
+@app.patch("/api/apps/{app_id}")
+async def update_app(app_id: str, data: dict):
+    apps = await _load_apps()
+    idx = next((i for i, a in enumerate(apps) if a["id"] == app_id), None)
+    if idx is None:
+        raise HTTPException(404, "App не найден")
+    app = dict(apps[idx])
+    for field in ("title", "color", "ny", "alwaysActive", "favicon", "domains"):
+        if field in data:
+            app[field] = data[field]
+    app["regex"] = _build_app_regex(app.get("domains", []))
+    apps[idx] = app
+    await _save_apps(apps)
+    return app
+
+@app.delete("/api/apps/{app_id}")
+async def delete_app(app_id: str):
+    apps = await _load_apps()
+    idx = next((i for i, a in enumerate(apps) if a["id"] == app_id), None)
+    if idx is None:
+        raise HTTPException(404, "App не найден")
+    if apps[idx].get("builtin"):
+        raise HTTPException(403, "Встроенные приложения нельзя удалить")
+    apps.pop(idx)
+    await _save_apps(apps)
+    return {"ok": True}
 
 
 app.mount("/static", StaticFiles(directory="static"), name="static")

@@ -202,7 +202,21 @@ def main():
             "+.mail.ru",
             "+.avito.ru",
             "+.dzen.ru",
-            "+.gosuslugi.ru"
+            "+.gosuslugi.ru",
+            # Anti-bot/VPN детекторы — sniffer override-destination ломает TLS fingerprint,
+            # из-за чего Anthropic/Stripe/Vercel считают трафик подозрительным.
+            # Через HAPP (без Mihomo sniffer) эти сайты работают, через GSG падают.
+            # skip-domain → Mihomo не парсит ClientHello → TLS handshake идёт как от браузера.
+            "+.anthropic.com",
+            "+.claude.ai",
+            "+.claude.com",
+            "+.stripe.com",
+            "+.stripe.network",
+            "+.vercel.com",
+            "+.vercel.app",
+            "+.cloudflare.com",
+            "+.openai.com",
+            "+.chatgpt.com"
         ]
     }
 
@@ -574,22 +588,54 @@ def main():
         parts = s.split(':')
         return len(parts) == 6 and all(len(p) == 2 for p in parts)
 
-    for key, info in devices.items():
-        # Поддерживаем оба формата: MAC-ключ (новый) и IP-ключ (старый)
-        if _looks_like_mac(key):
-            # Новый формат: ключ = MAC, IP берём из reserved_ip или static_ip
-            ip = info.get('reserved_ip') or info.get('static_ip') or info.get('current_ip', '')
-            if not ip:
-                print(f"[WARN] Устройство {key}: нет reserved_ip, пропускаем", flush=True)
-                continue
-        else:
-            # Старый формат: ключ = IP
-            ip = key
-            # Если есть reserved_ip/static_ip — используем его для правил
-            reserved = info.get('reserved_ip') or info.get('static_ip', '')
-            if reserved:
-                ip = reserved
+    # Строим IP→(mac, info) map исключительно по current_ip.
+    # Настройки привязаны к MAC, правила генерируются для того IP, на котором
+    # устройство живёт прямо сейчас. reserved_ip остаётся только для dnsmasq.
+    _now = time.time()
+    _LIVE_TTL = 86400  # 24 часа — устройство считается живым
 
+    # Читаем activity (last_seen хранится отдельно от devices.json)
+    _activity: dict = {}
+    _activity_path = GSG_CONFIG_DIR / "devices_activity.json"
+    if _activity_path.exists():
+        try:
+            _activity = json.loads(_activity_path.read_text())
+        except Exception:
+            pass
+
+    def _last_seen(mac: str, info: dict) -> float:
+        return _activity.get(mac, info.get('last_seen', 0))
+
+    ip_to_device: dict = {}  # ip → (mac_or_key, info)
+
+    for key, info in devices.items():
+        if _looks_like_mac(key):
+            cur = info.get('current_ip', '')
+            if not cur:
+                print(f"[WARN] Устройство {key}: нет current_ip, пропускаем", flush=True)
+                continue
+            last = _last_seen(key, info)
+            if last and (_now - last) >= _LIVE_TTL:
+                print(f"[INFO] Устройство {key}: не активно более 24ч, пропускаем правила", flush=True)
+                continue
+            if cur in ip_to_device:
+                # Конфликт: два MAC с одинаковым current_ip — берём более свежий
+                existing_mac, existing_info = ip_to_device[cur]
+                existing_seen = _last_seen(existing_mac, existing_info)
+                if last > existing_seen:
+                    print(f"[WARN] IP conflict {cur}: {key} (newer) vs {existing_mac} — applying {key}", flush=True)
+                    ip_to_device[cur] = (key, info)
+                else:
+                    print(f"[WARN] IP conflict {cur}: {key} (older) vs {existing_mac} — keeping {existing_mac}", flush=True)
+            else:
+                ip_to_device[cur] = (key, info)
+        else:
+            # Старый формат: IP-ключ — используем ключ как IP
+            ip_key = key
+            if ip_key not in ip_to_device:
+                ip_to_device[ip_key] = (key, info)
+
+    for ip, (key, info) in ip_to_device.items():
         mode = info.get('mode', 'smart')
         assign = info.get('assigned_node', 'auto')
         target = global_node
@@ -647,16 +693,11 @@ def main():
         print("\n[GSG] === WHITELIST BYPASS MODE: ON ===", flush=True)
         print("  Весь трафик всех устройств идёт через VPN (обход белых списков провайдера)", flush=True)
         # В этом режиме очищаем sub-rules и ip_rules устройств,
-        # заменяя их на глобальный проксирующий MATCH
+        # заменяя их на глобальный проксирующий MATCH.
+        # Используем тот же ip_to_device map (MAC-based, current_ip приоритетнее reserved).
         sub_rules = {}
         device_ip_rules = []
-        for key, info in devices.items():
-            if _looks_like_mac(key):
-                ip = info.get('reserved_ip') or info.get('static_ip') or info.get('current_ip', '')
-                if not ip:
-                    continue
-            else:
-                ip = info.get('reserved_ip') or info.get('static_ip') or key
+        for ip, (key, info) in ip_to_device.items():
             mode = info.get('mode', 'smart')
             if mode == 'block':
                 device_ip_rules.append(f"SRC-IP-CIDR,{ip}/32,REJECT")

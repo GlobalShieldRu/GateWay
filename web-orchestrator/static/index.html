@@ -874,6 +874,10 @@
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                 Маршруты
             </div>
+            <div class="nav-item expert-item" id="nav-apps" onclick="GatewayApp.ui.switchTab('tab-apps', this)" style="display:flex;" data-tip="Управление приложениями: домены, маршрутизация, создание пресетов">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                Приложения
+            </div>
             <div class="nav-item expert-item" id="nav-dhcp" onclick="GatewayApp.ui.switchTab('tab-dhcp', this)" style="display:flex;" data-tip="Таблица аренды IP-адресов (DHCP) и настройки сети">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
                 DHCP и Сеть
@@ -1214,7 +1218,8 @@
                         </div>
                         <div>
                             <div class="section-label" style="margin-bottom:6px;">Правила (домены, IP, подсети)</div>
-                            <textarea id="groupEditDomains_new" class="gsg-textarea" rows="7" placeholder="# Один элемент на строку&#10;youtube.com      → domain suffix&#10;netflix          → keyword&#10;10.10.2.0/24     → IP-CIDR bypass&#10;192.168.1.1      → одиночный IP/32"></textarea>
+                            <div id="presetChips_groupEditDomains_new" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;"></div>
+                            <textarea id="groupEditDomains_new" class="gsg-textarea" rows="7" placeholder="# Один элемент на строку&#10;youtube.com      → domain suffix&#10;netflix          → keyword&#10;10.10.2.0/24     → IP-CIDR bypass&#10;192.168.1.1      → одиночный IP/32" oninput="renderPresetChips('groupEditDomains_new')"></textarea>
                             <div style="font-size:10px;color:var(--muted);margin-top:4px;">Тип определяется автоматически: с точкой → SUFFIX, без точки → KEYWORD, IP/CIDR → IP-CIDR.</div>
                         </div>
                         <div>
@@ -1481,6 +1486,52 @@
 
             <!-- Visualization tab -->
 
+            <!-- Apps Management tab -->
+            <div id="tab-apps" class="tab-content expert-item reveal reveal-2">
+                <div class="glass" style="padding:24px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+                        <div style="font-size:15px;font-weight:800;color:#f1f5f9;display:flex;align-items:center;gap:8px;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                            Управление приложениями
+                        </div>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <input id="appsSearch" type="text" placeholder="Поиск..." class="gsg-input" style="width:180px;padding:7px 12px;font-size:12px;" oninput="GatewayApp.ui.renderAppsPage()">
+                            <button onclick="GatewayApp.ui.openNewAppEditor()" style="display:flex;align-items:center;gap:6px;padding:8px 16px;background:linear-gradient(135deg,rgba(201,168,76,0.15),rgba(201,168,76,0.08));border:1px solid rgba(201,168,76,0.3);border-radius:9px;color:#fbbf24;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.background='linear-gradient(135deg,rgba(201,168,76,0.25),rgba(201,168,76,0.15))'" onmouseout="this.style.background='linear-gradient(135deg,rgba(201,168,76,0.15),rgba(201,168,76,0.08))'">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                Добавить приложение
+                            </button>
+                        </div>
+                    </div>
+                    <!-- New app editor (hidden by default) -->
+                    <div id="newAppEditor" style="display:none;margin-bottom:16px;padding:16px;border-radius:12px;border:1px solid rgba(201,168,76,0.25);background:rgba(201,168,76,0.04);">
+                        <div style="font-size:13px;font-weight:700;color:#fbbf24;margin-bottom:14px;">Новое приложение</div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr auto auto;gap:10px;align-items:start;margin-bottom:12px;flex-wrap:wrap;">
+                            <input id="newAppTitle" type="text" placeholder="Название" class="gsg-input" style="padding:8px 12px;font-size:13px;">
+                            <input id="newAppId" type="text" placeholder="ID (латиница, опционально)" class="gsg-input" style="padding:8px 12px;font-size:13px;">
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <input id="newAppColor" type="color" value="#94a3b8" style="width:40px;height:36px;border-radius:7px;border:1px solid rgba(255,255,255,0.1);background:transparent;cursor:pointer;padding:2px;">
+                                <span style="font-size:11px;color:var(--muted);">Цвет</span>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--muted);">
+                                    <input id="newAppNy" type="checkbox" style="accent-color:#3b82f6;"> US-нода
+                                </label>
+                            </div>
+                        </div>
+                        <div style="margin-bottom:10px;">
+                            <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.06em;">Домены (по одному в строку)</div>
+                            <textarea id="newAppDomains" class="gsg-textarea" rows="4" placeholder="example.com&#10;api.example.com&#10;cdn.example.com"></textarea>
+                        </div>
+                        <div style="display:flex;gap:8px;">
+                            <button onclick="GatewayApp.actions.createApp()" style="padding:8px 20px;background:linear-gradient(135deg,#22c55e,#16a34a);border:none;border-radius:9px;color:#fff;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">Создать</button>
+                            <button onclick="GatewayApp.ui.closeNewAppEditor()" style="padding:8px 14px;background:transparent;border:1px solid rgba(255,255,255,0.1);border-radius:9px;color:var(--muted);font-family:'Syne',sans-serif;font-size:12px;cursor:pointer;">Отмена</button>
+                        </div>
+                    </div>
+                    <!-- Apps list -->
+                    <div id="appsPageList" style="display:flex;flex-direction:column;gap:6px;"></div>
+                </div>
+            </div>
+
         </main>
     </div>
 </div>
@@ -1549,53 +1600,48 @@
             myip:      `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 2C8.134 2 5 5.134 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.866-3.134-7-7-7z"/></svg>`,
 
         };
-        const APPS = [
-            { id: 'telegram',  title: 'Telegram',           color: '#229ED9', ny: false },
-            { id: 'tiktok',    title: 'TikTok',             color: '#ee1d52', ny: false },
-            { id: 'youtube',   title: 'YouTube',            color: '#ff0000', ny: false },
-            { id: 'instagram', title: 'Instagram',          color: '#e1306c', ny: false },
-            { id: 'vk',        title: 'VK',                 color: '#0077ff', ny: false, favicon: 'https://vk.com/favicon.ico' },
-            { id: 'ok',        title: 'OK',                 color: '#ee8208', ny: false, favicon: 'https://ok.ru/favicon.ico' },
-            { id: 'kinopoisk', title: 'Kinopoisk',          color: '#ff6600', ny: false, favicon: 'https://www.kinopoisk.ru/favicon.ico' },
-            { id: 'yandex',    title: 'Yandex',             color: '#ff0000', ny: false, favicon: 'https://yandex.ru/favicon.ico' },
-            { id: 'discord',   title: 'Discord',            color: '#5865f2', ny: false, favicon: 'https://discord.com/favicon.ico' },
-            { id: 'spotify',   title: 'Spotify',            color: '#1db954', ny: false, favicon: 'https://open.spotify.com/favicon.ico' },
-            { id: 'twitch',    title: 'Twitch',             color: '#9146ff', ny: false, favicon: 'https://twitch.tv/favicon.ico' },
-            { id: 'megogo',    title: 'Megogo',             color: '#1db954', ny: false, favicon: 'https://megogo.net/favicon.ico' },
-
-            { id: 'gemini',    title: 'Gemini (только US)', color: '#8ab4f8', ny: true, alwaysActive: true },
-            { id: 'claude',    title: 'Claude (только US)', color: '#d97706', ny: true, alwaysActive: true },
-            { id: 'chatgpt',   title: 'ChatGPT (только US)',color: '#10a37f', ny: true, alwaysActive: true },
-            { id: 'netflix',   title: 'Netflix (только US)', color: '#E50914', ny: true },
+        // Fallback данные (используются если /api/apps недоступен)
+        const _APPS_FALLBACK = [
+            { id: 'telegram',  title: 'Telegram',           color: '#229ED9', ny: false, alwaysActive: false, builtin: true,
+              domains: ['telegram.org', 't.me', 'telesco.pe', 'telegram-cdn.org', 'tdesktop.com', 'tg.dev', 'telegra.ph'] },
+            { id: 'tiktok',    title: 'TikTok',             color: '#ee1d52', ny: false, alwaysActive: false, builtin: true,
+              domains: ['tiktok.com', 'tiktokcdn.com', 'tiktokv.com', 'bytedance.com', 'musical.ly', 'muscdn.com', 'ttwstatic.com'] },
+            { id: 'youtube',   title: 'YouTube',            color: '#ff0000', ny: false, alwaysActive: false, builtin: true,
+              domains: ['youtube.com', 'youtu.be', 'ytimg.com', 'googlevideo.com'] },
+            { id: 'instagram', title: 'Instagram',          color: '#e1306c', ny: false, alwaysActive: false, builtin: true,
+              domains: ['instagram.com', 'cdninstagram.com', 'fbcdn.net', 'facebook.com'] },
+            { id: 'vk',        title: 'VK',                 color: '#0077ff', ny: false, alwaysActive: false, builtin: true, favicon: 'https://vk.com/favicon.ico',
+              domains: ['vk.com', 'vk.ru', 'userapi.com', 'vkontakte.ru'] },
+            { id: 'ok',        title: 'OK',                 color: '#ee8208', ny: false, alwaysActive: false, builtin: true, favicon: 'https://ok.ru/favicon.ico',
+              domains: ['ok.ru', 'odnoklassniki.ru'] },
+            { id: 'kinopoisk', title: 'Kinopoisk',          color: '#ff6600', ny: false, alwaysActive: false, builtin: true, favicon: 'https://www.kinopoisk.ru/favicon.ico',
+              domains: ['kinopoisk.ru', 'hd.kinopoisk.ru', 'yastatic.net'] },
+            { id: 'yandex',    title: 'Yandex',             color: '#ff0000', ny: false, alwaysActive: false, builtin: true, favicon: 'https://yandex.ru/favicon.ico',
+              domains: ['yandex.ru', 'yandex.com', 'ya.ru', 'yandex.net'] },
+            { id: 'discord',   title: 'Discord',            color: '#5865f2', ny: false, alwaysActive: false, builtin: true, favicon: 'https://discord.com/favicon.ico',
+              domains: ['discord.com', 'discord.gg', 'discordapp.com', 'discordapp.net'] },
+            { id: 'spotify',   title: 'Spotify',            color: '#1db954', ny: false, alwaysActive: false, builtin: true, favicon: 'https://open.spotify.com/favicon.ico',
+              domains: ['spotify.com', 'scdn.co', 'spotifycdn.com'] },
+            { id: 'twitch',    title: 'Twitch',             color: '#9146ff', ny: false, alwaysActive: false, builtin: true, favicon: 'https://twitch.tv/favicon.ico',
+              domains: ['twitch.tv', 'twitchsvc.net', 'jtvnw.net'] },
+            { id: 'megogo',    title: 'Megogo',             color: '#1db954', ny: false, alwaysActive: false, builtin: true, favicon: 'https://megogo.net/favicon.ico',
+              domains: ['megogo.net'] },
+            { id: 'gemini',    title: 'Gemini (только US)', color: '#8ab4f8', ny: true,  alwaysActive: true,  builtin: true,
+              domains: ['gemini.google.com', 'generativelanguage.googleapis.com', 'aistudio.google.com'] },
+            { id: 'claude',    title: 'Claude (только US)', color: '#d97706', ny: true,  alwaysActive: true,  builtin: true,
+              domains: ['claude.ai', 'claude.com', 'anthropic.com', 'api.anthropic.com', 'stripe.com', 'datadoghq.com', '160.79.104.0/22', '160.79.108.0/22'] },
+            { id: 'chatgpt',   title: 'ChatGPT (только US)',color: '#10a37f', ny: true,  alwaysActive: true,  builtin: true,
+              domains: ['chat.openai.com', 'openai.com', 'chatgpt.com', 'api.openai.com'] },
+            { id: 'netflix',   title: 'Netflix (только US)', color: '#E50914', ny: true,  alwaysActive: false, builtin: true,
+              domains: ['netflix.com', 'nflxvideo.net', 'nflximg.com', 'nflxso.net'] },
         ];
 
-        // Полные списки доменов для каждого приложения (для добавления в proxy-группы)
-        const APP_DOMAINS = {
-            telegram:  ['telegram.org', 't.me', 'telesco.pe', 'telegram-cdn.org', 'tdesktop.com', 'tg.dev', 'telegra.ph'],
-            tiktok:    ['tiktok.com', 'tiktokcdn.com', 'tiktokv.com', 'tiktokcdn-us.com', 'tiktok-row.com',
-                        'bytedance.com', 'byteoversea.com', 'bytecdn.cn', 'ibyteimg.com',
-                        'musical.ly', 'muscdn.com', 'tiktokstaticb.com', 'tiktokstaticcdn.com',
-                        'ttwstatic.com', 'ttlivecdn.com', 'tiktokio.com'],
-            youtube:   ['youtube.com', 'youtu.be', 'ytimg.com', 'yt3.ggpht.com',
-                        'googlevideo.com', 'youtube-nocookie.com', 'youtubei.googleapis.com'],
-            instagram: ['instagram.com', 'cdninstagram.com', 'fbcdn.net', 'facebook.com',
-                        'instagram-brand.com', 'ig.me'],
-            netflix:   ['netflix.com', 'nflxvideo.net', 'nflximg.com', 'nflxso.net',
-                        'nflximg.net', 'netflix.net', 'nflx.net'],
-            gemini:    ['gemini.google.com', 'generativelanguage.googleapis.com', 'aistudio.google.com'],
-            claude:    ['claude.ai', 'anthropic.com', 'api.anthropic.com'],
-            chatgpt:   ['chat.openai.com', 'openai.com', 'chatgpt.com', 'api.openai.com', 'oaistatic.com'],
-            kinopoisk: ['kinopoisk.ru', 'kinopoisk.com', 'hd.kinopoisk.ru', 'yastatic.net'],
-            yandex:    ['yandex.ru', 'yandex.com', 'ya.ru', 'yandex.net', 'yandexcloud.net'],
-            vk:        ['vk.com', 'vk.ru', 'userapi.com', 'vkuseraudio.com', 'vk-cdn.net', 'vkontakte.ru'],
-            ok:        ['ok.ru', 'odnoklassniki.ru'],
-            spotify:   ['spotify.com', 'scdn.co', 'spotifycdn.com', 'pscdn.co'],
-            twitch:    ['twitch.tv', 'twitchsvc.net', 'jtvnw.net', 'twitchapps.com'],
-            discord:   ['discord.com', 'discord.gg', 'discordapp.com', 'discordapp.net', 'discord.media'],
-            megogo:    ['megogo.net'],
-            apple:     ['apple.com', 'icloud.com', 'apple-cloudkit.com', 'mzstatic.com', 'cdn-apple.com'],
-            google:    ['google.com', 'googleapis.com', 'gstatic.com', 'google.ru', 'google.co'],
-        };
+        // Живые данные приложений — заполняются из /api/apps при старте
+        // APPS и APP_DOMAINS — вычисляемые представления для обратной совместимости
+        let APPS = _APPS_FALLBACK.slice();
+        let APP_DOMAINS = Object.fromEntries(_APPS_FALLBACK.map(a => [a.id, a.domains || []]));
+        APP_DOMAINS.apple  = ['apple.com', 'icloud.com', 'apple-cloudkit.com', 'mzstatic.com', 'cdn-apple.com'];
+        APP_DOMAINS.google = ['google.com', 'googleapis.com', 'gstatic.com', 'google.ru', 'google.co'];
 
         // Дефолтный пресет exclusions (DIRECT) — совпадает с DEFAULT_EXCLUSIONS в generate_config.py
         // group:* — групповые ссылки, управляются через секцию "Группы"
@@ -1623,6 +1669,61 @@
                 return { prefix: '🔍 ', title: 'Ключевое слово → будет DOMAIN-KEYWORD правило' };
             }
             return { prefix: '', title: 'Домен → будет DOMAIN-SUFFIX правило' };
+        }
+
+        /**
+         * Переключает пресет приложения в textarea правил группы.
+         * Если все домены пресета уже есть — удаляет их. Иначе добавляет недостающие.
+         * textareaId — id textarea (groupEditDomains или groupEditDomains_new)
+         * appId — ключ из APP_DOMAINS
+         */
+        function togglePresetDomains(appId, textareaId) {
+            const ta = document.getElementById(textareaId);
+            if (!ta) return;
+            const preset = APP_DOMAINS[appId] || [];
+            if (!preset.length) return;
+            const lines = ta.value.split('\n').map(l => l.trim()).filter(l => l);
+            const linesSet = new Set(lines.map(l => l.toLowerCase()));
+            const allPresent = preset.every(d => linesSet.has(d.toLowerCase()));
+            if (allPresent) {
+                // Удаляем домены пресета
+                const presetSet = new Set(preset.map(d => d.toLowerCase()));
+                ta.value = lines.filter(l => !presetSet.has(l.toLowerCase())).join('\n');
+            } else {
+                // Добавляем только отсутствующие домены
+                const toAdd = preset.filter(d => !linesSet.has(d.toLowerCase()));
+                ta.value = lines.concat(toAdd).join('\n');
+            }
+            // Обновляем стили кнопок пресетов
+            renderPresetChips(textareaId);
+        }
+
+        /**
+         * Обновляет активное состояние chip-кнопок пресетов для textarea.
+         * Вызывается после изменения textarea или инициализации редактора.
+         */
+        function renderPresetChips(textareaId) {
+            const ta = document.getElementById(textareaId);
+            const container = document.getElementById('presetChips_' + textareaId);
+            if (!ta || !container) return;
+            const lines = ta.value.split('\n').map(l => l.trim()).filter(l => l);
+            const linesSet = new Set(lines.map(l => l.toLowerCase()));
+            const PRESETS = [
+                { id: 'tiktok',    label: 'TikTok',    color: '#ee1d52' },
+                { id: 'instagram', label: 'Instagram',  color: '#e1306c' },
+                { id: 'gemini',    label: 'Gemini',     color: '#8ab4f8' },
+                { id: 'claude',    label: 'Claude',     color: '#d97706' },
+            ];
+            container.innerHTML = '<span style="font-size:10px;color:#64748b;align-self:center;white-space:nowrap;">Пресеты:</span>' +
+                PRESETS.map(p => {
+                    const preset = APP_DOMAINS[p.id] || [];
+                    const active = preset.length > 0 && preset.every(d => linesSet.has(d.toLowerCase()));
+                    const bg = active ? p.color + '22' : 'rgba(255,255,255,0.04)';
+                    const border = active ? p.color + '66' : 'rgba(255,255,255,0.1)';
+                    const clr = active ? p.color : '#94a3b8';
+                    const svgIcon = APP_ICONS[p.id] ? `<span style="width:13px;height:13px;display:inline-flex;align-items:center;justify-content:center;color:${p.color};flex-shrink:0;">${APP_ICONS[p.id].replace('width="20"','width="13"').replace('height="20"','height="13"')}</span>` : '';
+                    return `<button onclick="togglePresetDomains('${p.id}','${textareaId}')" title="${active ? 'Удалить домены ' + p.label : 'Добавить домены ' + p.label}" style="display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:6px;background:${bg};border:1px solid ${border};color:${clr};font-size:11px;font-weight:600;cursor:pointer;transition:all 0.15s;white-space:nowrap;">${svgIcon}${p.label}${active ? ' ✕' : ''}</button>`;
+                }).join('');
         }
 
         /**
@@ -1985,7 +2086,9 @@
             _selectedHosts: new Set(),
             routeOverrides: [],
             _bypassNetworks: [],  // unused, kept for legacy compat
-            appRoutesData: {}
+            appRoutesData: {},
+            apps: [],        // массив из /api/apps
+            _appsLoaded: false,
         };
 
         const utils = {
@@ -2123,6 +2226,7 @@
                 if (tabId === 'tab-connections') { actions.fetchConnections(); actions.fetchRouteOverrides(); actions.fetchProxiesList(); }
                 if (tabId === 'tab-routing') { actions.fetchRouteOverrides(); }
                 if (tabId === 'tab-groups') { actions.fetchGroups(); actions.fetchRulesets(); actions.testRoutes(); }
+                if (tabId === 'tab-apps') { actions.fetchApps(); }
 
                 // Render stats when switching to stats tab (rAF — wait for layout)
                 if (tabId === 'tab-stats') requestAnimationFrame(() => requestAnimationFrame(() => ui.renderStats()));
@@ -2367,10 +2471,10 @@
                                 </div>
                                 <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);margin-top:1px;display:flex;flex-direction:column;gap:1px;" class="ip-row" data-ip="${dev.ip}">
                                     <div style="display:flex;align-items:center;gap:4px;">
-                                        <span class="ip-display">${dev.reserved_ip||dev.static_ip||dev.ip}</span>${dev.reserved_ip && dev.reserved_ip !== dev.ip ? `<span style="font-size:8px;color:rgba(100,116,139,0.35);">(${dev.ip})</span>` : (dev.static_ip && dev.static_ip !== dev.ip ? `<span style="font-size:8px;color:rgba(100,116,139,0.35);">(${dev.ip})</span>` : '')}
+                                        <span class="ip-display">${dev.current_ip||dev.ip}</span>
                                         <button class="static-ip-edit-btn" data-ip="${dev.ip}" title="Статичный IP (DHCP резерв)" onclick="event.stopPropagation();GatewayApp.ui.startStaticIpEdit('${dev.ip}')" style="background:none;border:none;color:rgba(100,116,139,0);cursor:pointer;padding:0;line-height:1;transition:color 0.15s;flex-shrink:0;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
 
-                                        <span class="static-ip-prefix" style="display:none;font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">${dev.ip.split('.').slice(0,3).join('.')}.</span><input class="static-ip-input gsg-input" type="number" min="1" max="254" data-ip="${dev.ip}" data-mac="${dev.mac||''}" value="${(dev.reserved_ip||dev.static_ip||dev.ip).split('.')[3]||''}" placeholder="${dev.ip.split('.')[3]}" style="display:none;width:56px;font-size:11px;padding:3px 6px;font-family:'JetBrains Mono',monospace;">
+                                        <span class="static-ip-prefix" style="display:none;font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;">${dev.ip.split('.').slice(0,3).join('.')}.</span><input class="static-ip-input gsg-input" type="number" min="1" max="254" data-ip="${dev.ip}" data-mac="${dev.mac||''}" value="${(dev.current_ip||dev.ip).split('.')[3]||''}" placeholder="${dev.ip.split('.')[3]}" style="display:none;width:56px;font-size:11px;padding:3px 6px;font-family:'JetBrains Mono',monospace;">
                                     </div>
                                     <span style="font-size:9px;color:rgba(100,116,139,0.5);">${dev.mac}</span>
                                 </div>
@@ -3021,8 +3125,11 @@
                                     </div>`}
                                 </div>
                                 <div>
-                                    <div class="section-label" style="margin-bottom:6px;">Правила (домены, IP, подсети)</div>
-                                    <textarea id="groupEditDomains" class="gsg-textarea" rows="8" placeholder="# Один элемент на строку&#10;youtube.com      → domain suffix&#10;netflix          → keyword&#10;10.10.2.0/24     → IP-CIDR bypass&#10;192.168.1.1      → одиночный IP/32">${rules.join('\n')}</textarea>
+                                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+                                        <div class="section-label" style="margin:0;">Правила (домены, IP, подсети)</div>
+                                    </div>
+                                    <div id="presetChips_groupEditDomains" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;"></div>
+                                    <textarea id="groupEditDomains" class="gsg-textarea" rows="8" placeholder="# Один элемент на строку&#10;youtube.com      → domain suffix&#10;netflix          → keyword&#10;10.10.2.0/24     → IP-CIDR bypass&#10;192.168.1.1      → одиночный IP/32" oninput="renderPresetChips('groupEditDomains')">${rules.join('\n')}</textarea>
                                     <div style="font-size:10px;color:var(--muted);margin-top:4px;">Тип определяется автоматически: с точкой → SUFFIX, без точки → KEYWORD, IP/CIDR → IP-CIDR (максимальный приоритет).</div>
                                 </div>
                                 ${(pg.type !== 'direct' && pg.id !== 'bypass') ? `<div>
@@ -3038,9 +3145,10 @@
                     </div>`;
                 }).join('');
 
-                // Инициализируем превью узлов и chip-блок exclusions для открытого редактора
+                // Инициализируем превью узлов, chip-блок exclusions и пресеты для открытого редактора
                 if (expanded) setTimeout(() => {
                     GatewayApp.ui.updateGroupPreview();
+                    renderPresetChips('groupEditDomains');
                     const editPg = state.proxyGroups.find(g => g.id === expanded);
                     if (editPg && editPg.type !== 'direct' && editPg.id !== 'bypass') {
                         const cid = 'exclContainer_' + editPg.id;
@@ -3074,7 +3182,7 @@
                 document.getElementById('groupEditDomains_new').value = '';
                 ui.exclClear('exclContainer_new');
                 editor.style.display = 'block';
-                setTimeout(() => renderExclusionChips('exclContainer_new', {}), 0);
+                setTimeout(() => { renderExclusionChips('exclContainer_new', {}); renderPresetChips('groupEditDomains_new'); }, 0);
             },
 
             hideGroupEditor: () => {
@@ -5341,13 +5449,13 @@
                         display.textContent = normalized;
                         if (dev) actions.updateDeviceSettings(ip, dev.mode, dev.assigned_node||'auto', dev.tiktok_node||'auto', normalized);
                     } else {
-                        display.textContent = dev?.static_ip || ip;
+                        display.textContent = dev?.current_ip || ip;
                     }
                 };
                 input.onblur = finish;
                 input.onkeydown = (e) => {
                     if (e.key==='Enter') { e.preventDefault(); input.blur(); }
-                    if (e.key==='Escape') { input.value=(dev?.static_ip||ip).split('.')[3]||''; input.blur(); }
+                    if (e.key==='Escape') { input.value=(dev?.current_ip||ip).split('.')[3]||''; input.blur(); }
                 };
             },
 
@@ -5421,14 +5529,14 @@
                 const displayName = dev.custom_name || dev.hostname || dev.ip;
                 // Header
                 document.getElementById('dsm-title').textContent = displayName;
-                document.getElementById('dsm-subtitle').textContent = (dev.reserved_ip || dev.static_ip || dev.ip) + (dev.mac ? '  ·  ' + dev.mac : '');
+                document.getElementById('dsm-subtitle').textContent = (dev.current_ip || dev.ip) + (dev.mac ? '  ·  ' + dev.mac : '');
                 // Name input
                 const nameInput = document.getElementById('dsm-name-input');
                 nameInput.value = displayName;
                 nameInput.dataset.orig = displayName;
                 nameInput.dataset.ip = ip;
                 // IP input
-                const curIp = dev.reserved_ip || dev.static_ip || dev.ip;
+                const curIp = dev.current_ip || dev.ip;
                 const prefix = curIp.split('.').slice(0,3).join('.') + '.';
                 document.getElementById('dsm-ip-prefix').textContent = prefix;
                 const ipInput = document.getElementById('dsm-ip-octet');
@@ -5828,6 +5936,117 @@
                     btn.style.color      = active ? '#fbbf24' : 'var(--muted)';
                 });
                 requestAnimationFrame(() => requestAnimationFrame(() => ui.renderStats()));
+            },
+
+            openNewAppEditor: () => {
+                const ed = document.getElementById('newAppEditor');
+                if (ed) { ed.style.display = 'block'; document.getElementById('newAppTitle')?.focus(); }
+            },
+            closeNewAppEditor: () => {
+                const ed = document.getElementById('newAppEditor');
+                if (ed) {
+                    ed.style.display = 'none';
+                    ['newAppTitle','newAppId','newAppDomains'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+                    const c = document.getElementById('newAppColor'); if (c) c.value = '#94a3b8';
+                    const n = document.getElementById('newAppNy'); if (n) n.checked = false;
+                }
+            },
+
+            renderAppsPage: () => {
+                const container = document.getElementById('appsPageList');
+                if (!container) return;
+                const apps = state._appsLoaded ? state.apps : _APPS_FALLBACK;
+                const q = (document.getElementById('appsSearch')?.value || '').toLowerCase().trim();
+                const filtered = q ? apps.filter(a => a.title.toLowerCase().includes(q) || a.id.toLowerCase().includes(q)) : apps;
+                const expandedId = state._appsExpandedId || null;
+
+                const _chipMeta = (d) => {
+                    if (/\//.test(d) && /^\d/.test(d)) return { prefix: '🌐 ', color: '#60a5fa' };
+                    if (!/\./.test(d)) return { prefix: '🔍 ', color: '#a78bfa' };
+                    return { prefix: '', color: '#94a3b8' };
+                };
+
+                container.innerHTML = filtered.map(app => {
+                    const isExpanded = expandedId === app.id;
+                    const domsCount  = (app.domains || []).length;
+                    const nyBadge    = app.ny ? '<span style="font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);font-weight:700;">🇺🇸 US</span>' : '';
+                    const alwaysBadge = app.alwaysActive ? '<span style="font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(34,197,94,0.1);color:#4ade80;border:1px solid rgba(34,197,94,0.25);font-weight:700;">всегда</span>' : '';
+                    const builtinBadge = app.builtin ? '<span style="font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(148,163,184,0.08);color:#64748b;border:1px solid rgba(148,163,184,0.15);">🔒</span>' : '';
+
+                    // Иконка (SVG из APP_ICONS или цветовой кружок)
+                    const svgIcon = APP_ICONS[app.id];
+                    const iconHtml = svgIcon
+                        ? `<span style="width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;color:${app.color};flex-shrink:0;">${svgIcon.replace('width="20"','width="18"').replace('height="20"','height="18"')}</span>`
+                        : `<span style="width:22px;height:22px;border-radius:50%;background:${app.color};flex-shrink:0;display:inline-block;"></span>`;
+
+                    let editorHtml = '';
+                    if (isExpanded) {
+                        const domsValue = (app.domains || []).join('\n');
+                        const chipsHtml = (app.domains || []).map(d => {
+                            const m = _chipMeta(d);
+                            const esc = d.replace(/'/g, "\\'");
+                            return `<span style="display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:6px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);font-family:JetBrains Mono,monospace;font-size:11px;color:${m.color};">${m.prefix}${d}</span>`;
+                        }).join('');
+
+                        editorHtml = `
+                        <div style="padding:0 20px 20px;" onclick="event.stopPropagation()">
+                            <div style="display:grid;grid-template-columns:1fr 140px auto auto;gap:10px;align-items:end;margin-bottom:14px;flex-wrap:wrap;">
+                                <div>
+                                    <div style="font-size:10px;color:var(--muted);font-weight:600;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.06em;">Название</div>
+                                    <input id="appEditTitle_${app.id}" type="text" value="${app.title.replace(/"/g,'&quot;')}" class="gsg-input" style="width:100%;padding:8px 12px;font-size:13px;">
+                                </div>
+                                <div>
+                                    <div style="font-size:10px;color:var(--muted);font-weight:600;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.06em;">Favicon URL</div>
+                                    <input id="appEditFavicon_${app.id}" type="text" value="${(app.favicon||'').replace(/"/g,'&quot;')}" placeholder="https://..." class="gsg-input" style="width:100%;padding:8px 12px;font-size:12px;">
+                                </div>
+                                <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+                                    <div style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Цвет</div>
+                                    <input id="appEditColor_${app.id}" type="color" value="${app.color}" style="width:44px;height:36px;border-radius:7px;border:1px solid rgba(255,255,255,0.1);background:transparent;cursor:pointer;padding:2px;">
+                                </div>
+                                <div style="display:flex;flex-direction:column;gap:6px;padding-bottom:4px;">
+                                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--muted);white-space:nowrap;">
+                                        <input id="appEditNy_${app.id}" type="checkbox" ${app.ny?'checked':''} style="accent-color:#3b82f6;"> 🇺🇸 US-нода
+                                    </label>
+                                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--muted);white-space:nowrap;">
+                                        <input id="appEditAlways_${app.id}" type="checkbox" ${app.alwaysActive?'checked':''} style="accent-color:#22c55e;"> Всегда активно
+                                    </label>
+                                </div>
+                            </div>
+                            <div style="margin-bottom:10px;">
+                                <div style="font-size:10px;color:var(--muted);font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.06em;">Домены (${domsCount})</div>
+                                <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;min-height:20px;">${chipsHtml || '<span style="font-size:11px;color:#475569;">Нет доменов</span>'}</div>
+                                <textarea id="appEditDomains_${app.id}" class="gsg-textarea" rows="5" style="font-family:JetBrains Mono,monospace;font-size:12px;">${domsValue}</textarea>
+                            </div>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                <button onclick="GatewayApp.actions.saveApp('${app.id}')" style="padding:8px 20px;background:linear-gradient(135deg,#3b82f6,#2563eb);border:none;border-radius:9px;color:#fff;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">Сохранить</button>
+                                ${!app.builtin ? `<button onclick="GatewayApp.actions.deleteApp('${app.id}')" style="padding:8px 14px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:9px;color:#f87171;font-family:'Syne',sans-serif;font-size:12px;cursor:pointer;">Удалить</button>` : ''}
+                            </div>
+                        </div>`;
+                    }
+
+                    return `<div class="glass" style="padding:0;border:1px solid ${isExpanded ? 'rgba(96,165,250,0.3)' : 'rgba(255,255,255,0.05)'};transition:border-color 0.2s;">
+                        <div onclick="GatewayApp.ui.toggleAppEditor('${app.id}')" style="padding:14px 20px;cursor:pointer;display:flex;align-items:center;gap:12px;">
+                            ${iconHtml}
+                            <div style="flex:1;min-width:0;">
+                                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                                    <span style="font-size:13px;font-weight:700;color:#f1f5f9;">${app.title}</span>
+                                    ${nyBadge}${alwaysBadge}${builtinBadge}
+                                </div>
+                                <div style="font-size:11px;color:#475569;margin-top:2px;">ID: ${app.id}</div>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+                                <span style="font-size:11px;color:#64748b;">${domsCount} доменов</span>
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2" style="transform:rotate(${isExpanded?'180':'0'}deg);transition:transform 0.2s;flex-shrink:0;"><polyline points="6 9 12 15 18 9"/></svg>
+                            </div>
+                        </div>
+                        ${editorHtml}
+                    </div>`;
+                }).join('') || '<div style="text-align:center;padding:40px;color:#475569;font-size:13px;">Приложений не найдено</div>';
+            },
+
+            toggleAppEditor: (appId) => {
+                state._appsExpandedId = state._appsExpandedId === appId ? null : appId;
+                ui.renderAppsPage();
             },
 
             renderStats: () => {
@@ -6454,6 +6673,71 @@
                                 state.nodes.map(n => `<option value="${n.tag}"${savedNode===n.tag?' selected':''}>${n.tag}</option>`).join('');
                         }
                     }
+                }
+            },
+
+            fetchApps: async () => {
+                const data = await utils.apiCall('/apps', { _silent: true });
+                if (data && Array.isArray(data.apps)) {
+                    state.apps = data.apps;
+                    state._appsLoaded = true;
+                    // Синхронизируем APPS и APP_DOMAINS (для обратной совместимости)
+                    APPS = state.apps.map(a => ({
+                        id: a.id, title: a.title, color: a.color,
+                        ny: !!a.ny, alwaysActive: !!a.alwaysActive, builtin: !!a.builtin,
+                        favicon: a.favicon || undefined,
+                    }));
+                    state.apps.forEach(a => { APP_DOMAINS[a.id] = a.domains || []; });
+                    ui.renderAppsPage();
+                }
+            },
+
+            createApp: async () => {
+                const title = (document.getElementById('newAppTitle')?.value || '').trim();
+                const id    = (document.getElementById('newAppId')?.value || '').trim();
+                const color = document.getElementById('newAppColor')?.value || '#94a3b8';
+                const ny    = document.getElementById('newAppNy')?.checked || false;
+                const domainsRaw = document.getElementById('newAppDomains')?.value || '';
+                const domains = domainsRaw.split('\n').map(d => d.trim()).filter(d => d && !d.startsWith('#'));
+                if (!title) { ui.showToast('Введите название приложения', 'error'); return; }
+                const payload = { title, color, ny, alwaysActive: false, domains };
+                if (id) payload.id = id;
+                const res = await utils.apiCall('/apps', { method: 'POST', body: JSON.stringify(payload) });
+                if (res && res.id) {
+                    ui.showToast(`Приложение "${res.title}" создано`, 'success');
+                    ui.closeNewAppEditor();
+                    await actions.fetchApps();
+                } else {
+                    ui.showToast(utils._lastError || 'Ошибка создания приложения', 'error');
+                }
+            },
+
+            saveApp: async (appId) => {
+                const title   = (document.getElementById(`appEditTitle_${appId}`)?.value || '').trim();
+                const color   = document.getElementById(`appEditColor_${appId}`)?.value || '#94a3b8';
+                const ny      = document.getElementById(`appEditNy_${appId}`)?.checked || false;
+                const always  = document.getElementById(`appEditAlways_${appId}`)?.checked || false;
+                const favicon = (document.getElementById(`appEditFavicon_${appId}`)?.value || '').trim() || null;
+                const domsRaw = document.getElementById(`appEditDomains_${appId}`)?.value || '';
+                const domains = domsRaw.split('\n').map(d => d.trim()).filter(d => d && !d.startsWith('#'));
+                const res = await utils.apiCall(`/apps/${appId}`, { method: 'PATCH', body: JSON.stringify({ title, color, ny, alwaysActive: always, favicon, domains }) });
+                if (res && res.id) {
+                    ui.showToast(`Сохранено: ${res.title}`, 'success');
+                    await actions.fetchApps();
+                } else {
+                    ui.showToast(utils._lastError || 'Ошибка сохранения', 'error');
+                }
+            },
+
+            deleteApp: async (appId) => {
+                const app = state.apps.find(a => a.id === appId);
+                if (!confirm(`Удалить приложение "${app?.title || appId}"?`)) return;
+                const res = await utils.apiCall(`/apps/${appId}`, { method: 'DELETE' });
+                if (res && res.ok) {
+                    ui.showToast('Приложение удалено', 'success');
+                    await actions.fetchApps();
+                } else {
+                    ui.showToast(utils._lastError || 'Ошибка удаления', 'error');
                 }
             },
 
@@ -7666,6 +7950,9 @@
                     const ip = pill.dataset.ip;
                     const mode = pill.dataset.mode;
                     const dev = state.devices.find(d => d.ip === ip);
+                    // Оптимистичный update: сразу пишем mode в state чтобы следующий клик
+                    // (например, на node-pill) читал уже актуальный mode, а не старый
+                    if (dev) dev.mode = mode;
                     actions.updateDeviceSettings(ip, mode, dev?.assigned_node || 'auto');
                     return;
                 }
@@ -7675,6 +7962,9 @@
                     const ip = nodePill.dataset.ip;
                     const node = nodePill.dataset.node;
                     const dev = state.devices.find(d => d.ip === ip);
+                    // Оптимистичный update: сразу пишем assigned_node в state чтобы следующий
+                    // клик (например, на mode-pill) не затёр только что выбранный узел
+                    if (dev) dev.assigned_node = node;
                     actions.updateDeviceSettings(ip, dev?.mode || 'smart', node);
                     return;
                 }
@@ -7905,6 +8195,7 @@
             actions.fetchInitialStaticData();
             actions.fetchNodes();
             actions.fetchGroups();
+            actions.fetchApps();
 
             // ── Tooltip system ────────────────────────────────────────────────────────
             ((() => {

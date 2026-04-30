@@ -60,8 +60,9 @@ try:
 except:
     sys.exit(0)
 
-# Чистый whitelist Claude-доменов (root patterns)
-patterns = re.compile(r'(anthropic\.com|claude\.ai|claude\.com|statsig-anthropic\.com|sentry-anthropic|console\.anthropic)', re.I)
+# Whitelist: домены интегрированные в Claude/Anthropic/clipboard-AI workflows
+# которые при leak в DIRECT блокируют RU-IP и ломают подписку/чат.
+patterns = re.compile(r'(anthropic\.com|claude\.ai|claude\.com|statsig-anthropic\.com|sentry-anthropic|console\.anthropic|stripe\.com|stripe\.network|datadoghq\.com|chatgpt\.com|openai\.com|vercel\.com|vercel\.app)', re.I)
 
 # IP-блоки которые Mihomo всё равно должен матчить через ai (для leaks без SNI)
 anthropic_ips = ['160.79.104.', '160.79.108.', '160.79.112.']

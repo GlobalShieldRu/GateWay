@@ -4,6 +4,32 @@
 
 ## [Unreleased]
 
+## [1.11.0] — 2026-04-22
+
+Крупный UI-релиз: новая страница «Приложения» с полноценным редактором (вместо хардкода) + унификация защищённых сервисов (DIRECT) для всех proxy-групп + переход маршрутизации на MAC-привязку + расширение Claude/Anthropic стека (Stripe/Datadog/Vercel/Cloudflare NEL) и связанные routing-фиксы.
+
+### Добавлено
+- **Apps Management (страница «Приложения»)**: APPS/APP_DOMAINS перенесены в `apps.json` на сервере. Новый пункт «Приложения» в боковом меню (Expert режим) — таблица всех приложений с поиском, бейджами (US, всегда, 🔒 builtin) и expand-редактором каждого приложения: название, цвет, favicon, флаги (US-нода, alwaysActive), список доменов в chip-форме с автоформатом DOMAIN-SUFFIX/KEYWORD/IP-CIDR (иконки 🌐/🔍). Создание кастомных приложений и удаление не-builtin (builtin защищены от удаления). Хранилище `/etc/gsg/apps.json`, автомиграция 16 встроенных при первом запуске. REST API: `GET/POST /api/apps`, `PATCH/DELETE /api/apps/{id}`. Regex для подсветки активного приложения в трафике генерируется автоматически из доменов. Frontend читает данные из API при старте, fallback на хардкод при недоступности API.
+- **Чип-пресеты приложений в редакторе proxy-группы**: над полем правил блок с кнопками TikTok, Instagram, Gemini, Claude — клик добавляет/убирает все домены пресета разом. Кнопка Claude (оранжевая) вставляет полный Claude/Anthropic стек: anthropic.com, claude.ai, claude.com, statsig-anthropic.com, sentry-anthropic.io, IP-подсети Anthropic (160.79.104.0/22, 160.79.108.0/22). Работает в форме создания группы и в редакторе существующей.
+- **Унифицированный chip-блок «Защищённые сервисы (DIRECT)»** для всех proxy-групп (включая форму создания новой) — пресет 13 RU-сервисов (Госуслуги, Сбер, ВТБ, Тинькофф, Альфа, Райффайзен, Газпромбанк, mos.ru, nalog.ru, gov.ru, cbr.ru, mil.ru) подключён по умолчанию, чипы можно убирать (✕ → `exclusions_disabled`) и добавлять свои (`exclusions_custom`). Custom-добавление с автоформатом: 🌐 IP-CIDR, 🔍 KEYWORD, без префикса DOMAIN-SUFFIX.
+- **Поля `exclusions_disabled` / `exclusions_custom`** в схемах ProxyGroup{Create,Update} (`web-orchestrator/main.py`); legacy-поле `exclusions` поддерживается и мигрируется как `custom`.
+- **Секция «Группы»** в chip-блоке exclusions: dropdown «+ Группа» позволяет подключить любую existing proxy-группу как DIRECT-исключение (фиолетовый chip 📦 Имя). Защита от циклических ссылок group:A → group:B → group:A в `_get_effective_exclusions` через `_visited: set`.
+- **Pre-set Claude расширен с 7 до 22 элементов**: anthropic stack (10) + Stripe (6: stripe.com, stripe.network, js./checkout./api./m.stripe.com) + Datadog (3: datadoghq.com/.eu, ddog-gov.com) + Cloudflare NEL (nel.cloudflare.com) + IP-CIDR Anthropic ASN (160.79.104.0/22, 160.79.108.0/22). Закрывает leaks биллинга/метрик/error-reporting Claude через RU-IP.
+- **Sniffer skip-domain** расширен: anthropic.com, claude.ai, claude.com, stripe.com, stripe.network, vercel.com, vercel.app, cloudflare.com, openai.com, chatgpt.com — sniffer override-destination ломал TLS fingerprint, и Anthropic/Stripe/Vercel считали трафик подозрительным. Через HAPP (без Mihomo sniffer) сайты работают, через GSG падали — теперь Mihomo не парсит ClientHello, TLS handshake идёт как от браузера.
+- **Claude/Anthropic auto-route watcher** (`gsg-claude-watcher.sh`): whitelist расширен — Stripe, Datadog, ChatGPT/OpenAI, Vercel автоматически направляются через NY при детекции трафика мимо VPN.
+- **Per-device monitor** (`gsg-monitor-100.sh` + `gsg-monitor-100.service`): постоянный мониторинг `/connections` Mihomo для конкретного IP, фиксирует уникальные пары (chain, host) в `/var/log/gsg-monitor-{N}.log` с пометкой 🟡 DIRECT-LEAK? для DIRECT-цепочек. Помогает отлавливать leak'и в реальном времени.
+
+### Изменено
+- **MAC-based device routing**: правила Mihomo для устройств теперь генерируются по `current_ip` (актуальный IP из dnsmasq), а не по `reserved_ip`. Настройки (mode/assigned_node/tiktok_node) хранятся под MAC-ключом и автоматически следуют за устройством при смене IP. `reserved_ip` больше не возвращается в API `/api/devices` и скрыт из UI — поле остаётся в `devices.json` только для DHCP (dnsmasq). Конфликт двух MAC с одним current_ip разрешается по `last_seen` (новейший побеждает). Устройства без активности 24+ часов исключаются из правил.
+- **Stripe-домены теперь идут через NY** (биллинг claude.ai требует совпадения IP с Anthropic): добавлены в группу AI вместе с Datadog/Vercel/Cloudflare NEL.
+- **mcpmarket.com через NY**: Vercel блокирует RU-IP — добавлен в AI группу.
+- **Supercell games (Clash Royale) через NY**: gameplay-серверы географически ограничены, RU-узлы получали высокий ping/disconnect.
+- **komanda.fit через Stockholm**: RU-сайт фитнес-сервиса блокирует трафик с не-RU IP — направлен на RU-ноду через отдельную группу.
+
+### Исправлено
+- **Race-condition при выборе режима + узла для устройства**: при быстром клике «Весь трафик» → chip узла второй клик читал устаревший `mode` из `state.devices` (ещё не обновлённый с сервера) и отправлял `mode=smart` вместо `mode=global`. Исправлено оптимистичным update `state.devices` сразу при клике на pill до вызова `updateDeviceSettings`, плюс debounce 400ms для коалесцинга быстрых смен.
+- **Docker cp в `/app/entrypoint.sh`**: путь раньше летел в `/entrypoint.sh` корня — экстренные patch-команды не применялись. Поправлен реальный путь в образе.
+
 ## [1.10.0] — 2026-04-22
 
 UI/UX-релиз: унифицированный chip-блок исключений DIRECT во всех proxy-группах + ряд stability-фиксов (отключение шумного node watchdog, плановой 6-часовой переподписки) + host-level watchdog для Claude/Anthropic.
