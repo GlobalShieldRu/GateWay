@@ -42,6 +42,14 @@ table inet gsg {{
         # Отсекаем мусорный трафик умного дома (Multicast и Broadcast)
         ip daddr {{ 224.0.0.0/4, 255.255.255.255/32 }} return
 
+        # QUIC blackhole-fix: UDP TPROXY на этом ядре отвечает нестабильно (ответные
+        # пакеты не приходят клиенту). YouTube/Google активно используют HTTP/3 (QUIC,
+        # UDP/443), и при отсутствии ответа браузер не делает fallback на TCP — сайт
+        # «зависает». Шлём ICMP port-unreachable на UDP/443 от LAN — это мгновенно
+        # роняет QUIC и заставляет браузер сразу перейти на TCP HTTP/2, который через
+        # Mihomo работает штатно.
+        meta nfproto ipv4 ip saddr 10.10.1.0/24 udp dport 443 reject with icmp type port-unreachable
+
         # Игнорируем локальные сети
         ip daddr {{ 127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 }} return
         ip saddr @bypass_devices return
