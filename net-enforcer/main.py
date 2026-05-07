@@ -14,20 +14,27 @@ delete table inet gsg
 table inet gsg {{
     set bypass_devices {{ type ipv4_addr; elements = {{ {bypass_ips} }}; }}
 {node_set}
-    # Yandex prefixes — исключаем из QUIC-blackhole-fix ниже.
-    # Yandex Telemost/Maps/Music/Браузер активно используют HTTP/3 (QUIC, UDP/443)
-    # для сигналинга/API/media. При выходе через DIRECT QUIC у Yandex работает
-    # штатно — поэтому для них делаем return вместо reject.
-    # Включает: AS13238 (Yandex основной) + AS208722 (Yandex.Cloud — там живут
-    # media-серверы Telemost-конференций, без них приложение пишет «Произошла ошибка»).
-    set yandex_nets {{
+    # QUIC-bypass whitelist — исключаем из QUIC-blackhole-fix ниже.
+    # Mihomo TPROXY на текущем ядре отвечает по UDP нестабильно (ответы не приходят
+    # клиенту), поэтому ниже мы реджектим UDP/443 от LAN. Но эти сервисы при
+    # выходе через DIRECT по QUIC работают штатно, и без bypass у них рвутся
+    # сигналинг/чат/media: Yandex (Telemost/Maps/Music/Браузер), Fastly CDN
+    # (yastatic.net, github, reddit, …).
+    # Содержит:
+    #   - Yandex AS13238 (основной)
+    #   - Yandex.Cloud AS208722 (media-серверы Telemost-конференций)
+    #   - Fastly AS54113 (CDN для yastatic.net и пр. — без него Telemost-чат
+    #     виснет в reconnect-loop)
+    set quic_bypass_nets {{
         type ipv4_addr; flags interval;
         elements = {{
             5.45.192.0/18, 5.255.192.0/18, 37.9.64.0/18, 37.140.128.0/18,
             77.88.0.0/18, 87.250.224.0/19, 93.158.128.0/18, 95.108.128.0/17,
             100.43.64.0/19, 130.193.32.0/19, 141.8.128.0/18, 178.154.128.0/17,
             213.180.192.0/19, 199.21.96.0/22,
-            51.250.0.0/16, 84.201.128.0/17, 158.160.0.0/14, 195.181.252.0/22
+            51.250.0.0/16, 84.201.128.0/17, 158.160.0.0/14, 195.181.252.0/22,
+            151.101.0.0/16, 199.232.0.0/16, 146.75.0.0/16,
+            23.235.32.0/20, 43.249.72.0/22, 103.245.222.0/23
         }};
     }}
 
@@ -58,6 +65,11 @@ table inet gsg {{
 
         # Отсекаем мусорный трафик умного дома (Multicast и Broadcast)
         ip daddr {{ 224.0.0.0/4, 255.255.255.255/32 }} return
+
+        # QUIC bypass whitelist: Yandex/Fastly через DIRECT работают по UDP штатно —
+        # их пропускаем без TPROXY и без reject (см. set quic_bypass_nets выше).
+        # Должно быть ДО reject ниже.
+        ip daddr @quic_bypass_nets udp dport 443 return
 
         # QUIC blackhole-fix: UDP TPROXY на этом ядре отвечает нестабильно (ответные
         # пакеты не приходят клиенту). YouTube/Google активно используют HTTP/3 (QUIC,
