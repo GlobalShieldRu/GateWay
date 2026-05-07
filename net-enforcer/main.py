@@ -14,29 +14,26 @@ delete table inet gsg
 table inet gsg {{
     set bypass_devices {{ type ipv4_addr; elements = {{ {bypass_ips} }}; }}
 {node_set}
-    # QUIC-bypass whitelist — исключаем из QUIC-blackhole-fix ниже.
-    # Mihomo TPROXY на текущем ядре отвечает по UDP нестабильно (ответы не приходят
-    # клиенту), поэтому ниже мы реджектим UDP/443 от LAN. Но эти сервисы при
-    # выходе через DIRECT по QUIC работают штатно, и без bypass у них рвутся
-    # сигналинг/чат/media: Yandex (Telemost/Maps/Music/Браузер), Fastly CDN
-    # (yastatic.net, github, reddit, …).
-    # Содержит:
-    #   - Yandex AS13238 (основной)
-    #   - Yandex.Cloud AS208722 (media-серверы Telemost-конференций)
-    #   - Fastly AS54113 (CDN для yastatic.net и пр. — без него Telemost-чат
-    #     виснет в reconnect-loop)
-    #   - Sberbank AS35237 (мобильное приложение Сбера, вход с 4 попытки без bypass)
-    set quic_bypass_nets {{
+    # QUIC blackhole-reject список — точечно реджектим UDP/443 ТОЛЬКО к этим сетям.
+    # Mihomo TPROXY на текущем ядре отвечает по UDP нестабильно (ответы клиенту
+    # не приходят), и YouTube/Google не делают TCP-fallback при отсутствии HTTP/3
+    # ответа — сайт «зависает». Шлём ICMP port-unreachable → браузер сразу падает
+    # на TCP HTTP/2 → Mihomo проксирует штатно.
+    # Раньше реджектили весь UDP/443 от LAN с whitelist'ом — но whitelist пришлось
+    # бесконечно расширять (Yandex Telemost, чат, Сбер, и т.д.). Перешли на
+    # инверсию: реджектим только Google AS15169 + публичные DoH-резолверы (которые
+    # при QUIC-blackhole тоже зависают bootstrap-DNS клиентов).
+    set google_quic_reject {{
         type ipv4_addr; flags interval;
         elements = {{
-            5.45.192.0/18, 5.255.192.0/18, 37.9.64.0/18, 37.140.128.0/18,
-            77.88.0.0/18, 87.250.224.0/19, 93.158.128.0/18, 95.108.128.0/17,
-            100.43.64.0/19, 130.193.32.0/19, 141.8.128.0/18, 178.154.128.0/17,
-            213.180.192.0/19, 199.21.96.0/22,
-            51.250.0.0/16, 84.201.128.0/17, 158.160.0.0/14, 195.181.252.0/22,
-            151.101.0.0/16, 199.232.0.0/16, 146.75.0.0/16,
-            23.235.32.0/20, 43.249.72.0/22, 103.245.222.0/23,
-            194.186.0.0/16, 194.54.0.0/16, 185.71.0.0/16, 217.196.0.0/16
+            8.8.4.0/24, 8.8.8.0/24,
+            35.190.0.0/17, 35.191.0.0/16,
+            64.233.160.0/19, 66.102.0.0/20, 66.249.64.0/19,
+            72.14.192.0/18, 74.125.0.0/16, 108.177.0.0/17,
+            142.250.0.0/15, 172.217.0.0/16, 172.253.0.0/16,
+            173.194.0.0/16, 209.85.128.0/17,
+            216.58.192.0/19, 216.239.32.0/19,
+            1.0.0.1/32, 1.1.1.1/32, 9.9.9.9/32
         }};
     }}
 
@@ -68,18 +65,10 @@ table inet gsg {{
         # Отсекаем мусорный трафик умного дома (Multicast и Broadcast)
         ip daddr {{ 224.0.0.0/4, 255.255.255.255/32 }} return
 
-        # QUIC bypass whitelist: Yandex/Fastly через DIRECT работают по UDP штатно —
-        # их пропускаем без TPROXY и без reject (см. set quic_bypass_nets выше).
-        # Должно быть ДО reject ниже.
-        ip daddr @quic_bypass_nets udp dport 443 return
-
-        # QUIC blackhole-fix: UDP TPROXY на этом ядре отвечает нестабильно (ответные
-        # пакеты не приходят клиенту). YouTube/Google активно используют HTTP/3 (QUIC,
-        # UDP/443), и при отсутствии ответа браузер не делает fallback на TCP — сайт
-        # «зависает». Шлём ICMP port-unreachable на UDP/443 от LAN — это мгновенно
-        # роняет QUIC и заставляет браузер сразу перейти на TCP HTTP/2, который через
-        # Mihomo работает штатно.
-        meta nfproto ipv4 ip saddr 10.10.1.0/24 udp dport 443 reject with icmp type port-unreachable
+        # QUIC blackhole-fix (точечный): реджектим UDP/443 только к Google и
+        # публичным DoH-резолверам (см. set google_quic_reject выше). Браузер
+        # ловит ICMP unreachable и сразу делает fallback на TCP HTTP/2.
+        ip daddr @google_quic_reject udp dport 443 reject with icmp type port-unreachable
 
         # Игнорируем локальные сети
         ip daddr {{ 127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 }} return
