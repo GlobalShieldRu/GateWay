@@ -8291,15 +8291,48 @@
                 }
             }, 6 * 60 * 60 * 1000);
 
-            // Memory diagnostics — log every 30s to console so user can see growth rate
+            // Memory diagnostics — log every 30s to console + видимый индикатор + soft-reload guard
             if (window.performance?.memory) {
+                // Floating heap indicator (виден всегда в углу, в Expert и Simple)
+                const _memBadge = document.createElement('div');
+                _memBadge.id = 'gsgMemBadge';
+                _memBadge.style.cssText = 'position:fixed;bottom:8px;right:8px;z-index:9998;font-size:10px;font-family:ui-monospace,monospace;color:#94a3b8;background:rgba(15,17,23,0.85);border:1px solid rgba(255,255,255,0.06);border-radius:6px;padding:3px 7px;cursor:pointer;user-select:none;backdrop-filter:blur(6px);';
+                _memBadge.title = 'Память JS-вкладки — клик: перезагрузить вкладку';
+                _memBadge.onclick = () => { if (confirm('Перезагрузить вкладку GSG? Несохранённые изменения потеряются.')) location.reload(); };
+                document.body.appendChild(_memBadge);
+
+                let _memWarnedAt = 0;
                 setInterval(() => {
-                    const mb = (window.performance.memory.usedJSHeapSize / 1048576).toFixed(1);
-                    const tot = (window.performance.memory.totalJSHeapSize / 1048576).toFixed(1);
+                    const used = window.performance.memory.usedJSHeapSize / 1048576;
+                    const tot  = window.performance.memory.totalJSHeapSize / 1048576;
                     const pkts = document.getElementById('routeViz')?._vizPackets?.length || 0;
                     const conns = (state.allConnections || []).length;
                     const devHist = Object.keys(state.deviceTrafficHistory || {}).length;
-                    console.log(`[GSG mem] JS heap: ${mb}/${tot} MB | pkts: ${pkts} | conns: ${conns} | devHist keys: ${devHist}`);
+                    console.log(`[GSG mem] JS heap: ${used.toFixed(1)}/${tot.toFixed(1)} MB | pkts: ${pkts} | conns: ${conns} | devHist keys: ${devHist}`);
+
+                    const color = used > 800 ? '#ef4444' : used > 400 ? '#fbbf24' : '#94a3b8';
+                    _memBadge.textContent = `JS ${used.toFixed(0)} MB`;
+                    _memBadge.style.color = color;
+                    _memBadge.style.borderColor = used > 400 ? color : 'rgba(255,255,255,0.06)';
+
+                    // Toast при > 600 MB (раз в час, не чаще)
+                    if (used > 600 && Date.now() - _memWarnedAt > 3600000) {
+                        _memWarnedAt = Date.now();
+                        try {
+                            ui.showToast?.(`Вкладка использует ${used.toFixed(0)} МБ. Рекомендуется перезагрузить.`, 'warning');
+                        } catch (e) {}
+                    }
+
+                    // Авто-reload фоновой вкладки если heap > 1 GB и вкладка скрыта 60+ сек
+                    if (used > 1024 && document.hidden) {
+                        if (!window._memHiddenSince) window._memHiddenSince = Date.now();
+                        if (Date.now() - window._memHiddenSince > 60000) {
+                            console.warn('[GSG mem] heap > 1GB and tab hidden 60s+ — auto-reloading');
+                            location.reload();
+                        }
+                    } else {
+                        window._memHiddenSince = null;
+                    }
                 }, 30000);
             }
 

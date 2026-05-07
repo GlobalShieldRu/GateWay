@@ -14,6 +14,23 @@ delete table inet gsg
 table inet gsg {{
     set bypass_devices {{ type ipv4_addr; elements = {{ {bypass_ips} }}; }}
 {node_set}
+    # Yandex prefixes — исключаем из QUIC-blackhole-fix ниже.
+    # Yandex Telemost/Maps/Music/Браузер активно используют HTTP/3 (QUIC, UDP/443)
+    # для сигналинга/API/media. При выходе через DIRECT QUIC у Yandex работает
+    # штатно — поэтому для них делаем return вместо reject.
+    # Включает: AS13238 (Yandex основной) + AS208722 (Yandex.Cloud — там живут
+    # media-серверы Telemost-конференций, без них приложение пишет «Произошла ошибка»).
+    set yandex_nets {{
+        type ipv4_addr; flags interval;
+        elements = {{
+            5.45.192.0/18, 5.255.192.0/18, 37.9.64.0/18, 37.140.128.0/18,
+            77.88.0.0/18, 87.250.224.0/19, 93.158.128.0/18, 95.108.128.0/17,
+            100.43.64.0/19, 130.193.32.0/19, 141.8.128.0/18, 178.154.128.0/17,
+            213.180.192.0/19, 199.21.96.0/22,
+            51.250.0.0/16, 84.201.128.0/17, 158.160.0.0/14, 195.181.252.0/22
+        }};
+    }}
+
     chain prerouting_nat {{
         type nat hook prerouting priority dstnat; policy accept;
         iif lo return
