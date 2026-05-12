@@ -190,10 +190,31 @@ DEFAULT_START="${SUBNET_PREFIX}.100"
 DEFAULT_END="${SUBNET_PREFIX}.200"
 
 echo ""
-read -rp "  DHCP пул — начало [${DEFAULT_START}]: " DHCP_START
-DHCP_START="${DHCP_START:-$DEFAULT_START}"
-read -rp "  DHCP пул — конец  [${DEFAULT_END}]: " DHCP_END
-DHCP_END="${DHCP_END:-$DEFAULT_END}"
+echo -e "  ${BOLD}Режим DHCP${NC}"
+echo -e "    • ${GREEN}Включён${NC}  — GSG раздаёт IP клиентам (на роутере DHCP отключить)"
+echo -e "    • ${YELLOW}Выключён${NC} — GSG работает только как шлюз, DHCP остаётся на роутере"
+echo ""
+read -rp "  Включить DHCP-сервер на GSG? [Y/n]: " DHCP_ANSWER
+DHCP_ANSWER="${DHCP_ANSWER:-y}"
+case "$DHCP_ANSWER" in
+    [Nn]*) DHCP_ENABLED="false" ;;
+    *)     DHCP_ENABLED="true"  ;;
+esac
+
+if [ "$DHCP_ENABLED" = "true" ]; then
+    read -rp "  DHCP пул — начало [${DEFAULT_START}]: " DHCP_START
+    DHCP_START="${DHCP_START:-$DEFAULT_START}"
+    read -rp "  DHCP пул — конец  [${DEFAULT_END}]: " DHCP_END
+    DHCP_END="${DHCP_END:-$DEFAULT_END}"
+else
+    # Значения нужны в .env / docker-compose для шаблона dnsmasq, но контейнер
+    # registry-dhcp в gateway-only режиме не запустит dnsmasq — он сторожит
+    # settings.json:dhcp_enabled. Включить DHCP можно позже из веб-интерфейса.
+    DHCP_START="$DEFAULT_START"
+    DHCP_END="$DEFAULT_END"
+    info "Режим: только шлюз (DHCP остаётся на роутере)"
+    info "Включить DHCP позже: веб-интерфейс → «Настройки DHCP»"
+fi
 
 echo ""
 
@@ -562,6 +583,23 @@ else
     GSG_PASSWORD=""
 fi
 
+# ── settings.json: режим DHCP, авто-обновления ────────────────────────────────
+# Сливаемся с уже существующим settings.json (если был от прошлого запуска),
+# чтобы не потерять пользовательские поля.
+docker exec gsg-web-orchestrator python3 -c "
+import json, os
+path = '/etc/gsg/settings.json'
+data = {}
+if os.path.exists(path):
+    try: data = json.load(open(path))
+    except: data = {}
+data['dhcp_enabled'] = ${DHCP_ENABLED}
+data.setdefault('auto_update', True)
+with open(path, 'w') as f:
+    json.dump(data, f)
+print('ok')
+" >/dev/null 2>&1 || warn "Не удалось записать settings.json (запишется при первом обращении к UI)"
+
 echo ""
 success "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 success "  GSG установлен и запущен!"
@@ -571,7 +609,11 @@ if [ -n "$GSG_PASSWORD" ]; then
 echo -e "  Пароль входа:   ${CYAN}${GSG_PASSWORD}${NC}  ← сохраните!"
 fi
 echo -e "  Роутер:         ${CYAN}${UPSTREAM_GW}${NC}"
-echo -e "  DHCP пул:       ${CYAN}${DHCP_START} — ${DHCP_END}${NC}"
+if [ "$DHCP_ENABLED" = "true" ]; then
+    echo -e "  DHCP пул:       ${CYAN}${DHCP_START} — ${DHCP_END}${NC}"
+else
+    echo -e "  DHCP:           ${YELLOW}выключен${NC} (только шлюз, DHCP на роутере)"
+fi
 echo -e "  Статический IP: ${CYAN}${GATEWAY_IP}${NC} (сохранится после перезагрузки)"
 echo ""
 echo -e "  ${YELLOW}Следующий шаг:${NC} В настройках Wi-Fi роутера укажите шлюз по умолчанию"
