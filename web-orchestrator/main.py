@@ -39,6 +39,10 @@ GSG_TRAFFIC_HISTORY_FILE = GSG_CONFIG_DIR / "traffic_history.json"
 GSG_FEEDBACK_FILE = GSG_CONFIG_DIR / "feedback.json"
 GSG_DEVICE_FILE = GSG_CONFIG_DIR / "device.json"
 GSG_SETTINGS_FILE = GSG_CONFIG_DIR / "settings.json"
+# Дефолты для автономной модели GSG: пользователь зашёл в UI один раз, потом
+# забыл на месяцы. Поэтому автообновление и DHCP — включены по умолчанию.
+# Чтобы выключить — заходит в UI и явно переключает.
+_SETTINGS_DEFAULTS = {"auto_update": True, "dhcp_enabled": True}
 GSG_AUTH_FILE   = GSG_CONFIG_DIR / "auth.json"
 GSG_APPS_FILE   = GSG_CONFIG_DIR / "apps.json"
 DNSMASQ_LEASES  = Path("/var/lib/misc/dnsmasq.leases")
@@ -744,7 +748,7 @@ async def _auto_update_loop():
     await asyncio.sleep(300)  # ждём 5 минут после старта
     while True:
         try:
-            settings = await read_json(GSG_SETTINGS_FILE, {"auto_update": False})
+            settings = await read_json(GSG_SETTINGS_FILE, _SETTINGS_DEFAULTS)
             if settings.get("auto_update"):
                 async with httpx.AsyncClient(timeout=15.0) as client:
                     r = await client.get(f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest")
@@ -2427,15 +2431,31 @@ async def tunnel_hard_restart(request: Request):
 
 @app.get("/api/settings")
 async def get_settings():
-    return await read_json(GSG_SETTINGS_FILE, {"auto_update": False})
+    """Возвращает текущие глобальные настройки GSG с применёнными дефолтами."""
+    current = await read_json(GSG_SETTINGS_FILE, _SETTINGS_DEFAULTS)
+    return {**_SETTINGS_DEFAULTS, **current}
 
 @app.patch("/api/settings")
 async def patch_settings(data: dict):
-    current = await read_json(GSG_SETTINGS_FILE, {"auto_update": False})
+    current = await read_json(GSG_SETTINGS_FILE, _SETTINGS_DEFAULTS)
+    prev_dhcp_enabled = current.get("dhcp_enabled", True)
     current.update(data)
     async with aiofiles.open(GSG_SETTINGS_FILE, 'w') as f:
         await f.write(json.dumps(current, indent=2))
-    return current
+
+    # Если dhcp_enabled изменился — создаём маркер-файл для host-watcher,
+    # который перезапустит контейнер gsg-dhcp. Внутри Docker контейнер
+    # web-orchestrator не имеет доступа к docker daemon, поэтому управление
+    # контейнерами идёт через файл-триггеры (по аналогии с tunnel-hard-restart).
+    new_dhcp_enabled = current.get("dhcp_enabled", True)
+    if prev_dhcp_enabled != new_dhcp_enabled:
+        try:
+            dhcp_marker = GSG_CONFIG_DIR / ".dhcp_restart_request"
+            dhcp_marker.write_text(json.dumps({"ts": time.time(), "dhcp_enabled": new_dhcp_enabled}))
+        except Exception as e:
+            print(f"[settings] не удалось создать .dhcp_restart_request: {e}", flush=True)
+
+    return {**_SETTINGS_DEFAULTS, **current}
 
 @app.get("/api/check-update")
 async def check_update():

@@ -1305,7 +1305,30 @@
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
                         Настройки DHCP (dnsmasq)
                     </div>
-                    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">
+
+                    <!-- Глобальный тоггл DHCP on/off -->
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;background:rgba(15,17,23,0.5);border:1px solid rgba(255,255,255,0.06);border-radius:10px;margin-bottom:18px;">
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-size:13px;font-weight:700;color:#f1f5f9;margin-bottom:4px;">GSG раздаёт IP-адреса (DHCP-сервер)</div>
+                            <div style="font-size:11px;color:#94a3b8;line-height:1.5;">
+                                Если выключить — GSG <b>не</b> раздаёт IP, не отвечает на DHCP-запросы. Раздачей занимается основной роутер. На устройствах, которые должны идти через GSG, <b>вручную</b> укажите: шлюз <code id="gatewayHint" style="background:rgba(255,255,255,0.06);padding:1px 5px;border-radius:3px;color:#fbbf24;">10.10.1.139</code>, DNS — этот же IP.
+                            </div>
+                        </div>
+                        <label style="position:relative;display:inline-block;width:48px;height:26px;flex-shrink:0;cursor:pointer;">
+                            <input type="checkbox" id="dhcpEnabledToggle" style="opacity:0;width:0;height:0;" onchange="GatewayApp.actions.toggleDhcpEnabled(this.checked)">
+                            <span id="dhcpEnabledSlider" style="position:absolute;inset:0;background:rgba(34,197,94,0.4);border-radius:13px;transition:0.2s;">
+                                <span style="position:absolute;left:3px;top:3px;width:20px;height:20px;background:#fff;border-radius:50%;transition:0.2s;" id="dhcpSliderKnob"></span>
+                            </span>
+                        </label>
+                    </div>
+
+                    <!-- Подсказка-warning когда DHCP выключен -->
+                    <div id="dhcpDisabledWarning" style="display:none;padding:12px 14px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.25);border-radius:8px;margin-bottom:18px;font-size:12px;color:#fde68a;line-height:1.5;">
+                        ⚠ DHCP-сервер выключен (gateway-only режим). Контейнер <code>gsg-dhcp</code> не активен. Устройства, не получившие IP вручную, останутся без сети. После активации DHCP включается автоматически.
+                    </div>
+
+                    <!-- Поля сетевых параметров (показываются только когда DHCP включён) -->
+                    <div id="dhcpFieldsBlock" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">
                         <div>
                             <div class="section-label" style="margin-bottom:6px;">Шлюз</div>
                             <input type="text" id="dhcpGateway" class="gsg-input" style="font-family:'JetBrains Mono',monospace;font-size:12px;">
@@ -4756,6 +4779,24 @@
                 if (peakUpEl) peakUpEl.textContent = state.sessionStats.peakUp > 0 ? '↑ ' + toMBs(state.sessionStats.peakUp) : '—';
             },
 
+            // Обновляет визуал тоггла DHCP и видимость связанных блоков на вкладке Настройки DHCP.
+            _updateDhcpToggleUI: (enabled) => {
+                const slider = document.getElementById('dhcpEnabledSlider');
+                const knob   = document.getElementById('dhcpSliderKnob');
+                const warn   = document.getElementById('dhcpDisabledWarning');
+                const fields = document.getElementById('dhcpFieldsBlock');
+                if (slider) slider.style.background = enabled ? 'rgba(34,197,94,0.4)' : 'rgba(100,116,139,0.35)';
+                if (knob)   knob.style.transform   = enabled ? 'translateX(0)' : 'translateX(22px)';
+                if (warn)   warn.style.display     = enabled ? 'none' : 'block';
+                if (fields) fields.style.opacity   = enabled ? '1' : '0.4';
+                // подставим текущий IP GSG в hint, если есть
+                const hint = document.getElementById('gatewayHint');
+                if (hint) {
+                    const gw = document.getElementById('dhcpGateway')?.value;
+                    if (gw) hint.textContent = gw;
+                }
+            },
+
             showToast: (msg, type = 'info') => {
                 const container = document.getElementById('toastContainer');
                 if (!container) return;
@@ -7801,6 +7842,35 @@
                 ui.showToast('Расписание сохранено', 'success');
             },
 
+            toggleDhcpEnabled: async (enabled) => {
+                // UI-обработчик переключателя «GSG как DHCP-сервер».
+                // При выкл — gateway-only режим: контейнер gsg-dhcp останавливается
+                // (через .dhcp_restart_request + entrypoint), пользователь должен
+                // вручную задать на устройствах шлюз = IP GSG.
+                if (!enabled) {
+                    const ok = confirm(
+                        'Выключить DHCP на GSG?\n\n' +
+                        'GSG перестанет раздавать IP. Раздачу должен делать ваш основной роутер.\n' +
+                        'На устройствах, которые хотите пустить через GSG, потребуется вручную:\n' +
+                        '• указать шлюз = IP GSG\n' +
+                        '• указать DNS = IP GSG\n\n' +
+                        'Устройства, получившие IP от GSG ранее, могут потерять сеть до перезагрузки.'
+                    );
+                    if (!ok) {
+                        document.getElementById('dhcpEnabledToggle').checked = true;
+                        return;
+                    }
+                }
+                const data = await utils.apiCall('/settings', { method: 'PATCH', body: JSON.stringify({ dhcp_enabled: enabled }) });
+                if (!data) {
+                    ui.showToast('Ошибка сохранения настройки', 'error');
+                    document.getElementById('dhcpEnabledToggle').checked = !enabled;
+                    return;
+                }
+                ui._updateDhcpToggleUI(enabled);
+                ui.showToast(enabled ? 'DHCP включён' : 'DHCP выключен (gateway-only режим)', 'success');
+            },
+
             toggleAutoUpdate: async () => {
                 const btn = document.getElementById('gsgAutoUpdateBtn');
                 const current = btn?.dataset.autoUpdate === 'true';
@@ -8170,22 +8240,30 @@
                     btn.style.display = 'flex';
                 }
             });
-            // Кнопка авто-обновления — восстанавливаем состояние из настроек
+            // Кнопка авто-обновления + DHCP-toggle — восстанавливаем состояние из настроек
             utils.apiCall('/settings').then(s => {
                 const btn = document.getElementById('gsgAutoUpdateBtn');
-                if (!btn) return;
-                const enabled = !!s?.auto_update;
-                btn.dataset.autoUpdate = enabled ? 'true' : 'false';
-                if (enabled) {
-                    btn.style.background = 'rgba(34,197,94,0.15)';
-                    btn.style.borderColor = 'rgba(34,197,94,0.5)';
-                    btn.style.color = '#22c55e';
-                    btn.dataset.tip = 'Автообновление включено — нажмите чтобы выключить';
-                } else {
-                    btn.style.background = 'rgba(100,116,139,0.08)';
-                    btn.style.borderColor = 'rgba(100,116,139,0.25)';
-                    btn.style.color = '#64748b';
-                    btn.dataset.tip = 'Автообновление выключено — нажмите чтобы включить';
+                if (btn) {
+                    const enabled = !!s?.auto_update;
+                    btn.dataset.autoUpdate = enabled ? 'true' : 'false';
+                    if (enabled) {
+                        btn.style.background = 'rgba(34,197,94,0.15)';
+                        btn.style.borderColor = 'rgba(34,197,94,0.5)';
+                        btn.style.color = '#22c55e';
+                        btn.dataset.tip = 'Автообновление включено — нажмите чтобы выключить';
+                    } else {
+                        btn.style.background = 'rgba(100,116,139,0.08)';
+                        btn.style.borderColor = 'rgba(100,116,139,0.25)';
+                        btn.style.color = '#64748b';
+                        btn.dataset.tip = 'Автообновление выключено — нажмите чтобы включить';
+                    }
+                }
+                // DHCP-toggle (gateway-only режим)
+                const dhcpToggle = document.getElementById('dhcpEnabledToggle');
+                if (dhcpToggle) {
+                    const dhcpEnabled = s?.dhcp_enabled !== false;  // default true
+                    dhcpToggle.checked = dhcpEnabled;
+                    ui._updateDhcpToggleUI(dhcpEnabled);
                 }
             });
 

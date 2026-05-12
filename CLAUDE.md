@@ -1,5 +1,15 @@
 # CLAUDE.md — GSG Smart Gateway
 
+## 🎯 Открытые направления / техдолг — BACKLOG
+
+**При старте сессии** прочитать живой документ с приоритетным списком открытого:
+
+`~/Library/Mobile Documents/iCloud~md~obsidian/Documents/Personal/02-Проекты/GlobalShield/GSG/BACKLOG.md`
+
+(Obsidian vault пользователя, кириллический путь — `02-Проекты`, а не `02-Projects`.) Там по 🔴/🟡/🟢 приоритетам разложены архитектурные задачи (`block_vpn_app` сигнатурная фильтрация, TUN-inbound в Mihomo, UI heap leak, дача через 39, …) с оценкой времени. После закрытия пункта — перенести в раздел «История закрытого» в самом BACKLOG.md.
+
+Связанные обсидиановые материалы: `Personal/02-Проекты/GlobalShield/GSG/{README,Research,Decisions,Incidents,Architecture,Monitoring}/...`
+
 ## Обзор
 
 GSG Smart Gateway — веб-дашборд для управления VPN-шлюзом (OrangePi/NanoPi). Работает на Mihomo (Clash Meta).

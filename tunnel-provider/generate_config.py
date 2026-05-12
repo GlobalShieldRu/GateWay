@@ -23,6 +23,36 @@ DEFAULT_EXCLUSIONS = [
     "group:Bypass",
 ]
 
+# Дефолтные глобальные правила DIRECT — применяются ПОСЛЕ пользовательских
+# route_overrides, чтобы user явные правила имели приоритет. Назначение —
+# чтобы новая установка GSG из коробки имела правильную маршрутизацию для
+# сервисов, которые мы наловили инцидентами (см. Obsidian-заметки в
+# `02-Проекты/GlobalShield/GSG/Incidents/`).
+DEFAULT_DIRECT_DOMAINS = [
+    # RU-сервисы, которые ругаются на VPN-IP
+    "hh.ru", "hhcdn.ru",                         # HeadHunter — баннер «VPN мешает»
+    "mosobleirc.ru",                              # Мособлеирц ЖКУ
+    # VK CDN/медиа (RU AS47541, но смежные домены попадали в catch-all)
+    "vkuseraudio.ru", "vkuseraudio.net", "vkuseraudio.com",
+    "vkuservideo.ru", "vkuservideo.net", "vkuservideo.com",
+    "vkvideo.ru",
+    "vkuserphoto.ru", "vkuserphoto.net",
+    "vk-portal.net", "vk-cdn.net", "vk.me", "vk-apps.com",
+    "userapi.com",                                # legacy VK API
+    "mycdn.me",                                   # mail.ru CDN
+    "apptracer.ru",                               # VK app SDK tracer
+]
+
+DEFAULT_DIRECT_IP_CIDRS = [
+    # Telegram fronting блоки (анонимные UK-VPS как резервные DC).
+    # Подключение клиента Telegram сам выбирает — без bypass попадает в
+    # catch-all → перегружает VPN-узел. См. Incidents/2026-05-11-Telegram-fronting.
+    "194.221.250.0/24",
+    # Официальные Telegram DC (AS62041)
+    "149.154.160.0/20",                           # DC1, DC2, DC4, DC5
+    "91.108.0.0/16",                              # DC3 + дополнительные
+]
+
 def _get_effective_exclusions(group, all_groups, _visited=None):
     """Возвращает итоговый список exclusions с учётом default-пресета, disabled и custom.
     _visited — защита от циклических ссылок group:A → group:B → group:A."""
@@ -747,7 +777,17 @@ def main():
     # geoip.dat подгружается из runetfreedom/russia-v2ray-rules-dat — оптимизирован под РФ.
     geoip_ru_fallback = ["GEOIP,ru,DIRECT,no-resolve"]
 
-    server_config["rules"] = voip_bypass_rules + bypass_network_rules + override_rules + domain_rules + geoip_ai_rules + ip_rules + custom_routing_rules + geoip_ru_fallback + [f"MATCH,{global_node}"]
+    # Дефолтные DIRECT-правила: применяются ПОСЛЕ пользовательских route_overrides
+    # (пользовательские правила приоритетнее), но ПЕРЕД rule-providers/geoip/catch-all.
+    # См. константы DEFAULT_DIRECT_DOMAINS / DEFAULT_DIRECT_IP_CIDRS в шапке файла.
+    default_direct_rules = []
+    for dom in DEFAULT_DIRECT_DOMAINS:
+        rule_type = "DOMAIN-KEYWORD" if '.' not in dom else "DOMAIN-SUFFIX"
+        default_direct_rules.append(f"{rule_type},{dom},DIRECT")
+    for cidr in DEFAULT_DIRECT_IP_CIDRS:
+        default_direct_rules.append(f"IP-CIDR,{cidr},DIRECT,no-resolve")
+
+    server_config["rules"] = voip_bypass_rules + bypass_network_rules + override_rules + default_direct_rules + domain_rules + geoip_ai_rules + ip_rules + custom_routing_rules + geoip_ru_fallback + [f"MATCH,{global_node}"]
 
     MIHOMO_CONFIG.parent.mkdir(parents=True, exist_ok=True)
     with open(MIHOMO_CONFIG, 'w') as f:
