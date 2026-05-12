@@ -458,8 +458,9 @@ async def send_heartbeat():
             except Exception:
                 pass
 
-            # cpu_temp
-            cpu_temp = 0
+            # cpu_temp — None если сенсор отсутствует (например RK3528A на Armbian
+            # community kernel 6.18 — TSADC-driver пока не в mainline). UI покажет «—».
+            cpu_temp = None
             try:
                 temps = psutil.sensors_temperatures()
                 for sensor_list in temps.values():
@@ -467,16 +468,22 @@ async def send_heartbeat():
                         if entry.current and entry.current > 0:
                             cpu_temp = int(entry.current)
                             break
-                    if cpu_temp:
+                    if cpu_temp is not None:
                         break
             except Exception:
                 pass
-            if not cpu_temp:
-                try:
-                    with open('/sys/class/thermal/thermal_zone0/temp') as f:
-                        cpu_temp = int(f.read().strip()) // 1000
-                except Exception:
-                    pass
+            if cpu_temp is None:
+                # Перебираем все thermal_zone* — на разных SoC нумерация разная.
+                import glob
+                for zone in sorted(glob.glob('/sys/class/thermal/thermal_zone*/temp')):
+                    try:
+                        with open(zone) as f:
+                            t = int(f.read().strip()) // 1000
+                        if t > 0:
+                            cpu_temp = t
+                            break
+                    except Exception:
+                        continue
 
             # ram_percent
             ram_percent = 0
@@ -1137,11 +1144,19 @@ class DeleteOverridesRequest(BaseModel):
 
 @app.get("/api/status")
 async def get_status():
-    temp = 0
+    # Температура. None если сенсор недоступен (RK3528A на community kernel и т.п.).
+    temp = None
     try:
-        if os.path.exists("/sys/class/thermal/thermal_zone0/temp"):
-            with open("/sys/class/thermal/thermal_zone0/temp") as f:
-                temp = int(f.read()) / 1000
+        import glob
+        for zone in sorted(glob.glob('/sys/class/thermal/thermal_zone*/temp')):
+            try:
+                with open(zone) as f:
+                    t = int(f.read()) / 1000
+                if t > 0:
+                    temp = t
+                    break
+            except Exception:
+                continue
     except Exception:
         pass
 
@@ -1149,7 +1164,7 @@ async def get_status():
         "cpu_percent": psutil.cpu_percent(),
         "memory_used": psutil.virtual_memory().used,
         "memory_total": psutil.virtual_memory().total,
-        "temperature": round(temp, 1),
+        "temperature": round(temp, 1) if temp is not None else None,
         "uptime": int(psutil.boot_time())
     }
 

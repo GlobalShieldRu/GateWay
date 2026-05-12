@@ -5678,7 +5678,10 @@
             renderMetrics: (data) => {
                 if (!data) return;
                 const cpuColor = data.cpu_percent > 80 ? '#f87171' : '#34d399';
-                const tempColor = data.temperature > 70 ? '#f87171' : '#fbbf24';
+                // temperature: null или 0 = сенсор недоступен (например RK3528A на community kernel).
+                const tempAvail = data.temperature !== null && data.temperature !== undefined && data.temperature > 0;
+                const tempColor = !tempAvail ? 'rgba(148,163,184,0.6)' : (data.temperature > 70 ? '#f87171' : '#fbbf24');
+                const tempStr = tempAvail ? `${data.temperature}°C` : '—';
                 const uptimeSec = Math.floor(Date.now()/1000) - data.uptime;
                 const uptimeDays = Math.floor(uptimeSec / 86400);
                 const uptimeHrs = Math.floor((uptimeSec % 86400) / 3600);
@@ -5704,9 +5707,9 @@
                             <span style="font-weight:700;color:#60a5fa;">${Math.round(data.memory_used/1024/1024)}MB</span>
                         </div>
                     </div>
-                    <div class="metric-pill">
+                    <div class="metric-pill" title="${tempAvail ? '' : 'Датчик температуры недоступен на этом устройстве (driver не загружен)'}">
                         <span style="color:var(--muted);">Temp</span>
-                        <span style="font-weight:700;color:${tempColor};">${data.temperature}°C</span>
+                        <span style="font-weight:700;color:${tempColor};">${tempStr}</span>
                     </div>
                     <div class="metric-pill">
                         <span style="color:var(--muted);">Аптайм</span>
