@@ -41,17 +41,71 @@ if ! command -v dockerd &>/dev/null; then
     systemctl enable --now docker
 fi
 
-# Прописываем DNS для Docker-контейнеров (иначе apt внутри контейнеров не резолвит хосты)
+# Настройки Docker daemon: DNS + storage driver.
+#
+# Storage driver: на устройствах с overlay-rootfs (FriendlyElec/Armbian/Buildroot
+# с встроенным overlay для read-only базового образа, типа NanoPi Zero 2 с Debian
+# trixie) Docker 29+ по умолчанию использует containerd-snapshotter `overlayfs`,
+# который требует mount overlay-on-overlay. На таких системах это даёт ошибку
+# при сборке: `failed to mount overlay: invalid argument`. Классический `overlay2`
+# тоже не работает по той же причине. Единственный надёжный вариант — `vfs`:
+# медленнее по диску (нет дедупликации слоёв), но работает на любой ФС.
+# Детект: если `/` смонтирован как overlay → forced vfs.
+ROOT_FSTYPE=$(df -T / 2>/dev/null | awk 'NR==2 {print $2}')
+NEED_VFS=0
+if [ "$ROOT_FSTYPE" = "overlay" ]; then
+    NEED_VFS=1
+    info "Обнаружена overlay-rootfs (Armbian/FriendlyElec-style). Docker будет использовать storage-driver=vfs"
+fi
+
+# Регенерируем daemon.json если: его нет / нет dns / нужен vfs но текущий не vfs
+NEED_RESTART_DOCKER=0
 if [ ! -f /etc/docker/daemon.json ] || ! grep -q '"dns"' /etc/docker/daemon.json 2>/dev/null; then
-    info "Настройка DNS для Docker..."
+    NEED_RESTART_DOCKER=1
+fi
+if [ "$NEED_VFS" = "1" ] && ! grep -q '"storage-driver": "vfs"' /etc/docker/daemon.json 2>/dev/null; then
+    NEED_RESTART_DOCKER=1
+fi
+
+if [ "$NEED_RESTART_DOCKER" = "1" ]; then
+    info "Настройка Docker (DNS${NEED_VFS:+ + storage-driver=vfs})..."
     mkdir -p /etc/docker
-    cat > /etc/docker/daemon.json << 'DOCKEREOF'
+    if [ "$NEED_VFS" = "1" ]; then
+        cat > /etc/docker/daemon.json << 'DOCKEREOF'
 {
-  "dns": ["8.8.8.8", "1.1.1.1"]
+  "dns": ["8.8.8.8", "1.1.1.1"],
+  "storage-driver": "vfs",
+  "features": {
+    "containerd-snapshotter": false
+  },
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "50m",
+    "max-file": "3"
+  }
 }
 DOCKEREOF
+    else
+        cat > /etc/docker/daemon.json << 'DOCKEREOF'
+{
+  "dns": ["8.8.8.8", "1.1.1.1"],
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "50m",
+    "max-file": "3"
+  }
+}
+DOCKEREOF
+    fi
     systemctl restart docker
-    success "Docker DNS настроен"
+    sleep 3
+    if systemctl is-active --quiet docker; then
+        success "Docker настроен (storage=$(docker info 2>/dev/null | grep 'Storage Driver' | awk '{print $3}'))"
+    else
+        echo "ОШИБКА: Docker не стартует после применения daemon.json. Логи:" >&2
+        journalctl -u docker.service --no-pager -n 20 >&2
+        exit 1
+    fi
 fi
 
 if ! docker compose version &>/dev/null 2>&1; then

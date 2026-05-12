@@ -1616,9 +1616,36 @@ def _ensure_proxy_groups(rules: dict) -> dict:
     groups = [
         {"id": "auto", "name": "Auto", "node_filter": "", "type": "url-test", "builtin": True, "rules": []},
     ]
-    # AI
+    # AI — функциональный инвариант: эти сервисы должны идти ТОЛЬКО через NY
+    # (US-only сервисы, блокируют не-US IP). Дыра в списке доменов = клиент
+    # ушёл через Stockholm на логине = блокировка от провайдера.
+    # Защита 3-слойная:
+    #  1. Полный список DOMAIN-SUFFIX основных Anthropic/OpenAI/Gemini доменов
+    #  2. DOMAIN-KEYWORD,claude / DOMAIN-KEYWORD,anthropic как catch-all (false
+    #     positives типа claudette.fr приемлемы — уйдут через VPN, не критично).
+    #  3. IP-CIDR Anthropic AS399358 как последняя страховка (в generate_config.py)
+    _AI_DOMAINS_HARD_GUARANTEE = [
+        # Anthropic / Claude
+        "anthropic.com", "claude.ai", "claude.com", "claudeusercontent.com",
+        "statsig-anthropic.com", "sentry-anthropic.io",
+        # Catch-all keywords — защита от race и новых поддоменов
+        "claude", "anthropic",
+        # OpenAI / ChatGPT
+        "openai.com", "chatgpt.com", "oaistatic.com",
+        "openai", "chatgpt",
+        # Google AI
+        "aistudio.google.com", "generativelanguage.googleapis.com", "ai.google.dev",
+        "gemini",
+        # Третьи стороны критичные для Claude Desktop
+        "browser-intake-datadoghq.com", "datadoghq.com", "datadoghq.eu",
+        "statsig.com", "statsig.io",
+        "sentry.io", "ingest.sentry.io",
+        "intercom.io", "intercomcdn.com",
+        # Cerebras (быстрый AI inference, часть Claude Desktop в некоторых случаях)
+        "cerebras.ai", "cerebras",
+    ]
     ai_s = rules.get("ai_settings", {})
-    ai_domains = ai_s.get("domains") or ["gemini", "openai", "chatgpt", "anthropic", "claude", "aistudio.google.com"]
+    ai_domains = ai_s.get("domains") or _AI_DOMAINS_HARD_GUARANTEE
     groups.append({
         "id": "ai", "name": "AI", "node_filter": ai_s.get("node_filter", "NY"),
         "type": "fallback", "builtin": True, "rules": ai_domains
