@@ -743,6 +743,125 @@ async def _evict_stale_devices():
             logging.warning(f"[EVICT] Ошибка при чистке устройств: {e}")
 
 
+# Ключевые слова для self-healing AI-инварианта (см. Decisions/2026-05-12-ai-routing-hard-guarantee).
+# Если в /connections Mihomo появится хост содержащий любое из них, идущий через
+# узел НЕ из ноды-NY — это нарушение функционального требования #1.
+_AI_GUARD_KEYWORDS = ("anthropic", "claude", "openai", "chatgpt", "gemini", "cerebras")
+_AI_GUARD_NODE_TAG = "NY"  # любая цепочка содержащая эту подстроку считается «через NY»
+
+
+async def _ai_routing_guard_loop():
+    """Self-healing guard для функционального инварианта «AI всегда через NY».
+
+    Раз в 30 сек сканирует /connections Mihomo. При обнаружении AI-домена,
+    идущего НЕ через NY-узел:
+      1) Добавляет корневой домен в proxy_groups.ai.rules (через rules.json).
+      2) Триггерит regenerate Mihomo через .reload_mihomo маркер.
+      3) Убивает утечавшие connections чтобы клиенты переоткрыли через NY.
+      4) Логирует событие в журнал для трассировки.
+
+    Это автоматическое исправление, не алерт — пользователь не должен ничего
+    делать. Защита от расширения каталога Anthropic новыми поддоменами/CDN.
+    """
+    await asyncio.sleep(60)  # стартовая задержка после поднятия сервиса
+    while True:
+        try:
+            await asyncio.sleep(30)
+
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                r = await client.get("http://127.0.0.1:9090/connections")
+                if r.status_code != 200:
+                    continue
+                conns = r.json().get("connections", []) or []
+
+            leaked_domains: set[str] = set()
+            leaked_conn_ids: list[str] = []
+            for c in conns:
+                m = c.get("metadata") or {}
+                h = (m.get("host") or "").lower()
+                if not h:
+                    continue
+                if not any(kw in h for kw in _AI_GUARD_KEYWORDS):
+                    continue
+                chain = " > ".join(c.get("chains") or [])
+                if _AI_GUARD_NODE_TAG in chain:
+                    continue  # уже через NY — норма
+                # AI-домен через не-NY → утечка
+                leaked_domains.add(h)
+                cid = c.get("id")
+                if cid:
+                    leaked_conn_ids.append(cid)
+
+            if not leaked_domains:
+                continue
+
+            logging.warning(
+                f"[AI-GUARD] LEAK detected: {len(leaked_conn_ids)} conns, "
+                f"domains={sorted(leaked_domains)[:5]}{'...' if len(leaked_domains)>5 else ''}"
+            )
+
+            # 1) Добавляем корневые домены утечавших хостов в proxy_groups[ai].rules.
+            # Корневой = последние 2 части (foo.bar) — это покроет все поддомены.
+            rules_data = await read_json(GSG_RULES_FILE, {})
+            ai_group = next(
+                (g for g in rules_data.get("proxy_groups", []) if g.get("id") == "ai"),
+                None,
+            )
+            added_roots: list[str] = []
+            if ai_group is not None:
+                existing = set(ai_group.get("rules", []))
+                for h in leaked_domains:
+                    parts = h.split(".")
+                    if len(parts) < 2:
+                        continue
+                    root = ".".join(parts[-2:])
+                    if root not in existing:
+                        existing.add(root)
+                        added_roots.append(root)
+                if added_roots:
+                    ai_group["rules"] = sorted(existing)
+                    async with aiofiles.open(GSG_RULES_FILE, "w") as f:
+                        await f.write(json.dumps(rules_data, ensure_ascii=False, indent=2))
+                    logging.warning(f"[AI-GUARD] Auto-added to group ai: {added_roots}")
+                    # 2) Триггер regenerate config tunnel-provider'ом
+                    (GSG_CONFIG_DIR / ".reload_mihomo").touch()
+
+            # 3) Убиваем утечавшие connections — клиент переоткроет через NY.
+            #    Делаем после короткой паузы чтобы reload Mihomo успел применить
+            #    новые правила перед переподключением.
+            await asyncio.sleep(3)
+            try:
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    killed = 0
+                    for cid in leaked_conn_ids:
+                        try:
+                            await client.delete(f"http://127.0.0.1:9090/connections/{cid}")
+                            killed += 1
+                        except Exception:
+                            pass
+                    logging.warning(f"[AI-GUARD] Killed {killed} leaked connections")
+            except Exception as e:
+                logging.warning(f"[AI-GUARD] Error killing connections: {e}")
+
+            # 4) Журнал для последующего просмотра / алерта (когда сделаем Telegram).
+            try:
+                ev = {
+                    "ts": time.time(),
+                    "type": "ai_leak_auto_fix",
+                    "domains": sorted(leaked_domains),
+                    "killed_connections": len(leaked_conn_ids),
+                    "added_to_ai_group": added_roots,
+                }
+                log_file = GSG_CONFIG_DIR / ".ai_guard_log"
+                async with aiofiles.open(log_file, "a") as f:
+                    await f.write(json.dumps(ev, ensure_ascii=False) + "\n")
+            except Exception:
+                pass
+
+        except Exception as e:
+            logging.warning(f"[AI-GUARD] Loop error: {e}")
+
+
 async def _auto_update_loop():
     """Ежечасная проверка: если включено автообновление и вышла новая версия — запускаем OTA."""
     await asyncio.sleep(300)  # ждём 5 минут после старта
@@ -805,6 +924,7 @@ async def startup_event():
             await asyncio.sleep(300)  # каждые 5 минут
     asyncio.create_task(_periodic_heartbeat())
     asyncio.create_task(_auto_update_loop())
+    asyncio.create_task(_ai_routing_guard_loop())
 
 @app.get("/api/traffic")
 async def get_traffic():
@@ -2483,6 +2603,34 @@ async def patch_settings(data: dict):
             print(f"[settings] не удалось создать .dhcp_restart_request: {e}", flush=True)
 
     return {**_SETTINGS_DEFAULTS, **current}
+
+@app.get("/api/ai-guard/log")
+async def ai_guard_log():
+    """Журнал срабатываний AI-routing guard'а (self-healing инцидентов).
+
+    Каждая запись — JSON с {ts, type, domains, killed_connections, added_to_ai_group}.
+    Используется для аудита: какие AI-домены утекали мимо NY и были авто-исправлены.
+    """
+    log_file = GSG_CONFIG_DIR / ".ai_guard_log"
+    if not log_file.exists():
+        return {"events": []}
+    events = []
+    try:
+        async with aiofiles.open(log_file, "r") as f:
+            async for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    events.append(json.loads(line))
+                except Exception:
+                    pass
+    except Exception as e:
+        raise HTTPException(500, f"Read error: {e}")
+    # Возвращаем последние 100 событий, новые первыми
+    events.reverse()
+    return {"events": events[:100]}
+
 
 @app.get("/api/check-update")
 async def check_update():
