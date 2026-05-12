@@ -439,12 +439,22 @@ def main():
     override_rules = []
     for override in route_overrides:
         domain = override.get("domain", "").strip()
+        ip_cidr = override.get("ip-cidr", "").strip()
         target = override.get("target", "").strip()
-        if not domain or not target:
+        key = domain or ip_cidr
+        if not key or not target:
             continue
 
-        # Определяем тип правила: нет точки → KEYWORD, иначе SUFFIX
-        rule_type = "DOMAIN-KEYWORD" if '.' not in domain else "DOMAIN-SUFFIX"
+        # Определяем тип правила:
+        #   ip-cidr → IP-CIDR (например, "194.221.250.0/24")
+        #   domain без точки → DOMAIN-KEYWORD ("hh" → KEYWORD)
+        #   domain с точкой → DOMAIN-SUFFIX ("hh.ru" → SUFFIX, покрывает все поддомены)
+        if ip_cidr:
+            rule_type = "IP-CIDR"
+            rule_value = ip_cidr
+        else:
+            rule_type = "DOMAIN-KEYWORD" if '.' not in domain else "DOMAIN-SUFFIX"
+            rule_value = domain
 
         if target == "DIRECT" or target == "REJECT":
             resolved_target = target
@@ -452,19 +462,21 @@ def main():
             node_name = target[len("node:"):]
             resolved_target = seen_node_groups.get(node_name)
             if resolved_target is None:
-                print(f"[WARN] route_overrides: пропускаем правило для '{domain}', узел недоступен", flush=True)
+                print(f"[WARN] route_overrides: пропускаем правило для '{key}', узел недоступен", flush=True)
                 continue
         elif target.startswith("group:"):
             group_name = target[len("group:"):]
             if group_name not in existing_group_names:
-                print(f"[WARN] route_overrides: группа '{group_name}' не найдена, пропускаем правило для '{domain}'", flush=True)
+                print(f"[WARN] route_overrides: группа '{group_name}' не найдена, пропускаем правило для '{key}'", flush=True)
                 continue
             resolved_target = group_name
         else:
             print(f"[WARN] route_overrides: неизвестный формат target '{target}', пропускаем", flush=True)
             continue
 
-        override_rules.append(f"{rule_type},{domain},{resolved_target}")
+        # Для IP-CIDR добавляем no-resolve чтобы Mihomo не пытался резолвить хост-имя
+        rule_suffix = ",no-resolve" if rule_type == "IP-CIDR" else ""
+        override_rules.append(f"{rule_type},{rule_value},{resolved_target}{rule_suffix}")
 
     if override_rules:
         print(f"\n[GSG] === ROUTE OVERRIDES ({len(override_rules)} правил) ===", flush=True)
@@ -729,7 +741,13 @@ def main():
     else:
         print("\n[GSG] [WARN] Группа 'ai' не найдена, GEOIP,google и GEOIP,cloudflare не добавлены", flush=True)
 
-    server_config["rules"] = voip_bypass_rules + bypass_network_rules + override_rules + domain_rules + geoip_ai_rules + ip_rules + custom_routing_rules + [f"MATCH,{global_node}"]
+    # GeoIP RU → DIRECT перед catch-all. Закрывает класс «нишевый RU-сервис попал в catch-all → VPN → блок».
+    # ДОЛЖНО стоять ПОСЛЕ override_rules/domain_rules/geoip_ai_rules (явные правила приоритетнее),
+    # но ПЕРЕД custom_routing_rules / MATCH (general fallback).
+    # geoip.dat подгружается из runetfreedom/russia-v2ray-rules-dat — оптимизирован под РФ.
+    geoip_ru_fallback = ["GEOIP,ru,DIRECT,no-resolve"]
+
+    server_config["rules"] = voip_bypass_rules + bypass_network_rules + override_rules + domain_rules + geoip_ai_rules + ip_rules + custom_routing_rules + geoip_ru_fallback + [f"MATCH,{global_node}"]
 
     MIHOMO_CONFIG.parent.mkdir(parents=True, exist_ok=True)
     with open(MIHOMO_CONFIG, 'w') as f:
