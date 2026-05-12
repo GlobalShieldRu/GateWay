@@ -48,9 +48,11 @@ DEFAULT_DIRECT_IP_CIDRS = [
     # Подключение клиента Telegram сам выбирает — без bypass попадает в
     # catch-all → перегружает VPN-узел. См. Incidents/2026-05-11-Telegram-fronting.
     "194.221.250.0/24",
-    # Официальные Telegram DC (AS62041)
-    "149.154.160.0/20",                           # DC1, DC2, DC4, DC5
-    "91.108.0.0/16",                              # DC3 + дополнительные
+    # NB: 149.154.160.0/20 и 91.108.0.0/16 (Telegram DC) НЕ ставим в DIRECT —
+    # у российских ISP RKN-DPI блокирует прямой TCP/443 к этим сетям, клиент
+    # виснет на «обновление…». Пусть идут через VPN-узел (auto). После sysctl-
+    # тюнинга Stockholm (rmem/wmem_max=16MB) пропускной способности достаточно.
+    # См. Decisions/2026-05-12-stockholm-tcp-tuning.md
 ]
 
 def _get_effective_exclusions(group, all_groups, _visited=None):
