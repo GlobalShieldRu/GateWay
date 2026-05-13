@@ -789,10 +789,12 @@ def main():
     else:
         print("\n[GSG] [WARN] Группа 'ai' не найдена, GEOIP,google и GEOIP,cloudflare не добавлены", flush=True)
 
-    # GeoIP RU → DIRECT перед catch-all. Закрывает класс «нишевый RU-сервис попал в catch-all → VPN → блок».
-    # ДОЛЖНО стоять ПОСЛЕ override_rules/domain_rules/geoip_ai_rules (явные правила приоритетнее),
-    # но ПЕРЕД custom_routing_rules / MATCH (general fallback).
-    # geoip.dat подгружается из runetfreedom/russia-v2ray-rules-dat — оптимизирован под РФ.
+    # GeoIP RU → DIRECT. КРИТИЧНО: должно стоять ПЕРЕД per-device ip_rules,
+    # иначе устройство в режиме mode=global+assigned_node=NY гонит RU-домены
+    # (yandex.ru, profi.ru, masterovit.ru — все Yandex properties) через US-IP,
+    # и Yandex блокирует с «соединение прервано». См. инцидент 2026-05-13.
+    # Порядок: override_rules → DEFAULT_DIRECT → domain_rules → geoip_ai_rules
+    #          → GEOIP_RU (DIRECT) → ip_rules (per-device) → custom → MATCH
     geoip_ru_fallback = ["GEOIP,ru,DIRECT,no-resolve"]
 
     # Дефолтные DIRECT-правила: применяются ПОСЛЕ пользовательских route_overrides
@@ -805,7 +807,18 @@ def main():
     for cidr in DEFAULT_DIRECT_IP_CIDRS:
         default_direct_rules.append(f"IP-CIDR,{cidr},DIRECT,no-resolve")
 
-    server_config["rules"] = voip_bypass_rules + bypass_network_rules + override_rules + default_direct_rules + domain_rules + geoip_ai_rules + ip_rules + custom_routing_rules + geoip_ru_fallback + [f"MATCH,{global_node}"]
+    server_config["rules"] = (
+        voip_bypass_rules
+        + bypass_network_rules
+        + override_rules
+        + default_direct_rules
+        + domain_rules
+        + geoip_ai_rules
+        + geoip_ru_fallback   # ← ПЕРЕД ip_rules: RU-IP всегда DIRECT даже для устройств в global=NY
+        + ip_rules
+        + custom_routing_rules
+        + [f"MATCH,{global_node}"]
+    )
 
     MIHOMO_CONFIG.parent.mkdir(parents=True, exist_ok=True)
     with open(MIHOMO_CONFIG, 'w') as f:

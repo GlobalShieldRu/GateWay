@@ -4,6 +4,9 @@
 
 ## [Unreleased]
 
+### Исправлено
+- **Критично: RU-домены ломались на устройствах в `mode=global` / `assigned_node=NY`** (`tunnel-provider/generate_config.py`). При обращении к `profi.ru`, `masterovit.ru`, Яндекс.Картам, любому Yandex-сервису с устройства в global=NY запросы шли **через US-IP**, и Yandex детектил не-RU IP → блокировал с «соединение прервано». Корень: правило `SRC-IP-CIDR,<device>,<NY>` стояло **ПЕРЕД** `GEOIP,ru,DIRECT,no-resolve`. Mihomo матчит правила по порядку — per-device правило побеждало GeoIP RU. Фикс — `GEOIP,ru,DIRECT` теперь стоит **ПЕРЕД** `ip_rules` (per-device). Порядок: `override_rules → DEFAULT_DIRECT → domain_rules → geoip_ai_rules → GEOIP_RU → ip_rules → custom → MATCH`. Все RU-IP гарантированно идут DIRECT даже для устройств в global-режиме.
+
 ## [1.13.5] — 2026-05-13
 
 ### Изменено
