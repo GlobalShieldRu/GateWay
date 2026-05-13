@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [1.13.5] — 2026-05-13
+
 ### Изменено
 - **Архитектурный рефакторинг: единственный источник истины для сети — ОС** (`net-enforcer/main.py`, `registry-dhcp/config_generator.py + entrypoint.sh`, `web-orchestrator/main.py`, `docker-compose.yml`, `install.sh`, `network-watcher.sh`, `update-watcher.sh`). До v1.13.5 IP/iface/gateway хранились в трёх местах одновременно: env vars в `docker-compose.yml`, `.env` (с v1.13.4), `network.json` (с v1.13.0). Любая рассинхронизация → инциденты (видели за час 4 hotfix-релиза). Теперь **единственные источники**: (1) `/proc/net/route` + `ioctl SIOCGIFADDR` + `/etc/resolv.conf` — для IP, iface, маски, upstream gateway, DNS; (2) `settings.json` — только `dhcp_start/end` (это GSG-специфичное решение «что раздавать», нигде ещё не хранится). Контейнеры читают через procfs+ioctl (без зависимости от `iproute2` в python-slim). `network.json` и `.env` удалены, миграция в `update-watcher.sh` (переносит `dhcp_start/end` в `settings.json`, удаляет старые файлы). `docker-compose.yml` стал статичным — никаких устройство-специфичных env. `net-enforcer` определяет `LAN_CIDR` через `ip route` (раньше был хардкод `10.10.1.0/24`, ломалось при переносе в `192.168.x.x` сеть). OTA `git reset` больше **не может** ничего сломать в сетевой конфигурации.
 
