@@ -39,6 +39,7 @@ GSG_TRAFFIC_HISTORY_FILE = GSG_CONFIG_DIR / "traffic_history.json"
 GSG_FEEDBACK_FILE = GSG_CONFIG_DIR / "feedback.json"
 GSG_DEVICE_FILE = GSG_CONFIG_DIR / "device.json"
 GSG_SETTINGS_FILE = GSG_CONFIG_DIR / "settings.json"
+GSG_NETWORK_FILE  = GSG_CONFIG_DIR / "network.json"
 # Дефолты для автономной модели GSG: пользователь зашёл в UI один раз, потом
 # забыл на месяцы. Поэтому автообновление и DHCP — включены по умолчанию.
 # Чтобы выключить — заходит в UI и явно переключает.
@@ -2390,7 +2391,8 @@ async def post_feedback(req: FeedbackRequest):
 
     tg_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
     tg_chat  = os.getenv("TELEGRAM_NOTIFY_USERS_CHAT_ID", "").strip()
-    if tg_token and tg_chat:
+
+    async def _send_feedback_notification():
         import platform
 
         # Железо: модель платы + arch + RAM
@@ -2488,7 +2490,13 @@ async def post_feedback(req: FeedbackRequest):
                     json={"chat_id": tg_chat, "text": text, "parse_mode": "HTML"},
                     timeout=10.0
                 )
-        except Exception: pass
+        except Exception:
+            pass
+
+    if tg_token and tg_chat:
+        # Fire-and-forget: HTTP-ответ не должен ждать гео-lookup + Telegram (до ~19с),
+        # иначе UI зависает на 8-секундном фронтенд-таймауте и показывает «Ошибка».
+        asyncio.create_task(_send_feedback_notification())
 
     return {"ok": True}
 
@@ -2618,6 +2626,55 @@ async def patch_settings(data: dict):
             print(f"[settings] не удалось создать .dhcp_restart_request: {e}", flush=True)
 
     return {**_SETTINGS_DEFAULTS, **current}
+
+# ── Network settings (host LAN config) ─────────────────────────────────────
+# network.json — единый источник истины для адреса GSG в LAN, маски, upstream
+# gateway/DNS и параметров DHCP-пула. Реальное применение делает host-watcher
+# (gsg-network-watcher.service) через маркер-файл, потому что web-orchestrator
+# в Docker-контейнере не имеет доступа к /etc/netplan и docker-compose.yml хоста.
+
+class NetworkSettings(BaseModel):
+    interface: str = "end0"        # имя интерфейса LAN (end0 на NanoPi, eth0 на OrangePi)
+    gsg_ip: str                    # IP GSG в LAN, напр. "10.10.1.254"
+    prefix: int = 24               # длина префикса подсети
+    upstream_gateway: str          # IP роутера-провайдера, напр. "10.10.1.1"
+    upstream_dns: list[str] = ["8.8.8.8", "1.1.1.1"]
+    dhcp_start: str                # начало DHCP-пула, напр. "10.10.1.100"
+    dhcp_end: str                  # конец DHCP-пула, напр. "10.10.1.200"
+    dhcp_dns: str                  # DNS для клиентов (обычно = gsg_ip)
+
+def _network_defaults() -> dict:
+    """Дефолты для UI когда network.json ещё не создан (новые установки).
+    Не пытается угадать реальное состояние хоста — это задача host-watcher."""
+    return {
+        "interface": "end0",
+        "gsg_ip": "10.10.1.254",
+        "prefix": 24,
+        "upstream_gateway": "10.10.1.1",
+        "upstream_dns": ["8.8.8.8", "1.1.1.1"],
+        "dhcp_start": "10.10.1.100",
+        "dhcp_end": "10.10.1.200",
+        "dhcp_dns": "10.10.1.254",
+    }
+
+@app.get("/api/network")
+async def get_network():
+    current = await read_json(GSG_NETWORK_FILE, {})
+    return {**_network_defaults(), **current}
+
+@app.put("/api/network")
+async def put_network(data: NetworkSettings):
+    payload = data.model_dump()
+    async with aiofiles.open(GSG_NETWORK_FILE, 'w') as f:
+        await f.write(json.dumps(payload, indent=2))
+    # Маркер для host-watcher: ставит netplan + перезапускает контейнеры с новыми env.
+    # После apply текущий HTTP-сеанс отвалится — UI должен предупредить пользователя.
+    try:
+        marker = GSG_CONFIG_DIR / ".network_reconfig_request"
+        marker.write_text(json.dumps({"ts": time.time(), **payload}))
+    except Exception as e:
+        raise HTTPException(500, f"не удалось создать маркер: {e}")
+    return {"ok": True, "settings": payload}
 
 @app.get("/api/ai-guard/log")
 async def ai_guard_log():
@@ -2950,7 +3007,10 @@ async def delete_route_overrides(data: DeleteOverridesRequest):
     await _backup_rules()
     rules = await read_json(GSG_RULES_FILE, {})
     overrides = rules.get("route_overrides", [])
-    rules["route_overrides"] = [o for o in overrides if o["domain"] not in [d.lower() for d in domains]]
+    drop = {d.lower() for d in domains}
+    # У override может быть либо "domain", либо "ip-cidr" — фильтруем только по domain,
+    # ip-cidr-записи не трогаем (для них нет UI-кнопки удаления).
+    rules["route_overrides"] = [o for o in overrides if o.get("domain", "").lower() not in drop]
     async with aiofiles.open(GSG_RULES_FILE, 'w') as f:
         await f.write(json.dumps(rules, indent=2))
     async with aiofiles.open(GSG_CONFIG_DIR / ".reload_singbox", 'w') as f:

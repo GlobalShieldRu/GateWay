@@ -4,6 +4,17 @@
 
 ## [Unreleased]
 
+### Изменено
+- **Mihomo prewarm + RU-DNS-policy для устранения «холодных» 5-15с задержек первого открытия** (`tunnel-provider/generate_config.py`). Раньше критичные fallback-группы (`auto`, `ai`) шли с `lazy: true, timeout: 15000` — Mihomo не прогревал узлы проактивно, и любой reload `rules.json` (drag, override, добавление в группу) обнулял history. Первый клиентский запрос триггерил url-test и ждал до 15 с — пользователь видел «Потерялся интернет», «Не удалось подключиться», виснущие страницы Яндекса. Теперь для `auto`/`ai`: `lazy: false, interval: 60` — постоянный прогрев, history всегда свежая, cold-start устранён. Plus `nameserver-policy`: RU-домены (`+.ru`, `+.рф`, `+.su` + `geosite:cn,private`) идут к `77.88.8.8` (Yandex DNS, local-edge IP в ответе) и `1.1.1.1`; глобальные — `77.88.8.8/1.1.1.1/8.8.8.8`. Дефолтный nameserver сменён с `8.8.8.8` на `77.88.8.8` — быстрее из РФ. **NB**: пробовали и `enhanced-mode: fake-ip` — откатили: сломало `GEOIP,ru,DIRECT,no-resolve` (см. `Decisions/2026-05-13-mihomo-cold-start-warmup.md`).
+
+### Добавлено
+- **Перенастройка сети GSG из UI** (раньше задавалась только в `install.sh`). В вкладке «Настройки DHCP» появился блок «Сеть GSG в LAN» с полями: IP GSG, длина префикса, шлюз провайдера, DNS провайдера. После нажатия «Применить сеть» UI показывает confirm-диалог с предупреждением о потере сеанса, бэкенд пишет `/etc/gsg/network.json` и маркер `.network_reconfig_request`. Новый host-сервис `gsg-network-watcher.service` (`network-watcher.sh`) подхватывает маркер, регенерирует `/etc/netplan/01-gsg-lan.yaml`, обновляет env-vars в `docker-compose.yml`, пересоздаёт контейнеры `gsg-dhcp`/`gsg-netenforcer` с новыми параметрами и применяет `netplan apply`. Сценарий «перенос на дачу»: задал новую сеть → переподключился к новому IP через 30-60 с, без переустановки. `install.sh` создаёт `network.json` при первой установке и регистрирует новый systemd-сервис.
+
+### Исправлено
+- **Форма обратной связи: «Ошибка, попробуйте снова», хотя сообщение в Telegram доезжает** (`web-orchestrator/main.py`). `/api/feedback` синхронно ждал три внешних запроса (`ip-api.com` геолокация ~4 с + `resolve-user` к GlobalShield API ~5 с + `sendMessage` через Mihomo до 10 с — итого до ~19 с), а фронтенд `utils.apiCall` обрывает ожидание на 8 с и показывает «Ошибка». Telegram-нотификация вынесена в `asyncio.create_task` — ответ отдаётся сразу после сохранения в `feedback.json`, доставка в Telegram продолжается в фоне.
+- **Drag-and-drop приложения на узел NY/Auto не работал, если домены ранее были в `route_overrides → DIRECT`** (`web-orchestrator/static/index.html`). Например, после Apple→Bypass в `route_overrides` оставались `apple.com→DIRECT, icloud.com→DIRECT, …`, и Mihomo вычисляет `override_rules` до `domain_rules` группы — drag визуально срабатывал (домены попадали в group `ai`), но трафик всё равно шёл DIRECT. `addAppToGroup` теперь дополнительно дёргает `DELETE /api/rules/overrides` для своих доменов перед добавлением в группу (кроме случая drag в Bypass — там DIRECT и нужен).
+- **`DELETE /api/rules/overrides` падал `KeyError: 'domain'` на записях с `ip-cidr`** (`web-orchestrator/main.py`). Использован `.get("domain", "")` — теперь фильтрация безопасно пропускает ip-cidr-записи.
+
 ## [1.12.0] — 2026-05-12
 
 ### Добавлено

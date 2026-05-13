@@ -199,12 +199,21 @@ def main():
         "geosite": "https://github.com/runetfreedom/russia-v2ray-rules-dat/releases/latest/download/geosite.dat",
     }
 
+    # DNS: nameserver-policy (RU-домены через Yandex DNS — локальный edge).
+    # fake-ip пробовали — ломает правила `GEOIP,ru,DIRECT` и `IP-CIDR,...,no-resolve`,
+    # потому что клиент получает 198.18.x.x вместо реального IP, и GEOIP-проверка
+    # делается уже после dns-резолва Mihomo по поведению `no-resolve`. Откатили.
+    # См. инцидент 2026-05-13: profi.ru / yandex-домены ломались через Stockholm.
     server_config["dns"] = {
         "enable": True,
         "listen": "0.0.0.0:1053",
         "ipv6": False,
-        "nameserver": ["8.8.8.8", "1.1.1.1", "77.88.8.8"],
-        "default-nameserver": ["8.8.8.8", "1.1.1.1"]
+        "nameserver": ["77.88.8.8", "1.1.1.1", "8.8.8.8"],
+        "default-nameserver": ["77.88.8.8", "8.8.8.8"],
+        "nameserver-policy": {
+            "geosite:cn,private": ["77.88.8.8", "8.8.8.8"],
+            "+.ru,+.рф,+.su":      ["77.88.8.8", "1.1.1.1"],
+        },
     }
 
     server_config["sniffer"] = {
@@ -401,12 +410,21 @@ def main():
         if g_id == "myip":
             g_type = "url-test"
 
+        # Прогрев групп: для критичных (auto, ai) используем lazy:False —
+        # Mihomo сам тестирует узлы каждые 60 с независимо от трафика. Это
+        # гарантирует наличие свежей history к моменту первого клиентского
+        # запроса; без этого пользователь ждёт до 15 сек на «холодный» URL-test
+        # после каждого reload или после простоя. myip — оставляем lazy (он
+        # для MenuBar-индикатора, экономим трафик). Кастомные user_* — тоже
+        # lazy: они трогаются редко, тратить трафик на постоянный health-check
+        # ради 1-2 переключений в день не стоит.
+        is_critical = g_id in ("auto", "ai")
         group_cfg = {
             "name": g_id, "type": g_type, "proxies": proxies,
             "url": "http://www.gstatic.com/generate_204",
-            "interval": 600 if g_id == "myip" else 120,
-            "lazy": True,             # Проверять только при реальном трафике
-            "timeout": 15000,         # Таймаут health-check (15 сек) — CDN WebSocket узлы типа NY Обход блокировок делают handshake 5-8 сек, меньше 15000 они ошибочно считаются мёртвыми
+            "interval": 60 if is_critical else (600 if g_id == "myip" else 120),
+            "lazy": not is_critical,  # auto/ai — постоянный прогрев, остальные — по требованию
+            "timeout": 15000,         # CDN WebSocket узлы (NY Обход блокировок) делают handshake 5-8 сек, меньше 15000 они ошибочно считаются мёртвыми
             "max-failed-times": 3,    # Выводить узел из ротации после 3 ошибок подряд
         }
         if g_type == "url-test":

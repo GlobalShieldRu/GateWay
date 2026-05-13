@@ -1,0 +1,17 @@
+[Unit]
+Description=GSG Network Reconfiguration Watcher
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=root
+Environment=HOME=/root
+ExecStart=/bin/bash /root/GSG/network-watcher.sh
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/gsg-network.log
+StandardError=append:/var/log/gsg-network.log
+
+[Install]
+WantedBy=multi-user.target

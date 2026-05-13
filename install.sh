@@ -365,6 +365,14 @@ systemctl restart gsg-updater
 git config --global --add safe.directory "${INSTALL_DIR}" 2>/dev/null || true
 success "Update Watcher: systemd (gsg-updater.service)"
 
+# ── Network Watcher (systemd сервис, применяет UI-перенастройку сети) ─
+info "Настройка Network Watcher..."
+cp "${INSTALL_DIR}/gsg-network-watcher.service" /etc/systemd/system/gsg-network-watcher.service
+systemctl daemon-reload
+systemctl enable gsg-network-watcher
+systemctl restart gsg-network-watcher
+success "Network Watcher: systemd (gsg-network-watcher.service)"
+
 # NOTE: gsg-watchdog (host-level) временно отключён — требует отладки логики
 # check_group для fallback-групп с lazy: true. Будет включён в следующем релизе.
 
@@ -494,6 +502,25 @@ docker compose build $PIP_BUILD_ARGS
 
 info "Запуск контейнеров..."
 docker compose up -d
+
+# ── Запись network.json (источник истины для UI «Сеть») ───
+info "Сохраняю сетевую конфигурацию в network.json..."
+docker exec gsg-web-orchestrator python3 -c "
+import json
+data = {
+    'interface': '${LAN_IFACE}',
+    'gsg_ip': '${GATEWAY_IP}',
+    'prefix': 24,
+    'upstream_gateway': '${UPSTREAM_GW}',
+    'upstream_dns': ['8.8.8.8', '1.1.1.1'],
+    'dhcp_start': '${DHCP_START}',
+    'dhcp_end': '${DHCP_END}',
+    'dhcp_dns': '${GATEWAY_IP}',
+}
+with open('/etc/gsg/network.json', 'w') as f:
+    json.dump(data, f, indent=2)
+print('ok')
+" 2>/dev/null || warn "network.json не записан (можно задать позже через UI)"
 
 # ── Регистрация устройства в GlobalShield ─────
 echo ""
