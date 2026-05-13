@@ -4,6 +4,9 @@
 
 ## [Unreleased]
 
+### Исправлено
+- **Критично: на Armbian Trixie (NanoPi и более новые образы) DNS ломался у хост-приложений** (`net-enforcer/main.py`). `git fetch`, `apt`, `curl` от лица root зависали с «Could not resolve host». Симптом возникал только на Debian 13 с активным `systemd-resolved` stub-listener'ом на `127.0.0.53`. Корневая причина: `postrouting` chain в `net-enforcer` содержал безусловный `masquerade` — он применялся ко **всем** исходящим пакетам, включая loopback к `127.0.0.53`. Ядро подменяло src IP с `127.0.0.x` на адрес LAN-интерфейса, после чего systemd-resolved отбрасывал пакеты с логом «Got packet on unexpected (i.e. non-localhost) IP range, ignoring». На OrangePi (Armbian 22.02, Debian 11) эта проблема не проявлялась — там NetworkManager пишет статичный `/etc/resolv.conf` с прямым `nameserver 8.8.8.8`, минуя stub. Фикс — добавить `oif "lo" return` перед `masquerade`: loopback-трафик больше не маскарадится. ОТА после v1.13.1 на устройствах с Trixie ломался первым же `git fetch`.
+
 ## [1.13.1] — 2026-05-13
 
 ### Изменено

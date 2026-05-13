@@ -107,6 +107,12 @@ table inet gsg {{
 
     chain postrouting {{
         type nat hook postrouting priority srcnat; policy accept;
+        # Не трогаем loopback (oif "lo"): иначе MASQUERADE подменяет src IP
+        # хост-приложений идущих к 127.0.0.53 (systemd-resolved stub) на адрес
+        # LAN-интерфейса, и resolved отбрасывает их как «non-localhost», ломая
+        # DNS на хосте (getent, git, apt). Видно в логах:
+        # «Got packet on unexpected (i.e. non-localhost) IP range, ignoring».
+        oif "lo" return
         masquerade
     }}
 }}
