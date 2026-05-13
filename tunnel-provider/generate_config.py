@@ -410,20 +410,18 @@ def main():
         if g_id == "myip":
             g_type = "url-test"
 
-        # Прогрев групп: для критичных (auto, ai) используем lazy:False —
-        # Mihomo сам тестирует узлы каждые 60 с независимо от трафика. Это
-        # гарантирует наличие свежей history к моменту первого клиентского
-        # запроса; без этого пользователь ждёт до 15 сек на «холодный» URL-test
-        # после каждого reload или после простоя. myip — оставляем lazy (он
-        # для MenuBar-индикатора, экономим трафик). Кастомные user_* — тоже
-        # lazy: они трогаются редко, тратить трафик на постоянный health-check
-        # ради 1-2 переключений в день не стоит.
-        is_critical = g_id in ("auto", "ai")
+        # lazy:true — Mihomo тестирует узлы только при реальном трафике.
+        # Раньше пробовали lazy:false (v1.13.0) чтобы устранить cold-start, но
+        # gstatic.com/generate_204 не проходит через VLESS Reality узлы с SNI
+        # kinopoisk.ru — узлы ошибочно помечаются мёртвыми, UI показывает ERR,
+        # клиенты теряют связь. Прогрев на старте/reload делает entrypoint.sh
+        # через прямые `/group/*/delay` вызовы — этого достаточно. Переключение
+        # на более устойчивый URL — отдельная задача (см. Decisions/2026-05-13).
         group_cfg = {
             "name": g_id, "type": g_type, "proxies": proxies,
             "url": "http://www.gstatic.com/generate_204",
-            "interval": 60 if is_critical else (600 if g_id == "myip" else 120),
-            "lazy": not is_critical,  # auto/ai — постоянный прогрев, остальные — по требованию
+            "interval": 600 if g_id == "myip" else 120,
+            "lazy": True,             # Проверять только при реальном трафике
             "timeout": 15000,         # CDN WebSocket узлы (NY Обход блокировок) делают handshake 5-8 сек, меньше 15000 они ошибочно считаются мёртвыми
             "max-failed-times": 3,    # Выводить узел из ротации после 3 ошибок подряд
         }
