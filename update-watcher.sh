@@ -172,6 +172,28 @@ process_trigger() {
     # Восстанавливаем исполняемые биты
     chmod +x "$GSG_DIR"/*.sh 2>/dev/null || true
 
+    # ── Регенерация .env из network.json ────────────────────────────────
+    # docker-compose.yml использует переменные из .env (см. ${VAR:?msg} синтаксис).
+    # При git reset compose.yml откатывается к версии из репо, но .env в .gitignore
+    # и не трогается. Однако устройства которые обновляются с версии <1.13.3 не
+    # имеют .env — а compose.yml теперь требует его. Регенерим из network.json,
+    # который пишется install.sh и UI-перенастройкой сети.
+    if [[ -f "$CONFIG_VOL/network.json" ]] && [[ ! -f "$GSG_DIR/.env" ]]; then
+        log "Регенерирую .env из network.json (миграция со старой версии)"
+        python3 -c "
+import json
+d = json.load(open('$CONFIG_VOL/network.json'))
+env = f'''GSG_GATEWAY_IP={d['gsg_ip']}
+GSG_LAN_INTERFACE={d['interface']}
+GSG_DHCP_START={d['dhcp_start']}
+GSG_DHCP_END={d['dhcp_end']}
+GSG_TPROXY_PORT=12345
+'''
+open('$GSG_DIR/.env', 'w').write(env)
+print('.env создан')
+" 2>&1 | tee -a "$LOG"
+    fi
+
     # Синхронизация systemd-юнитов: если в репо появились новые *.service —
     # ставим их без участия пользователя. Иначе фичи требующие host-сервисов
     # (например network-watcher) недоступны до ручного `systemctl enable` —

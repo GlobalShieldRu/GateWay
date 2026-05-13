@@ -4,6 +4,12 @@ volumes:
   dhcp_data:
     driver: local
 
+# Устройство-специфичные параметры берутся ТОЛЬКО из .env (создаётся install.sh).
+# .env находится в .gitignore и НЕ перезаписывается при OTA `git reset`.
+# Синтаксис ${VAR:?msg} — docker compose упадёт с ясной ошибкой если VAR не задан.
+# Это лучше чем дефолт: предотвращает «GSG поднялся с настройками другого устройства»
+# (раньше дефолт 10.10.1.139/eth0 ломал NanoPi после каждого OTA, потому что NanoPi=10.10.1.254/end0).
+
 services:
   # Оркестратор - веб-интерфейс управления
   web-orchestrator:
@@ -16,7 +22,7 @@ services:
       - gsg_config:/etc/gsg
       - dhcp_data:/var/lib/misc:ro
     environment:
-      - GSG_GATEWAY_IP=10.10.1.139
+      - GSG_GATEWAY_IP=${GSG_GATEWAY_IP:?требуется .env с GSG_GATEWAY_IP — запустить install.sh}
       - TELEGRAM_BOT_TOKEN=8502362211:AAHkFjHvTfyMw8RpEyE_iy60m5ofOATy1wQ
       - TELEGRAM_NOTIFY_USERS_CHAT_ID=-1002944439448
     restart: always
@@ -33,10 +39,10 @@ services:
       - gsg_config:/etc/gsg
       - dhcp_data:/var/lib/misc
     environment:
-      - GSG_GATEWAY_IP=10.10.1.139
-      - GSG_LAN_INTERFACE=eth0
-      - GSG_DHCP_START=10.10.1.100
-      - GSG_DHCP_END=10.10.1.200
+      - GSG_GATEWAY_IP=${GSG_GATEWAY_IP:?требуется .env}
+      - GSG_LAN_INTERFACE=${GSG_LAN_INTERFACE:?требуется .env с GSG_LAN_INTERFACE (end0/eth0)}
+      - GSG_DHCP_START=${GSG_DHCP_START:?требуется .env с GSG_DHCP_START}
+      - GSG_DHCP_END=${GSG_DHCP_END:?требуется .env с GSG_DHCP_END}
     restart: always
 
   # Tunnel Provider - работа с прокси и подписками
@@ -65,7 +71,7 @@ services:
     volumes:
       - gsg_config:/etc/gsg
     environment:
-      - GSG_GATEWAY_IP=10.10.1.139
+      - GSG_GATEWAY_IP=${GSG_GATEWAY_IP:?требуется .env}
       - GSG_TPROXY_PORT=12345
-      - GSG_LAN_INTERFACE=eth0
+      - GSG_LAN_INTERFACE=${GSG_LAN_INTERFACE:?требуется .env}
     restart: always

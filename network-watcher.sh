@@ -57,12 +57,17 @@ network:
 EOF
     chmod 600 "$NETPLAN_FILE"
 
-    # ── 2. Обновляем env-vars в docker-compose.yml ──────────────────────────
-    log "Обновляю env в $COMPOSE_FILE"
-    sed -i "s|GSG_GATEWAY_IP=.*|GSG_GATEWAY_IP=${GSG_IP}|g" "$COMPOSE_FILE"
-    sed -i "s|GSG_LAN_INTERFACE=.*|GSG_LAN_INTERFACE=${IFACE}|g" "$COMPOSE_FILE"
-    sed -i "s|GSG_DHCP_START=.*|GSG_DHCP_START=${DHCP_START}|g" "$COMPOSE_FILE"
-    sed -i "s|GSG_DHCP_END=.*|GSG_DHCP_END=${DHCP_END}|g" "$COMPOSE_FILE"
+    # ── 2. Обновляем .env (compose.yml сам читает его) ─────────────────────
+    # Пишем в /root/GSG/.env вместо sed по compose.yml — иначе OTA git reset
+    # стирает все правки и устройство возвращается к дефолту 10.10.1.139/eth0.
+    log "Пишу /root/GSG/.env"
+    cat > "$GSG_DIR/.env" <<EOFENV
+GSG_GATEWAY_IP=${GSG_IP}
+GSG_LAN_INTERFACE=${IFACE}
+GSG_DHCP_START=${DHCP_START}
+GSG_DHCP_END=${DHCP_END}
+GSG_TPROXY_PORT=12345
+EOFENV
 
     # ── 3. Удаляем триггер ДО рестарта (рестарт убивает наш SSH/UI-сеанс) ───
     rm -f "$TRIGGER"

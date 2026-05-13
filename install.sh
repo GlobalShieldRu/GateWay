@@ -386,13 +386,12 @@ GSG_DHCP_END=${DHCP_END}
 GSG_TPROXY_PORT=12345
 EOF
 
-sed -i "s|GSG_GATEWAY_IP=.*|GSG_GATEWAY_IP=${GATEWAY_IP}|" docker-compose.yml
-sed -i "s|GSG_LAN_INTERFACE=.*|GSG_LAN_INTERFACE=${LAN_IFACE}|" docker-compose.yml
-sed -i "s|GSG_DHCP_START=.*|GSG_DHCP_START=${DHCP_START}|" docker-compose.yml
-sed -i "s|GSG_DHCP_END=.*|GSG_DHCP_END=${DHCP_END}|" docker-compose.yml
-sed -i "s|GSG_GATEWAY_IP=.*|GSG_GATEWAY_IP=${GATEWAY_IP}|g" docker-compose.yml
+# docker-compose.yml сам читает .env (стандартное поведение docker compose).
+# Раньше делали sed-замены прямо в compose.yml, но это терялось при OTA
+# (`git reset --hard` восстанавливал дефолты). Теперь источник истины — .env,
+# который в .gitignore.
 
-success "Docker конфиг записан"
+success "Docker конфиг записан в .env (не трогается OTA)"
 
 info "Конфигурация сети будет применена после успешного запуска контейнеров"
 
