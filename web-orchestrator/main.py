@@ -21,7 +21,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 
-GSG_VERSION = "1.13.2"
+GSG_VERSION = "1.13.3"
 _start_time = time.time()
 
 app = FastAPI(title="GSG Smart Gateway API")
