@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [1.13.0] — 2026-05-13
+
 ### Изменено
 - **Mihomo prewarm + RU-DNS-policy для устранения «холодных» 5-15с задержек первого открытия** (`tunnel-provider/generate_config.py`). Раньше критичные fallback-группы (`auto`, `ai`) шли с `lazy: true, timeout: 15000` — Mihomo не прогревал узлы проактивно, и любой reload `rules.json` (drag, override, добавление в группу) обнулял history. Первый клиентский запрос триггерил url-test и ждал до 15 с — пользователь видел «Потерялся интернет», «Не удалось подключиться», виснущие страницы Яндекса. Теперь для `auto`/`ai`: `lazy: false, interval: 60` — постоянный прогрев, history всегда свежая, cold-start устранён. Plus `nameserver-policy`: RU-домены (`+.ru`, `+.рф`, `+.su` + `geosite:cn,private`) идут к `77.88.8.8` (Yandex DNS, local-edge IP в ответе) и `1.1.1.1`; глобальные — `77.88.8.8/1.1.1.1/8.8.8.8`. Дефолтный nameserver сменён с `8.8.8.8` на `77.88.8.8` — быстрее из РФ. **NB**: пробовали и `enhanced-mode: fake-ip` — откатили: сломало `GEOIP,ru,DIRECT,no-resolve` (см. `Decisions/2026-05-13-mihomo-cold-start-warmup.md`).
 
