@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [1.13.4] — 2026-05-13
+
 ### Изменено
 - **Критично: устройство-специфичная конфигурация вынесена в `.env`** (`docker-compose.yml`, `install.sh`, `update-watcher.sh`, `network-watcher.sh`). Раньше `GSG_GATEWAY_IP`, `GSG_LAN_INTERFACE`, `GSG_DHCP_START/END` хардкодились в `docker-compose.yml` (дефолт `10.10.1.139/eth0` — это OrangePi) и патчились `sed`-ом в `install.sh` под конкретное устройство. При OTA `git reset --hard origin/main` затирал эти патчи. На NanoPi с интерфейсом `end0` контейнер `gsg-dhcp` падал в crash loop с `dnsmasq: unknown interface eth0` → клиенты теряли DNS → весь интернет ложился. Фикс: `compose.yml` теперь использует `${GSG_GATEWAY_IP:?требуется .env}` — переменные **обязаны** быть в `.env` (создаётся `install.sh`, в `.gitignore`, не трогается `git reset`). `network-watcher.sh` пишет в `.env` вместо `compose.yml`. `update-watcher.sh` при OTA восстанавливает `.env` из `/etc/gsg/network.json` если потерян (миграция со старой версии). Fail-fast вместо дефолта: лучше явная ошибка `docker compose` чем «GSG поднялся с настройками другого устройства».
 
