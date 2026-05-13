@@ -102,9 +102,25 @@ rm -f "${MAIN_PY}.bak"
 grep "GSG_VERSION = \"$VERSION\"" "$MAIN_PY" > /dev/null || die "Не удалось обновить версию в $MAIN_PY"
 ok "Версия обновлена"
 
+# ─── 1b. Переименовываем [Unreleased] → [X.Y.Z] в CHANGELOG ──────────────────
+# Раньше требовалось вручную делать это перед запуском — иначе release.sh
+# не находил секцию и заполнял GitHub Release дефолтным git log. Теперь сами.
+if [[ -f "$CHANGELOG" ]] && grep -q "^## \[Unreleased\]" "$CHANGELOG" && ! grep -q "^## \[$VERSION\]" "$CHANGELOG"; then
+  log "Переименовываем [Unreleased] → [$VERSION] в CHANGELOG..."
+  TODAY=$(date +%Y-%m-%d)
+  # Заменяем "## [Unreleased]" на "## [Unreleased]\n\n## [VERSION] — DATE"
+  python3 -c "
+import re
+with open('$CHANGELOG') as f: c = f.read()
+new = c.replace('## [Unreleased]', '## [Unreleased]\n\n## [$VERSION] — $TODAY', 1)
+with open('$CHANGELOG','w') as f: f.write(new)
+"
+  ok "CHANGELOG обновлён"
+fi
+
 # ─── 2. Коммитим версию ──────────────────────────────────────────────────────
 log "Создаём коммит версии..."
-git add "$MAIN_PY"
+git add "$MAIN_PY" "$CHANGELOG"
 git commit -m "chore: release v$VERSION"
 
 # ─── 3. Создаём тег ──────────────────────────────────────────────────────────

@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### Изменено
+- **`release.sh` автоматически переименовывает `[Unreleased]` → `[X.Y.Z] — DATE`** в CHANGELOG перед коммитом версии. Раньше требовалось вручную поправить CHANGELOG до запуска `release.sh`, иначе GitHub Release заполнялся дефолтным git-log (так и случилось с v1.13.0). Теперь release.sh сам делает рерайт.
+
+### Исправлено
+- **OTA автоматически устанавливает новые systemd-юниты GSG** (`update-watcher.sh`). До этой правки появление в репо нового `gsg-*.service` (как `gsg-network-watcher` в 1.13.0) НЕ приводило к его установке на устройстве — пользователю надо было руками `cp service && systemctl enable`, что в модели «GSG автономен, открывают раз в год» означало мёртвую фичу. Теперь `update-watcher.sh` после `git reset` сканирует `/root/GSG/gsg-*.service`, сравнивает с `/etc/systemd/system/`, копирует изменённые/новые, делает `daemon-reload + enable + restart`. Дополнительно: если сам `update-watcher.sh` обновился — после healthcheck рестартим `gsg-updater.service --no-block`, чтобы systemd подхватил новый код (иначе старая копия живёт в памяти до reboot).
+
 ## [1.13.0] — 2026-05-13
 
 ### Изменено

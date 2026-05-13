@@ -159,6 +159,9 @@ process_trigger() {
     fi
 
     log "[STAGE:2/6] Применение обновлений..."
+    # Запоминаем хэш собственного скрипта ДО git reset — если он изменился, в
+    # конце цикла рестартим gsg-updater чтобы systemd подхватил новый код.
+    SELF_HASH_BEFORE=$(sha256sum "$0" 2>/dev/null | awk '{print $1}')
     if ! git reset --hard origin/main >> "$LOG" 2>&1; then
         log "ОШИБКА: git reset не удался"
         rm -f "$TRIGGER"
@@ -168,6 +171,37 @@ process_trigger() {
 
     # Восстанавливаем исполняемые биты
     chmod +x "$GSG_DIR"/*.sh 2>/dev/null || true
+
+    # Синхронизация systemd-юнитов: если в репо появились новые *.service —
+    # ставим их без участия пользователя. Иначе фичи требующие host-сервисов
+    # (например network-watcher) недоступны до ручного `systemctl enable` —
+    # пользователь GSG этого делать не будет (см. feedback memory: GSG автономен).
+    # См. install.sh — он делает то же при первой установке.
+    log "Синхронизация systemd-юнитов..."
+    UNITS_CHANGED=0
+    for unit_src in "$GSG_DIR"/gsg-*.service; do
+        [[ -f "$unit_src" ]] || continue
+        unit_name="$(basename "$unit_src")"
+        target="/etc/systemd/system/$unit_name"
+        if [[ ! -f "$target" ]] || ! cmp -s "$unit_src" "$target"; then
+            log "  + ${unit_name} (new/changed)"
+            cp "$unit_src" "$target"
+            UNITS_CHANGED=1
+        fi
+    done
+    if [[ "$UNITS_CHANGED" -eq 1 ]]; then
+        systemctl daemon-reload
+        for unit_src in "$GSG_DIR"/gsg-*.service; do
+            [[ -f "$unit_src" ]] || continue
+            unit_name="$(basename "$unit_src")"
+            # gsg-updater (мы сами) — restart позже отдельно, чтобы не убить
+            # текущий процесс посреди OTA-цикла.
+            [[ "$unit_name" == "gsg-updater.service" ]] && continue
+            systemctl enable "$unit_name" >> "$LOG" 2>&1 || true
+            systemctl restart "$unit_name" >> "$LOG" 2>&1 || true
+            log "  ↻ ${unit_name} enabled+restarted"
+        done
+    fi
 
     log "[STAGE:3/6] Сборка контейнеров..."
     # docker compose v5 может возвращать RC=0 даже при ошибке (баг BuildKit).
@@ -212,6 +246,15 @@ process_trigger() {
                       | sed 's/.*"\(.*\)".*/\1/' || echo "?")
         log "===== Обновление завершено: v$new_version ====="
         send_telegram "GSG обновлён до v${new_version}"
+        # Если сам update-watcher.sh изменился — рестартим себя через systemd,
+        # иначе текущий процесс продолжит работать со старым кодом до reboot.
+        SELF_HASH_AFTER=$(sha256sum "$0" 2>/dev/null | awk '{print $1}')
+        if [[ "$SELF_HASH_BEFORE" != "$SELF_HASH_AFTER" ]]; then
+            log "update-watcher.sh обновился — рестарт gsg-updater для подхвата нового кода"
+            # --no-block: systemd запустит рестарт асинхронно, текущий процесс
+            # завершит цикл process_trigger, потом systemd убъёт его и поднимет с новым кодом.
+            systemctl restart gsg-updater.service --no-block 2>/dev/null || true
+        fi
     else
         log "Healthcheck провален: $FAIL_REASON"
         update_post_state "failed_healthcheck"
