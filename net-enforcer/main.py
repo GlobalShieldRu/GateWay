@@ -1,12 +1,34 @@
-import os, sys, json, asyncio, aiofiles, socket
+import os, sys, json, asyncio, aiofiles, socket, subprocess, ipaddress
 from pathlib import Path
 
 GSG_CONFIG_DIR = Path("/etc/gsg")
 GSG_DEVICES_FILE = GSG_CONFIG_DIR / "devices.json"
 GSG_NODES_FILE  = GSG_CONFIG_DIR / "nodes.json"
 RELOAD_SIGNAL_FILE = GSG_CONFIG_DIR / ".reload_nftables"
-GATEWAY_IP = os.getenv("GSG_GATEWAY_IP", "10.10.1.139")
 TPROXY_PORT = int(os.getenv("GSG_TPROXY_PORT", "12345"))
+
+def detect_lan_cidr() -> str:
+    """Автодетект LAN-подсети через `ip route`. Источник истины — ОС, а не env.
+    Раньше CIDR хардкодился `10.10.1.0/24` — ломалось при переносе GSG в другую
+    сеть (192.168.x.x). Теперь работает на любой подсети без правок."""
+    try:
+        # Интерфейс с default route
+        r = subprocess.run(["ip", "-o", "-4", "route", "show", "default"],
+                           capture_output=True, text=True, check=True)
+        iface = r.stdout.split()[4]
+        # CIDR этого интерфейса
+        r = subprocess.run(["ip", "-o", "-4", "addr", "show", "dev", iface],
+                           capture_output=True, text=True, check=True)
+        # формат: "3: end0    inet 10.10.1.254/24 brd 10.10.1.255 scope global ..."
+        cidr_str = next(t for t in r.stdout.split() if "/" in t and t.count(".") == 3)
+        net = ipaddress.ip_network(cidr_str, strict=False)
+        return str(net)
+    except Exception as e:
+        print(f"[WARN] detect_lan_cidr fallback к 10.10.1.0/24: {e}", flush=True)
+        return "10.10.1.0/24"
+
+LAN_CIDR = detect_lan_cidr()
+print(f"[INFO] LAN CIDR autodetected: {LAN_CIDR}", flush=True)
 
 NFT_TEMPLATE = '''#!/usr/sbin/nft -f
 table inet gsg {{ }}
@@ -85,7 +107,7 @@ table inet gsg {{
         # TPROXY UDP не возвращает ответы клиенту, и без ICMP unreachable
         # приложения зависают. С reject клиент мгновенно падает на TCP fallback,
         # который через Mihomo TCP работает штатно.
-        meta nfproto ipv4 ip saddr 10.10.1.0/24 udp dport 443 reject with icmp type port-unreachable
+        meta nfproto ipv4 ip saddr {lan_cidr} udp dport 443 reject with icmp type port-unreachable
 
         # Игнорируем локальные сети
         ip daddr {{ 127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 }} return
@@ -243,6 +265,7 @@ class NetEnforcer:
             node_set=node_set,
             node_direct_rule=node_direct_rule,
             tproxy_port=TPROXY_PORT,
+            lan_cidr=LAN_CIDR,
         )
 
         async with aiofiles.open("/tmp/gsg.nft", 'w') as f: await f.write(conf)

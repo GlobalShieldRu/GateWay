@@ -39,11 +39,10 @@ GSG_TRAFFIC_HISTORY_FILE = GSG_CONFIG_DIR / "traffic_history.json"
 GSG_FEEDBACK_FILE = GSG_CONFIG_DIR / "feedback.json"
 GSG_DEVICE_FILE = GSG_CONFIG_DIR / "device.json"
 GSG_SETTINGS_FILE = GSG_CONFIG_DIR / "settings.json"
-GSG_NETWORK_FILE  = GSG_CONFIG_DIR / "network.json"
 # Дефолты для автономной модели GSG: пользователь зашёл в UI один раз, потом
 # забыл на месяцы. Поэтому автообновление и DHCP — включены по умолчанию.
 # Чтобы выключить — заходит в UI и явно переключает.
-_SETTINGS_DEFAULTS = {"auto_update": True, "dhcp_enabled": True}
+_SETTINGS_DEFAULTS = {"auto_update": True, "dhcp_enabled": True, "dhcp_start": None, "dhcp_end": None}
 GSG_AUTH_FILE   = GSG_CONFIG_DIR / "auth.json"
 GSG_APPS_FILE   = GSG_CONFIG_DIR / "apps.json"
 DNSMASQ_LEASES  = Path("/var/lib/misc/dnsmasq.leases")
@@ -2628,47 +2627,117 @@ async def patch_settings(data: dict):
     return {**_SETTINGS_DEFAULTS, **current}
 
 # ── Network settings (host LAN config) ─────────────────────────────────────
-# network.json — единый источник истины для адреса GSG в LAN, маски, upstream
-# gateway/DNS и параметров DHCP-пула. Реальное применение делает host-watcher
-# (gsg-network-watcher.service) через маркер-файл, потому что web-orchestrator
-# в Docker-контейнере не имеет доступа к /etc/netplan и docker-compose.yml хоста.
+# Источник истины:
+#   - IP/маска/iface/upstream-gw/upstream-DNS — ОС (`ip route`, `ip addr`, /etc/resolv.conf)
+#   - dhcp_start/end — settings.json (это GSG-решение «что раздавать», не системное)
+# Раньше был network.json как дубликат, но любой дубликат рано или поздно
+# рассинхронизируется с реальным состоянием. См. инцидент 2026-05-13 и
+# глобальное правило в ~/.claude/CLAUDE.md «Проверка на противоречия».
+# Контейнер network_mode: host — `ip` команды видят настоящие хостовые интерфейсы.
 
 class NetworkSettings(BaseModel):
-    interface: str = "end0"        # имя интерфейса LAN (end0 на NanoPi, eth0 на OrangePi)
     gsg_ip: str                    # IP GSG в LAN, напр. "10.10.1.254"
     prefix: int = 24               # длина префикса подсети
     upstream_gateway: str          # IP роутера-провайдера, напр. "10.10.1.1"
-    upstream_dns: list[str] = ["8.8.8.8", "1.1.1.1"]
+    upstream_dns: list[str] = ["77.88.8.8", "1.1.1.1"]
     dhcp_start: str                # начало DHCP-пула, напр. "10.10.1.100"
     dhcp_end: str                  # конец DHCP-пула, напр. "10.10.1.200"
-    dhcp_dns: str                  # DNS для клиентов (обычно = gsg_ip)
 
-def _network_defaults() -> dict:
-    """Дефолты для UI когда network.json ещё не создан (новые установки).
-    Не пытается угадать реальное состояние хоста — это задача host-watcher."""
-    return {
-        "interface": "end0",
-        "gsg_ip": "10.10.1.254",
-        "prefix": 24,
-        "upstream_gateway": "10.10.1.1",
-        "upstream_dns": ["8.8.8.8", "1.1.1.1"],
-        "dhcp_start": "10.10.1.100",
-        "dhcp_end": "10.10.1.200",
-        "dhcp_dns": "10.10.1.254",
-    }
+def _read_network_from_os() -> dict:
+    """Читает текущую сетевую конфигурацию из ОС напрямую через procfs/sysfs:
+    - /proc/net/route — iface + upstream gateway (default route)
+    - /proc/net/fib_trie — IPv4-адреса интерфейсов с маской
+    - /etc/resolv.conf — upstream DNS
+    Не вызываем `ip`/`resolvectl` — их нет в python-slim образе, а добавлять
+    iproute2 в Dockerfile ради двух полей дорого. procfs — стандарт ядра."""
+    import re, struct
+    out = {"interface": "", "gsg_ip": "", "prefix": 24, "upstream_gateway": "", "upstream_dns": []}
+
+    # 1) /proc/net/route: ищем default route (→ iface + upstream gateway) и
+    #    маршрут «прямо на подсеть iface» (→ prefix через маску).
+    try:
+        with open("/proc/net/route") as f:
+            for line in f.readlines()[1:]:  # skip header
+                fields = line.split()
+                if len(fields) < 8:
+                    continue
+                if fields[1] == "00000000":  # destination 0.0.0.0 → default route
+                    out["interface"] = fields[0]
+                    gw_le = bytes.fromhex(fields[2])
+                    out["upstream_gateway"] = ".".join(str(b) for b in reversed(gw_le))
+        # Второй проход: prefix LAN-подсети нашего интерфейса
+        if out["interface"]:
+            with open("/proc/net/route") as f:
+                for line in f.readlines()[1:]:
+                    fields = line.split()
+                    if len(fields) >= 8 and fields[0] == out["interface"] and fields[2] == "00000000" and fields[1] != "00000000":
+                        mask_le = bytes.fromhex(fields[7])
+                        mask_int = int.from_bytes(reversed(mask_le), "big")
+                        out["prefix"] = bin(mask_int).count("1")
+                        break
+    except Exception:
+        pass
+
+    # 2) IPv4-адрес нашего interface через ioctl SIOCGIFADDR
+    if out["interface"]:
+        try:
+            import socket, fcntl, struct
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            # 0x8915 = SIOCGIFADDR
+            iface_b = out["interface"][:15].encode() + b"\0" * (16 - len(out["interface"][:15]))
+            res = fcntl.ioctl(s.fileno(), 0x8915, struct.pack("256s", iface_b))
+            out["gsg_ip"] = socket.inet_ntoa(res[20:24])
+            s.close()
+        except Exception:
+            pass
+
+    # 3) upstream DNS
+    try:
+        with open("/etc/resolv.conf") as f:
+            ns = [m.group(1) for line in f for m in [re.match(r"^\s*nameserver\s+(\S+)", line)] if m]
+        # systemd-resolved stub-listener — пишет 127.0.0.53. Реальные uplink-DNS
+        # есть в /run/systemd/resolve/resolv.conf (НЕ-stub версия).
+        if ns and ns[0].startswith("127."):
+            try:
+                with open("/run/systemd/resolve/resolv.conf") as f:
+                    ns2 = [m.group(1) for line in f for m in [re.match(r"^\s*nameserver\s+(\S+)", line)] if m]
+                if ns2:
+                    ns = ns2
+            except Exception:
+                pass
+        out["upstream_dns"] = ns
+    except Exception:
+        pass
+
+    return out
 
 @app.get("/api/network")
 async def get_network():
-    current = await read_json(GSG_NETWORK_FILE, {})
-    return {**_network_defaults(), **current}
+    """Текущая сеть = ОС (ip/route/resolv) + DHCP-пул из settings.json."""
+    sys_net = _read_network_from_os()
+    settings = await read_json(GSG_SETTINGS_FILE, _SETTINGS_DEFAULTS)
+    # DHCP-пул: если не задан — вычисляем из подсети (.100..200)
+    base = ".".join(sys_net["gsg_ip"].split(".")[:3]) if sys_net["gsg_ip"] else "10.10.1"
+    return {
+        **sys_net,
+        "dhcp_start": settings.get("dhcp_start") or f"{base}.100",
+        "dhcp_end":   settings.get("dhcp_end")   or f"{base}.200",
+    }
 
 @app.put("/api/network")
 async def put_network(data: NetworkSettings):
+    """Применить новые сетевые настройки:
+    - dhcp_start/dhcp_end → settings.json (триггерит регенерацию dnsmasq.conf через inotify)
+    - IP/iface/gateway/DNS → маркер для host-watcher, который пишет netplan + netplan apply.
+    """
     payload = data.model_dump()
-    async with aiofiles.open(GSG_NETWORK_FILE, 'w') as f:
-        await f.write(json.dumps(payload, indent=2))
-    # Маркер для host-watcher: ставит netplan + перезапускает контейнеры с новыми env.
-    # После apply текущий HTTP-сеанс отвалится — UI должен предупредить пользователя.
+    # DHCP-пул → settings.json
+    settings = await read_json(GSG_SETTINGS_FILE, _SETTINGS_DEFAULTS)
+    settings["dhcp_start"] = payload["dhcp_start"]
+    settings["dhcp_end"]   = payload["dhcp_end"]
+    async with aiofiles.open(GSG_SETTINGS_FILE, 'w') as f:
+        await f.write(json.dumps(settings, indent=2))
+    # Хостовая сеть → маркер для network-watcher.sh
     try:
         marker = GSG_CONFIG_DIR / ".network_reconfig_request"
         marker.write_text(json.dumps({"ts": time.time(), **payload}))

@@ -1,43 +1,46 @@
 #!/usr/bin/env bash
-# GSG Network Watcher — демон, применяет изменения сети из UI на хост.
-# Слушает /etc/gsg/.network_reconfig_request (через docker volume mount),
-# читает /etc/gsg/network.json, регенерирует netplan + env в docker-compose.yml,
-# перезапускает контейнеры и применяет netplan.
+# GSG Network Watcher — применяет изменения сети из UI к хосту.
+# Слушает /etc/gsg/.network_reconfig_request, регенерирует netplan + apply.
+# DHCP-пул пишет в settings.json (контейнер gsg-dhcp подхватит через inotify).
 #
-# Не вынесено в web-orchestrator потому что контейнер не имеет доступа к /etc/netplan
-# и docker daemon хоста. Архитектурно повторяет update-watcher.sh.
+# Архитектура источников истины:
+#   - IP/iface/gateway/DNS — netplan (что мы пишем) → ip route/ip addr → читают контейнеры
+#   - DHCP-пул start/end — settings.json
+#   - Никакого network.json или .env (удалены — дубликаты-источников приводили к багам).
 set -euo pipefail
 
 GSG_DIR="/root/GSG"
 CONFIG_VOL="/var/lib/docker/volumes/gsg_gsg_config/_data"
 TRIGGER="$CONFIG_VOL/.network_reconfig_request"
-NETWORK_JSON="$CONFIG_VOL/network.json"
+SETTINGS_JSON="$CONFIG_VOL/settings.json"
 LOG="$CONFIG_VOL/.network_log"
 NETPLAN_FILE="/etc/netplan/01-gsg-lan.yaml"
-COMPOSE_FILE="$GSG_DIR/docker-compose.yml"
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG"; }
 
 apply_network() {
     log "Получен запрос на перенастройку сети"
 
-    if [[ ! -f "$NETWORK_JSON" ]]; then
-        log "ОШИБКА: $NETWORK_JSON не найден"
-        return 1
+    if [[ ! -f "$TRIGGER" ]]; then
+        log "Триггер исчез — пропускаем"
+        return 0
     fi
 
-    # Парсим network.json
-    local IFACE GSG_IP PREFIX UP_GW UP_DNS DHCP_START DHCP_END DHCP_DNS
-    IFACE=$(python3 -c "import json; print(json.load(open('$NETWORK_JSON'))['interface'])")
-    GSG_IP=$(python3 -c "import json; print(json.load(open('$NETWORK_JSON'))['gsg_ip'])")
-    PREFIX=$(python3 -c "import json; print(json.load(open('$NETWORK_JSON'))['prefix'])")
-    UP_GW=$(python3 -c "import json; print(json.load(open('$NETWORK_JSON'))['upstream_gateway'])")
-    UP_DNS=$(python3 -c "import json; print(','.join(json.load(open('$NETWORK_JSON'))['upstream_dns']))")
-    DHCP_START=$(python3 -c "import json; print(json.load(open('$NETWORK_JSON'))['dhcp_start'])")
-    DHCP_END=$(python3 -c "import json; print(json.load(open('$NETWORK_JSON'))['dhcp_end'])")
-    DHCP_DNS=$(python3 -c "import json; print(json.load(open('$NETWORK_JSON'))['dhcp_dns'])")
+    # Парсим payload из триггера (web-orchestrator пишет туда настройки)
+    local GSG_IP PREFIX UP_GW UP_DNS DHCP_START DHCP_END
+    GSG_IP=$(python3 -c "import json; print(json.load(open('$TRIGGER'))['gsg_ip'])")
+    PREFIX=$(python3 -c "import json; print(json.load(open('$TRIGGER'))['prefix'])")
+    UP_GW=$(python3 -c "import json; print(json.load(open('$TRIGGER'))['upstream_gateway'])")
+    UP_DNS=$(python3 -c "import json; print(', '.join(json.load(open('$TRIGGER'))['upstream_dns']))")
+    DHCP_START=$(python3 -c "import json; print(json.load(open('$TRIGGER'))['dhcp_start'])")
+    DHCP_END=$(python3 -c "import json; print(json.load(open('$TRIGGER'))['dhcp_end'])")
 
-    log "Новая конфигурация: iface=$IFACE ip=$GSG_IP/$PREFIX gw=$UP_GW dns=$UP_DNS pool=$DHCP_START..$DHCP_END"
+    # Интерфейс берём из текущего default route — пользователь его не задаёт,
+    # это физический параметр устройства (end0 на NanoPi, eth0 на OrangePi).
+    local IFACE
+    IFACE=$(ip -o -4 route show default | awk '{print $5}' | head -1)
+
+    log "Конфигурация: iface=$IFACE ip=$GSG_IP/$PREFIX gw=$UP_GW dns=$UP_DNS pool=$DHCP_START..$DHCP_END"
 
     # ── 1. Регенерация /etc/netplan/01-gsg-lan.yaml ─────────────────────────
     log "Пишу $NETPLAN_FILE"
@@ -53,33 +56,29 @@ network:
         - to: default
           via: ${UP_GW}
       nameservers:
-        addresses: [$(echo "$UP_DNS" | sed 's/,/, /g')]
+        addresses: [${UP_DNS}]
 EOF
     chmod 600 "$NETPLAN_FILE"
 
-    # ── 2. Обновляем .env (compose.yml сам читает его) ─────────────────────
-    # Пишем в /root/GSG/.env вместо sed по compose.yml — иначе OTA git reset
-    # стирает все правки и устройство возвращается к дефолту 10.10.1.139/eth0.
-    log "Пишу /root/GSG/.env"
-    cat > "$GSG_DIR/.env" <<EOFENV
-GSG_GATEWAY_IP=${GSG_IP}
-GSG_LAN_INTERFACE=${IFACE}
-GSG_DHCP_START=${DHCP_START}
-GSG_DHCP_END=${DHCP_END}
-GSG_TPROXY_PORT=12345
-EOFENV
+    # ── 2. DHCP-пул → settings.json (gsg-dhcp подхватит через inotify) ──────
+    log "Обновляю DHCP-пул в settings.json"
+    python3 <<PYEOF
+import json
+p = "$SETTINGS_JSON"
+try:
+    d = json.load(open(p))
+except Exception:
+    d = {}
+d["dhcp_start"] = "$DHCP_START"
+d["dhcp_end"]   = "$DHCP_END"
+json.dump(d, open(p, "w"), indent=2)
+PYEOF
 
-    # ── 3. Удаляем триггер ДО рестарта (рестарт убивает наш SSH/UI-сеанс) ───
+    # ── 3. Удаляем триггер ДО netplan apply (apply разорвёт сеансы) ─────────
     rm -f "$TRIGGER"
 
-    # ── 4. Перезапускаем контейнеры с новыми env ────────────────────────────
-    # До netplan apply — пока сеть ещё работает по старому IP. docker compose
-    # пересоздаст gsg-dhcp, gsg-netenforcer с новыми GATEWAY_IP/CIDR.
-    log "Пересоздаю контейнеры с новыми env"
-    cd "$GSG_DIR"
-    docker compose up -d --force-recreate gsg-dhcp gsg-netenforcer 2>&1 | tee -a "$LOG" || true
-
-    # ── 5. Применяем netplan (SSH/UI отваливается здесь) ────────────────────
+    # ── 4. Применяем netplan ────────────────────────────────────────────────
+    # SSH/UI отвалятся здесь. Пользователь переподключается к новому IP.
     log "netplan apply — текущие сетевые сеансы будут разорваны"
     netplan apply 2>&1 | tee -a "$LOG" || true
 
@@ -91,16 +90,12 @@ log "GSG Network Watcher запущен, слушаю $TRIGGER"
 
 mkdir -p "$CONFIG_VOL"
 
-# Если триггер уже есть на старте (например, watcher упал во время прошлой
-# попытки) — обработать сразу.
+# Если триггер уже есть на старте — обработать сразу.
 [[ -f "$TRIGGER" ]] && apply_network || true
 
-# inotifywait не видит файлы созданные ДО его старта — нужен create-watch на
-# каталог.
 inotifywait -m -e create,moved_to,close_write "$CONFIG_VOL" 2>/dev/null | while read _path _action file; do
     if [[ "$file" == ".network_reconfig_request" ]]; then
-        # Дебаунс на случай нескольких событий подряд (write/close_write/move)
-        sleep 0.5
+        sleep 0.5  # debounce
         if [[ -f "$TRIGGER" ]]; then
             apply_network || log "ОШИБКА при apply_network (exit=$?)"
         fi

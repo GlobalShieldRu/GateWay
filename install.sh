@@ -376,23 +376,9 @@ success "Network Watcher: systemd (gsg-network-watcher.service)"
 # NOTE: gsg-watchdog (host-level) временно отключён — требует отладки логики
 # check_group для fallback-групп с lazy: true. Будет включён в следующем релизе.
 
-# ── Docker конфиг ─────────────────────────────
-info "Запись конфигурации..."
-cat > "$INSTALL_DIR/.env" << EOF
-GSG_GATEWAY_IP=${GATEWAY_IP}
-GSG_LAN_INTERFACE=${LAN_IFACE}
-GSG_DHCP_START=${DHCP_START}
-GSG_DHCP_END=${DHCP_END}
-GSG_TPROXY_PORT=12345
-EOF
-
-# docker-compose.yml сам читает .env (стандартное поведение docker compose).
-# Раньше делали sed-замены прямо в compose.yml, но это терялось при OTA
-# (`git reset --hard` восстанавливал дефолты). Теперь источник истины — .env,
-# который в .gitignore.
-
-success "Docker конфиг записан в .env (не трогается OTA)"
-
+# Сетевая конфигурация хоста (IP/iface/gateway) применяется через netplan
+# на стадии "Network setup" ниже — оттуда же контейнеры её читают через
+# `ip route`/`ip addr`. Env vars и .env удалены — дубликат-источников нет.
 info "Конфигурация сети будет применена после успешного запуска контейнеров"
 
 # ── Autostart Docker при загрузке ─────────────
@@ -502,24 +488,21 @@ docker compose build $PIP_BUILD_ARGS
 info "Запуск контейнеров..."
 docker compose up -d
 
-# ── Запись network.json (источник истины для UI «Сеть») ───
-info "Сохраняю сетевую конфигурацию в network.json..."
+# ── DHCP-пул в settings.json (единственное GSG-решение — что раздавать клиентам) ──
+# IP/iface/gateway/DNS контейнеры читают из ОС (`ip route`, `ip addr`) — не дублируем.
+info "Сохраняю DHCP-пул в settings.json..."
 docker exec gsg-web-orchestrator python3 -c "
-import json
-data = {
-    'interface': '${LAN_IFACE}',
-    'gsg_ip': '${GATEWAY_IP}',
-    'prefix': 24,
-    'upstream_gateway': '${UPSTREAM_GW}',
-    'upstream_dns': ['8.8.8.8', '1.1.1.1'],
-    'dhcp_start': '${DHCP_START}',
-    'dhcp_end': '${DHCP_END}',
-    'dhcp_dns': '${GATEWAY_IP}',
-}
-with open('/etc/gsg/network.json', 'w') as f:
-    json.dump(data, f, indent=2)
-print('ok')
-" 2>/dev/null || warn "network.json не записан (можно задать позже через UI)"
+import json, os
+p = '/etc/gsg/settings.json'
+try:
+    d = json.load(open(p))
+except Exception:
+    d = {}
+d['dhcp_start'] = '${DHCP_START}'
+d['dhcp_end']   = '${DHCP_END}'
+json.dump(d, open(p, 'w'), indent=2)
+print('settings.json updated')
+" 2>/dev/null || warn "settings.json не обновлён (DHCP-пул возьмётся из подсети по умолчанию)"
 
 # ── Регистрация устройства в GlobalShield ─────
 echo ""

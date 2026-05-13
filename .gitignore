@@ -7,7 +7,11 @@
 /etc/gsg/
 *.log
 .release.env
-.env
+
+# Локальные MCP-конфиги (пользовательские, не для репозитория)
+.mcp.json
+.mcp-vault-run.sh
+.obsidian-sync
 
 # Python
 __pycache__/

@@ -172,27 +172,36 @@ process_trigger() {
     # Восстанавливаем исполняемые биты
     chmod +x "$GSG_DIR"/*.sh 2>/dev/null || true
 
-    # ── Регенерация .env из network.json ────────────────────────────────
-    # docker-compose.yml использует переменные из .env (см. ${VAR:?msg} синтаксис).
-    # При git reset compose.yml откатывается к версии из репо, но .env в .gitignore
-    # и не трогается. Однако устройства которые обновляются с версии <1.13.3 не
-    # имеют .env — а compose.yml теперь требует его. Регенерим из network.json,
-    # который пишется install.sh и UI-перенастройкой сети.
-    if [[ -f "$CONFIG_VOL/network.json" ]] && [[ ! -f "$GSG_DIR/.env" ]]; then
-        log "Регенерирую .env из network.json (миграция со старой версии)"
-        python3 -c "
-import json
-d = json.load(open('$CONFIG_VOL/network.json'))
-env = f'''GSG_GATEWAY_IP={d['gsg_ip']}
-GSG_LAN_INTERFACE={d['interface']}
-GSG_DHCP_START={d['dhcp_start']}
-GSG_DHCP_END={d['dhcp_end']}
-GSG_TPROXY_PORT=12345
-'''
-open('$GSG_DIR/.env', 'w').write(env)
-print('.env создан')
-" 2>&1 | tee -a "$LOG"
+    # ── Миграция: network.json → settings.json (только dhcp_start/end) ──
+    # До v1.13.5 параметры сети жили в /etc/gsg/network.json. Теперь IP/iface/
+    # gateway/DNS читаются напрямую из ОС (`ip route`, `ip addr`,
+    # /etc/resolv.conf), а DHCP-пул переехал в settings.json. Удаляем устаревший
+    # файл после переноса данных.
+    if [[ -f "$CONFIG_VOL/network.json" ]]; then
+        log "Миграция: переношу dhcp_start/end из network.json в settings.json, удаляю network.json"
+        python3 <<PYEOF 2>&1 | tee -a "$LOG"
+import json, os
+nj = "$CONFIG_VOL/network.json"
+sj = "$CONFIG_VOL/settings.json"
+try:
+    n = json.load(open(nj))
+except Exception:
+    n = {}
+try:
+    s = json.load(open(sj))
+except Exception:
+    s = {}
+if "dhcp_start" in n: s["dhcp_start"] = n["dhcp_start"]
+if "dhcp_end" in n: s["dhcp_end"] = n["dhcp_end"]
+json.dump(s, open(sj, "w"), indent=2)
+os.remove(nj)
+print("migrated and removed network.json")
+PYEOF
     fi
+
+    # Также удаляем устаревший /root/GSG/.env (был в v1.13.3-4; теперь
+    # docker-compose.yml не использует переменные).
+    [[ -f "$GSG_DIR/.env" ]] && { rm -f "$GSG_DIR/.env"; log "удалён устаревший .env"; }
 
     # Синхронизация systemd-юнитов: если в репо появились новые *.service —
     # ставим их без участия пользователя. Иначе фичи требующие host-сервисов
