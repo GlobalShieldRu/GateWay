@@ -204,6 +204,19 @@ class NetEnforcer:
         os.system("echo 32768 > /sys/module/nf_conntrack/parameters/hashsize 2>/dev/null || true")
         # Swappiness — низкое значение чтобы ядро не свопировало без нужды
         os.system("sysctl -w vm.swappiness=10 2>/dev/null || true")
+        # TCP buffer tuning + BBR + fq — улучшает throughput через VPN.
+        # На Stockholm дало ×2400 (Decisions/2026-05-12-stockholm-tcp-tuning).
+        # На NanoPi: видео Telegram через VPN стало грузиться (инцидент 2026-05-14).
+        # tcp_notsent_lowat ограничивает кэш не-отправленных в socket → антибufferbloat.
+        # BBR требует default_qdisc=fq для правильного pacing.
+        os.system("modprobe tcp_bbr 2>/dev/null || true")
+        os.system("sysctl -w net.core.rmem_max=16777216 2>/dev/null || true")
+        os.system("sysctl -w net.core.wmem_max=16777216 2>/dev/null || true")
+        os.system("sysctl -w net.ipv4.tcp_rmem='4096 87380 16777216' 2>/dev/null || true")
+        os.system("sysctl -w net.ipv4.tcp_wmem='4096 65536 16777216' 2>/dev/null || true")
+        os.system("sysctl -w net.ipv4.tcp_congestion_control=bbr 2>/dev/null || true")
+        os.system("sysctl -w net.core.default_qdisc=fq 2>/dev/null || true")
+        os.system("sysctl -w net.ipv4.tcp_notsent_lowat=131072 2>/dev/null || true")
         # Отключаем ICMP redirect — иначе bypass-клиенты получат редирект и обойдут GSG
         os.system("sysctl -w net.ipv4.conf.all.send_redirects=0")
         os.system("sysctl -w net.ipv4.conf.eth0.send_redirects=0")
