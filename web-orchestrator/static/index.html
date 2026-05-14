@@ -2276,7 +2276,13 @@
 
                 // Immediately fetch connections when switching to that tab
                 if (tabId === 'tab-connections') { actions.fetchConnections(); actions.fetchRouteOverrides(); actions.fetchProxiesList(); }
-                if (tabId === 'tab-routing') { actions.fetchRouteOverrides(); }
+                // tab-routing использует APP_DOMAINS в popup'е выбора группы для app-chip.
+                // Без fetchApps() APP_DOMAINS = только _APPS_FALLBACK (telegram/yt/etc.),
+                // и для динамически добавленных приложений (ubuntu, custom) клик
+                // «Auto/AI/...» молча не работал (см. инцидент 2026-05-14): addAppToGroup
+                // выходил на `if (!appDomains.length) return;` потому что APP_DOMAINS[appId]
+                // отсутствовал. Те же fetchApps + fetchGroups вызываем и в tab-routing.
+                if (tabId === 'tab-routing') { actions.fetchRouteOverrides(); actions.fetchApps(); actions.fetchGroups(); }
                 if (tabId === 'tab-groups') { actions.fetchGroups(); actions.fetchRulesets(); actions.testRoutes(); }
                 if (tabId === 'tab-apps') { actions.fetchApps(); }
 
@@ -8135,7 +8141,7 @@
             });
 
             // Mode pill + node pill + app chip clicks (delegated)
-            document.getElementById('devicesTableBody')?.addEventListener('click', (e) => {
+            document.getElementById('devicesTableBody')?.addEventListener('click', async (e) => {
                 // Mode pill
                 const pill = e.target.closest('.mode-pill');
                 if (pill) {
@@ -8173,8 +8179,17 @@
                 if (!ip || !appId) return;
                 e.stopPropagation();
 
-                const appDef = APPS.find(a => a.id === appId);
-                if (!appDef) return;
+                // APPS заполняется через fetchApps(). Если приложение динамически добавленное
+                // (Ubuntu, Google, Apple и др.) и fetchApps ещё не вызывался на этой странице
+                // — APPS содержит только _APPS_FALLBACK (builtin: Telegram, Yandex и т.п.).
+                // Тогда appDef = undefined и popup молча не открывается. Триггерим fetchApps
+                // лениво и повторяем поиск.
+                let appDef = APPS.find(a => a.id === appId);
+                if (!appDef) {
+                    await actions.fetchApps();
+                    appDef = APPS.find(a => a.id === appId);
+                    if (!appDef) return;
+                }
 
                 const liveInfo = (state._activeDeviceApps || {})[ip] || {};
                 const isLive = !!liveInfo[appId];

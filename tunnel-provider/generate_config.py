@@ -399,6 +399,19 @@ def main():
 
         proxies = matched if matched else (node_names if node_names else ["GSG-FALLBACK"])
 
+        # Для группы auto: VK-узел ставим ПЕРВЫМ, потому что fallback использует
+        # первый живой proxy, а Stockholm|Kinopoisk дал 3.3с задержки на Telegram-DC
+        # (см. инцидент 2026-05-14 — Telegram-видео не грузилось). Stockholm|VK даёт
+        # 154ms на тот же endpoint. Все три узла Stockholm проходят gstatic-health
+        # одинаково — Mihomo не различает их по реальной пропускной способности.
+        # Reorder исключительно для auto, не трогаем ai/кастомные группы.
+        if g_id == "auto":
+            vk = [p for p in proxies if isinstance(p, str) and 'VK' in p]
+            kinopoisk = [p for p in proxies if isinstance(p, str) and 'Kinopoisk' in p]
+            cdn = [p for p in proxies if isinstance(p, str) and 'Обход' in p]
+            rest = [p for p in proxies if p not in vk + kinopoisk + cdn]
+            proxies = vk + kinopoisk + cdn + rest
+
         # DIRECT fallback только для группы auto — общий трафик должен деградировать
         # gracefully если все ноды упали (хотя бы незаблокированные сайты работают).
         # Для ai/myip и других специализированных групп DIRECT НЕ добавляем:
