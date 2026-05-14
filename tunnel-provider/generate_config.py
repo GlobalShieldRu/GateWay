@@ -695,14 +695,26 @@ def main():
             if ip_key not in ip_to_device:
                 ip_to_device[ip_key] = (key, info)
 
+    # Имена всех proxy-групп (auto, ai, кастомные user_*).
+    # ВАЖНО: assigned_node сначала проверяем как ИМЯ ГРУППЫ, и только потом как
+    # конкретный узел. Группа имеет fallback (если узел упал — Mihomo использует
+    # следующий из группы), узел — single point of failure. См. инцидент 2026-05-14:
+    # Mac имел assigned_node = «NY | Обход блокировок» (конкретный CDN-узел) →
+    # github.com/ozon.ru виснут когда канал к этому узлу проблемный.
+    group_names = {pg.get("name", "").lower(): pg.get("name") for pg in server_config.get("proxy-groups", [])}
     for ip, (key, info) in ip_to_device.items():
         mode = info.get('mode', 'smart')
         assign = info.get('assigned_node', 'auto')
         target = global_node
         if assign != 'auto':
-            for name in node_names:
-                if assign.lower() in name.lower():
-                    target = name; break
+            # 1) сначала пробуем как имя группы (auto, ai, custom)
+            if assign.lower() in group_names:
+                target = group_names[assign.lower()]
+            else:
+                # 2) fallback — поиск конкретного узла (legacy путь, не рекомендуется)
+                for name in node_names:
+                    if assign.lower() in name.lower():
+                        target = name; break
 
         if mode == 'block':
             ip_rules.append(f"SRC-IP-CIDR,{ip}/32,REJECT")

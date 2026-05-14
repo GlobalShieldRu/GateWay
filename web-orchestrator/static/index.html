@@ -2598,16 +2598,38 @@
                                 ${(() => {
                                     const curNode = dev.assigned_node || 'auto';
                                     const getFlag = (tag) => { if (/ny|new.?york/i.test(tag)) return '\u{1F1FA}\u{1F1F8}'; if (/stock|stok|swed/i.test(tag)) return '\u{1F1F8}\u{1F1EA}'; return '\u{1F310}'; };
-                                    const autoActive = curNode === 'auto';
-                                    const autoColor = '#10b981';
-                                    let pills = `<span class="node-pill" data-ip="${dev.ip}" data-node="auto" data-tip="Автоматический выбор — устройство использует лучший узел по задержке" style="font-size:9px;padding:2px 6px;border-radius:5px;cursor:pointer;white-space:nowrap;${autoActive ? `background:${autoColor}22;border:1px solid ${autoColor};color:${autoColor};` : `background:transparent;border:1px solid rgba(255,255,255,0.08);color:rgba(148,163,184,0.5);`}">\u26A1 Auto</span>`;
+                                    // groupDefs — встроенные + кастомные группы (Auto, AI, user_*)
+                                    // Раньше показывался только Auto + конкретные узлы — пользователь
+                                    // невольно привязывал устройство к SPOF (см. инцидент 2026-05-14).
+                                    let pills = '';
+                                    // ГРУППЫ сначала (с автоматическим fallback внутри). Auto + AI +
+                                    // кастомные. Раньше показывался только Auto + конкретные узлы —
+                                    // пользователь невольно привязывал устройство к SPOF (инцидент 2026-05-14).
+                                    const groupDefs = [
+                                        { id: 'auto', icon: '\u26A1', label: 'Auto', color: '#10b981', tip: 'Auto: Stockholm-узлы с автопереключением + DIRECT-fallback. Для большинства устройств.' },
+                                        { id: 'ai',   icon: '\u{1F916}', label: 'AI (NY)', color: '#a78bfa', tip: 'AI: NY-узлы с автопереключением. Когда нужен US-IP (AI-сервисы, US-only сайты).' },
+                                    ];
+                                    (state.proxyGroups || []).forEach(pg => {
+                                        if (pg.builtin || pg.id === 'bypass' || pg.id === 'auto' || pg.id === 'ai') return;
+                                        groupDefs.push({ id: pg.id, icon: '\u{1F4E6}', label: pg.name || pg.id, color: '#fbbf24', tip: `Кастомная группа: ${pg.name || pg.id}` });
+                                    });
+                                    groupDefs.forEach(g => {
+                                        const active = curNode === g.id;
+                                        pills += `<span class="node-pill" data-ip="${dev.ip}" data-node="${g.id}" data-tip="${g.tip}" style="font-size:9px;padding:2px 6px;border-radius:5px;cursor:pointer;white-space:nowrap;${active ? `background:${g.color}22;border:1px solid ${g.color};color:${g.color};font-weight:700;` : `background:transparent;border:1px solid rgba(255,255,255,0.08);color:rgba(148,163,184,0.5);`}">${g.icon} ${g.label}</span>`;
+                                    });
+                                    // Конкретные узлы — для опытных пользователей. opacity:0.75 показывает
+                                    // что эти кнопки менее предпочтительны чем группы. Active = жёсткая
+                                    // привязка (SPOF) — добавляем предупреждение в tooltip.
                                     state.nodes.forEach(n => {
                                         const active = curNode === n.tag;
                                         const nc = '#60a5fa';
                                         const flag = getFlag(n.tag);
                                         const hasFlag = /[\u{1F1E0}-\u{1F1FF}]{2}/u.test(n.tag);
                                         const label = hasFlag ? n.tag : flag + ' ' + n.tag;
-                                        pills += `<span class="node-pill" data-ip="${dev.ip}" data-node="${n.tag}" title="${n.tag}" style="font-size:9px;padding:2px 6px;border-radius:5px;cursor:pointer;white-space:nowrap;${active ? `background:${nc}22;border:1px solid ${nc};color:${nc};` : `background:transparent;border:1px solid rgba(255,255,255,0.08);color:rgba(148,163,184,0.5);`}">${label}</span>`;
+                                        const tipTxt = active
+                                            ? `${n.tag} — выбран конкретный узел (single-point-of-failure). При его проблемах трафик встанет. Лучше группа (Auto/AI) с автопереключением.`
+                                            : n.tag;
+                                        pills += `<span class="node-pill" data-ip="${dev.ip}" data-node="${n.tag}" data-tip="${tipTxt}" style="font-size:9px;padding:2px 6px;border-radius:5px;cursor:pointer;white-space:nowrap;opacity:0.75;${active ? `background:${nc}22;border:1px solid ${nc};color:${nc};` : `background:transparent;border:1px solid rgba(255,255,255,0.08);color:rgba(148,163,184,0.5);`}">${label}</span>`;
                                     });
                                     return pills;
                                 })()}

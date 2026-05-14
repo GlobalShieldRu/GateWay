@@ -4,6 +4,9 @@
 
 ## [Unreleased]
 
+### Изменено
+- **Архитектурный фикс: `assigned_node` теперь резолвится через группу, а не только через конкретный узел** (`tunnel-provider/generate_config.py`, `web-orchestrator/static/index.html`). До v1.13.6 если устройство имело `assigned_node = "🇺🇸 NY | Обход блокировок"` (конкретный узел) — весь трафик жёстко привязывался к одному CDN-узлу без fallback. Узел тормозит → весь трафик встал. Группа (auto/ai/кастомная) даёт автопереключение между несколькими узлами. Корень: `generate_config.py:702-705` искал `assigned_node` только в `node_names`, не в `proxy-groups`. Фикс: сначала проверяем `proxy_groups.name`, потом fallback к узлу. UI на странице «Устройства» теперь показывает **сначала группы** (Auto, AI, кастомные) с приоритетной подсветкой, и **затем конкретные узлы** с opacity:0.75 + tooltip-предупреждением «single-point-of-failure» при активном выборе. См. инцидент 2026-05-14: github.com, ozon.ru, www.masterovit.ru виснут на Mac (10.10.1.101) → нашёл `assigned_node = «NY | Обход блокировок»` → переключение на группу `ai` восстановило работу.
+
 ### Исправлено
 - **Критично: RU-домены ломались на устройствах в `mode=global` / `assigned_node=NY`** (`tunnel-provider/generate_config.py`). При обращении к `profi.ru`, `masterovit.ru`, Яндекс.Картам, любому Yandex-сервису с устройства в global=NY запросы шли **через US-IP**, и Yandex детектил не-RU IP → блокировал с «соединение прервано». Корень: правило `SRC-IP-CIDR,<device>,<NY>` стояло **ПЕРЕД** `GEOIP,ru,DIRECT,no-resolve`. Mihomo матчит правила по порядку — per-device правило побеждало GeoIP RU. Фикс — `GEOIP,ru,DIRECT` теперь стоит **ПЕРЕД** `ip_rules` (per-device). Порядок: `override_rules → DEFAULT_DIRECT → domain_rules → geoip_ai_rules → GEOIP_RU → ip_rules → custom → MATCH`. Все RU-IP гарантированно идут DIRECT даже для устройств в global-режиме.
 
