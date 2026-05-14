@@ -795,7 +795,28 @@ def main():
     # и Yandex блокирует с «соединение прервано». См. инцидент 2026-05-13.
     # Порядок: override_rules → DEFAULT_DIRECT → domain_rules → geoip_ai_rules
     #          → GEOIP_RU (DIRECT) → ip_rules (per-device) → custom → MATCH
-    geoip_ru_fallback = ["GEOIP,ru,DIRECT,no-resolve"]
+    # Два класса правил для RU-fallback:
+    #   1. DOMAIN-SUFFIX TLD — domain-based: матчит при поступлении запроса с
+    #      hostname (Mihomo HTTP/SOCKS proxy получает CONNECT с doменом).
+    #      GEOSITE,ru мы использовать не можем — в runetfreedom geosite.dat нет
+    #      категории "ru", только "ru-available-only-inside".
+    #   2. GEOIP,ru,no-resolve — IP-based: матчит TPROXY-трафик с уже известным
+    #      IP в RU-блоке (включая .com сайты на RU-хостинге).
+    #
+    # КРИТИЧНО: оба стоят ПЕРЕД per-device ip_rules — иначе устройство в
+    # mode=global+assigned_node=NY гонит RU-сайты через US-IP, Yandex
+    # Cloud/Anti-DDoS режектит не-RU IP → клиент видит «соединение прервано».
+    # Только GEOIP,ru,no-resolve было недостаточно: для CONNECT с hostname
+    # Mihomo не резолвит, no-resolve не матчит → catch-all → Stockholm →
+    # Yandex режектит SE-IP → 5с timeout (masterovit.ru, инцидент 2026-05-14).
+    geoip_ru_fallback = [
+        "DOMAIN-SUFFIX,ru,DIRECT",
+        "DOMAIN-SUFFIX,рф,DIRECT",
+        "DOMAIN-SUFFIX,su,DIRECT",
+        "DOMAIN-SUFFIX,moscow,DIRECT",
+        "DOMAIN-SUFFIX,tatar,DIRECT",
+        "GEOIP,ru,DIRECT,no-resolve",
+    ]
 
     # Дефолтные DIRECT-правила: применяются ПОСЛЕ пользовательских route_overrides
     # (пользовательские правила приоритетнее), но ПЕРЕД rule-providers/geoip/catch-all.
