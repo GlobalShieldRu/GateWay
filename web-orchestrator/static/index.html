@@ -8257,8 +8257,12 @@
                 if (_bypassEl) _bypassEl.innerHTML = '';
 
                 const statsEl2 = document.getElementById('app-chip-popup-stats');
+                // liveInfo[appId] заполняется только для _APP_MATCH_PATTERNS (builtin).
+                // Для synthetic appDef (root-domain) используем totConns, который уже
+                // имеет fallback к appRoutesData.count выше.
+                const _connCount = liveInfo[appId] || totConns || 0;
                 const _connLine = isLive
-                    ? `<span style="color:#22c55e;font-weight:600;">● Активно</span> · ${liveInfo[appId]} соед${totDown > 0 ? ` · ↓${fmtSpd(totDown)}` : ''}`
+                    ? `<span style="color:#22c55e;font-weight:600;">● Активно</span> · ${_connCount} соед${totDown > 0 ? ` · ↓${fmtSpd(totDown)}` : ''}`
                     : `<span style="color:#475569;">● Нет соединений</span>`;
                 const _hintLine = appDef.hint
                     ? `<div style="margin-top:5px;padding:5px 7px;border-radius:6px;background:rgba(148,163,184,0.08);border:1px solid rgba(148,163,184,0.12);font-size:10px;color:#94a3b8;line-height:1.4;">${appDef.hint}</div>`
@@ -8303,8 +8307,22 @@
 
                 const rect = chip.getBoundingClientRect();
                 popup.style.left = `${Math.min(rect.left, window.innerWidth - 230)}px`;
-                popup.style.top = `${rect.bottom + 6}px`;
+                // Сначала отрисуем popup чтобы узнать его реальную высоту, потом решим
+                // снизу или сверху от chip. Раньше всегда снизу → у нижних chips popup
+                // обрезался viewport'ом.
+                popup.style.visibility = 'hidden';
+                popup.style.top = '0px';
                 popup.style.display = 'block';
+                const popupH = popup.offsetHeight || 200;
+                const margin = 8;
+                const spaceBelow = window.innerHeight - rect.bottom - margin;
+                const spaceAbove = rect.top - margin;
+                if (spaceBelow >= popupH || spaceBelow >= spaceAbove) {
+                    popup.style.top = `${rect.bottom + 6}px`;
+                } else {
+                    popup.style.top = `${Math.max(margin, rect.top - popupH - 6)}px`;
+                }
+                popup.style.visibility = '';
             });
 
             // Static IP blur — handled inside startStaticIpEdit via input.onblur
