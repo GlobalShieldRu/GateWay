@@ -81,7 +81,15 @@ run_healthcheck() {
     if ! curl -sf --max-time 5 http://127.0.0.1:9090/version > /dev/null 2>&1; then
         FAIL_REASON="Mihomo недоступен (порт 9090)"; return 1
     fi
-    if ! docker exec gsg-dhcp pidof dnsmasq > /dev/null 2>&1; then
+    # dnsmasq отсутствует если DHCP выключен в gateway-only режиме — это нормально.
+    # Проверяем только когда dhcp_enabled = true.
+    DHCP_ENABLED=$(python3 -c "
+import json
+try:
+    print('yes' if json.load(open('$CONFIG_VOL/settings.json')).get('dhcp_enabled', True) else 'no')
+except: print('yes')
+" 2>/dev/null || echo "yes")
+    if [ "$DHCP_ENABLED" = "yes" ] && ! docker exec gsg-dhcp pidof dnsmasq > /dev/null 2>&1; then
         FAIL_REASON="dnsmasq не работает"; return 1
     fi
     if ! curl -sf --max-time 10 http://connectivitycheck.gstatic.com/generate_204 > /dev/null 2>&1; then
