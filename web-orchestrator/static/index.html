@@ -8213,13 +8213,25 @@
                         }
                     }
                     if (!appDef) return;
+                    // Заполняем APP_DOMAINS для синтетического appDef: для root-domain (с точкой)
+                    // используем сам appId как один домен — popup покажет его в списке, а
+                    // addAppToGroup добавит DOMAIN-SUFFIX,${appId},<group> в правила.
+                    if (!APP_DOMAINS[appId] || !APP_DOMAINS[appId].length) {
+                        APP_DOMAINS[appId] = appId.includes('.') ? [appId] : [];
+                    }
                 }
 
                 const liveInfo = (state._activeDeviceApps || {})[ip] || {};
-                const isLive = !!liveInfo[appId];
+                // isLive: либо builtin app активен через _APP_MATCH_PATTERNS, либо
+                // appId есть в appRoutesData этого устройства (root-domain fallback).
+                const _routesForIp = (state.appRoutesData || {})[ip] || [];
+                const _routeRec = _routesForIp.find(r => r.app === appId);
+                const isLive = !!liveInfo[appId] || !!_routeRec;
                 const fmtSpd = (bps) => bps >= 1e6 ? `${(bps/1e6).toFixed(1)} MB/s` : bps >= 1024 ? `${(bps/1024).toFixed(0)} KB/s` : `${Math.round(bps)} B/s`;
 
-                // Compute speed for this app on this device
+                // Compute speed for this app on this device. Сначала пробуем _APP_MATCH_PATTERNS
+                // (builtin: telegram/yandex/...). Если ничего не нашлось — fallback к
+                // appRoutesData где count соединений уже посчитан backend-ом по host-match.
                 let totDown = 0, totConns = 0;
                 if (isLive) {
                     Object.values(state._connSpeeds || {}).forEach(sp => {
@@ -8228,6 +8240,10 @@
                             if (aid === appId && pat.test(sp.host || '')) { totDown += sp.down; totConns++; }
                         }
                     });
+                    // Fallback для root-domain/sintetic appDef: count из appRoutesData
+                    if (totConns === 0 && _routeRec) {
+                        totConns = _routeRec.count || 0;
+                    }
                 }
 
                 const dev = state.devices.find(d => d.ip === ip);
