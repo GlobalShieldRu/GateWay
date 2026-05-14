@@ -6745,6 +6745,12 @@
             },
 
             fetchInitialStaticData: async () => {
+                // Eager: загружаем apps/groups сразу при старте, чтобы APPS и
+                // state.proxyGroups были заполнены ДО первого клика по app-chip.
+                // Без этого popup на динамических apps (Apple, Ubuntu, ...) не
+                // открывался при первом клике — APPS содержал только _APPS_FALLBACK.
+                actions.fetchApps();
+                actions.fetchGroups();
                 const dhcp = await utils.apiCall('/dhcp');
                 if (dhcp) {
                     document.getElementById('dhcpGateway').value = dhcp.gateway || '';
@@ -7690,7 +7696,13 @@
             },
 
             addAppToGroup: async (appId, groupId) => {
-                const appDomains = APP_DOMAINS[appId] || [];
+                // APP_DOMAINS заполняется из _APPS_FALLBACK + state.apps + хардкод apple/google.
+                // Для root-domain fallback (appId типа "ubuntu.com", "intercom.io") в APP_DOMAINS
+                // ничего нет — берём сам appId как один домен. См. инцидент 2026-05-14.
+                let appDomains = APP_DOMAINS[appId] || [];
+                if (!appDomains.length && appId.includes('.')) {
+                    appDomains = [appId];
+                }
                 if (!appDomains.length) return;
                 // Remove app domains from all other groups first (including bypass)
                 for (const pg of (state.proxyGroups || [])) {
@@ -8179,15 +8191,27 @@
                 if (!ip || !appId) return;
                 e.stopPropagation();
 
-                // APPS заполняется через fetchApps(). Если приложение динамически добавленное
-                // (Ubuntu, Google, Apple и др.) и fetchApps ещё не вызывался на этой странице
-                // — APPS содержит только _APPS_FALLBACK (builtin: Telegram, Yandex и т.п.).
-                // Тогда appDef = undefined и popup молча не открывается. Триггерим fetchApps
-                // лениво и повторяем поиск.
+                // APPS (из /api/apps + _APPS_FALLBACK) содержит только 16 builtin (telegram,
+                // yandex, claude, ...). Реально в data-app может быть:
+                //   - id из _domainIconMap (apple, google, globalshield) — есть иконка, но нет в APPS
+                //   - root-domain fallback (ubuntu.com, intercom.io, anthropic.com, ...) —
+                //     генерируется в строке 7049 из любого незнакомого домена
+                // Для них popup без synthetic appDef не открывается. Строим appDef из доступных
+                // источников чтобы покрыть **всё** что может появиться в data-app, не плодя списки.
                 let appDef = APPS.find(a => a.id === appId);
                 if (!appDef) {
-                    await actions.fetchApps();
-                    appDef = APPS.find(a => a.id === appId);
+                    // 1) _domainIconMap (apple/google/globalshield и любые будущие)
+                    const iconEntry = _domainIconMap.find(e => e[1] === appId);
+                    if (iconEntry) {
+                        appDef = { id: appId, title: iconEntry[3], color: iconEntry[2], favicon: iconEntry[4] || null, ny: false, alwaysActive: false, builtin: false };
+                    } else {
+                        // 2) state.appRoutesData (root-domain fallback с favicon)
+                        const allRoutes = Object.values(state.appRoutesData || {}).flat();
+                        const route = allRoutes.find(r => r.app === appId);
+                        if (route) {
+                            appDef = { id: appId, title: route.title || appId, color: route.color || '#64748b', favicon: route.favicon || null, ny: false, alwaysActive: false, builtin: false };
+                        }
+                    }
                     if (!appDef) return;
                 }
 
