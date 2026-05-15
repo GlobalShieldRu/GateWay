@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [1.14.0] — 2026-05-15
+
 ### Добавлено
 - **Автодетект home/dacha сети (network-detect)** (`network-detect/main.py`, `gsg-network-detect.service`, `gsg-network-detect.timer`, `update-watcher.sh`). GSG сам определяет в какой LAN он находится и применяет нужный netplan — без ручного запуска скриптов. Конфиг — `/etc/gsg/network-modes.json` с `auto_network.probe_gateway` (например, дачный шлюз `10.10.2.1`), `match_mode` (IP/gateway если probe отвечает) и `fallback_mode` (IP/gateway если не отвечает). Probe через **ARP** (`arping -I eth0 <gw>`), а не ICMP ping — ARP работает на L2, не зависит от L3-маршрутизации (ICMP давал ложные срабатывания при наличии secondary IP на интерфейсе). Запускается systemd-таймером раз в минуту; idempotent — если netplan уже соответствует, ничего не делает (не рестартит сеть и контейнеры впустую — критично, потому что restart рвёт активные TLS-сессии клиентов). При switch: hysteresis 30с (защита от flapping) + validation нового gateway после apply (ARP-probe → если новый gateway не отвечает, rollback на backup). На GSG без `network-modes.json` (например, 254) скрипт молча выходит — multi-mode логика не активируется.
 - **Online-флаг для устройств строго по реальной активности** (`web-orchestrator/main.py`). Раньше API `/api/devices` не выставлял поле `online` — frontend считал онлайн всё что попадало в ARP-таблицу или DHCP leases, включая STALE entries (контакт час назад). На 139 после переезда клиентов UI показывал «21 онлайн» при реальных 0. Теперь `online: True` только если: (1) ARP-флаг REACHABLE (kernel недавно подтвердил MAC), или (2) `devices_activity.json[mac]` за последние 5 мин, или (3) IP активен в TrafficMonitor stats. Иначе `online: False`.
