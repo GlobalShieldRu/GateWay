@@ -4,6 +4,9 @@
 
 ## [Unreleased]
 
+### Исправлено
+- **`sniffer.parse-pure-ip: true` — Mihomo достаёт SNI из TLS даже для DoH-резолвенных соединений** (`tunnel-provider/generate_config.py`). Браузеры (Opera/Chrome/Firefox/Safari) по умолчанию используют DNS-over-HTTPS — резолвят домены через `cloudflare-dns.com`/`dns.google` в обход нашего DNS на GSG, и шлют пакеты сразу на anycast-IP (104.21.x.x / 172.67.x.x для CF). Без `parse-pure-ip` Mihomo пропускал TLS-снайфер для таких pure-IP соединений → routing шёл по правилу `GeoIP(cloudflare)` → catch-all → VPN-нода → Cloudflare WAF блокирует datacenter-IP → ERR_CONNECTION_RESET для RU-сайтов за CF. Теперь sniffer парсит ClientHello даже когда соединение пришло pure-IP — достаёт реальный SNI → `route_overrides`/GeoSite-правила срабатывают корректно. CPU-нагрузка на NanoPi незначительная (читаются только первые байты пакета).
+
 ## [1.14.0] — 2026-05-15
 
 ### Добавлено

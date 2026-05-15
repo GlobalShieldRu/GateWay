@@ -224,7 +224,12 @@ def main():
 
     server_config["sniffer"] = {
         "enable": True,
-        "parse-pure-ip": False,  # Не тратить CPU на IP-only соединения
+        "parse-pure-ip": True,  # Браузеры с DoH (Opera/Chrome/Firefox) идут на CF-anycast по IP,
+                                # обходя наш DNS. Без parse-pure-ip Mihomo не достанет SNI из TLS
+                                # ClientHello → catch-all → VPN-нода → CF WAF блокирует datacenter
+                                # → ERR_CONNECTION_RESET для RU-сайтов за Cloudflare (lolz.live и т.д.).
+                                # CPU-нагрузка на NanoPi пренебрежима — sniffer читает только первые
+                                # байты, не весь поток.
         "sniff": {
             "HTTP": {"ports": [80, 8080], "override-destination": True},
             "TLS": {"ports": [443, 8443], "override-destination": True},
