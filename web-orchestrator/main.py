@@ -1845,6 +1845,7 @@ def _ensure_proxy_groups(rules: dict) -> dict:
 class ProxyGroupCreate(BaseModel):
     name: str
     node_filter: str = ""
+    fallback_filter: str = ""
     type: str = "url-test"
     rules: List[str] = []
     exclusions: List[str] = []
@@ -1856,6 +1857,7 @@ class ProxyGroupCreate(BaseModel):
 class ProxyGroupUpdate(BaseModel):
     name: Optional[str] = None
     node_filter: Optional[str] = None
+    fallback_filter: Optional[str] = None
     type: Optional[str] = None
     rules: Optional[List[str]] = None
     exclusions: Optional[List[str]] = None
@@ -2212,6 +2214,7 @@ async def create_group(req: ProxyGroupCreate):
     rules_list = req.rules if req.rules is not None else (req.domains or [])
     new_group = {
         "id": new_id, "name": req.name, "node_filter": req.node_filter,
+        "fallback_filter": req.fallback_filter,
         "type": req.type, "builtin": False,
         "rules": [d.strip() for d in rules_list if d.strip()],
         "exclusions": [d.strip() for d in req.exclusions if d.strip()],
@@ -2248,6 +2251,12 @@ async def update_group(group_id: str, req: ProxyGroupUpdate):
         found["name"] = req.name
     if req.node_filter is not None:
         found["node_filter"] = req.node_filter
+    if req.fallback_filter is not None:
+        # пустая строка → убираем поле, чтобы не подмешивать резерв непреднамеренно
+        if req.fallback_filter.strip():
+            found["fallback_filter"] = req.fallback_filter
+        else:
+            found.pop("fallback_filter", None)
     if req.type is not None:
         found["type"] = req.type
     # Поддержка старого поля domains для обратной совместимости

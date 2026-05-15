@@ -1190,6 +1190,20 @@
                             Домены из группы «AI-сервисы» всегда идут через NY-узел, «Напрямую» — без VPN — даже если устройство в режиме «Весь трафик».<br>
                             Режим устройства определяет только что делать с трафиком, <em>не попавшим</em> ни в одну группу.
                         </div>
+                        <details style="padding:8px 12px;border-radius:8px;background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.15);font-size:10px;color:#94a3b8;line-height:1.6;cursor:pointer;">
+                            <summary style="color:#60a5fa;font-weight:700;outline:none;user-select:none;">Как работает группа и резервный фильтр</summary>
+                            <div style="margin-top:8px;">
+                                <div style="margin-bottom:6px;"><span style="color:#cbd5e1;font-weight:600;">Фильтр узлов</span> — Mihomo берёт из подписки узлы, имя которых содержит подстроку (например, <code style="background:rgba(255,255,255,0.05);padding:1px 4px;border-radius:3px;">Stockholm, NY</code>). Несколько фильтров через запятую — берутся все совпадающие.</div>
+                                <div style="margin-bottom:6px;"><span style="color:#cbd5e1;font-weight:600;">Тип группы</span>:<br>
+                                    • <code style="background:rgba(255,255,255,0.05);padding:1px 4px;border-radius:3px;">Auto (url-test)</code> — выбирается узел с минимальным пингом, перепроверка каждые ~5 минут.<br>
+                                    • <code style="background:rgba(255,255,255,0.05);padding:1px 4px;border-radius:3px;">Fallback (резерв)</code> — узлы пробуются по порядку: первый живой используется, при его падении переходит на следующий.
+                                </div>
+                                <div style="margin-bottom:6px;"><span style="color:#cbd5e1;font-weight:600;">Резервный фильтр</span> — необязательная вторая группа узлов, добавляется <em>в конец</em> списка. Используется только когда <em>все</em> основные узлы недоступны.<br>
+                                    Пример: основной <code style="background:rgba(255,255,255,0.05);padding:1px 4px;border-radius:3px;">NY</code>, резерв <code style="background:rgba(255,255,255,0.05);padding:1px 4px;border-radius:3px;">Stockholm</code> → пока NY жив, идём через NY; все NY мертвы → автоматически Stockholm.
+                                </div>
+                                <div style="padding:6px 8px;border-radius:6px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#fca5a5;">⚠ Для группы AI <span style="font-weight:600;">резерв оставлять пустым</span>: Anthropic/OpenAI/Google блокируют не-US IP — Stockholm-fallback всё равно не сработает, лучше явный сбой чтобы заметить проблему с NY.</div>
+                            </div>
+                        </details>
                         <div id="groups-list" style="display:flex;flex-direction:column;gap:10px;"></div>
                     </div>
                     <!-- RIGHT: Route test -->
@@ -1210,6 +1224,9 @@
                             <input type="text" id="groupEditName_new" class="gsg-input" placeholder="Например: Видео" style="width:100%;">
                             <div class="section-label" style="margin-top:12px;margin-bottom:6px;">Фильтр узлов (через запятую)</div>
                             <input type="text" id="groupEditFilter_new" class="gsg-input" placeholder="Stockholm, NY" style="width:100%;">
+                            <div class="section-label" style="margin-top:12px;margin-bottom:6px;display:flex;align-items:center;gap:6px;">Резервный фильтр <span style="font-weight:400;color:#64748b;font-size:10px;">(необязательно)</span></div>
+                            <input type="text" id="groupEditFallbackFilter_new" class="gsg-input" placeholder="оставить пустым = без резерва" style="width:100%;">
+                            <div style="font-size:10px;color:#64748b;margin-top:4px;line-height:1.5;">Когда все основные узлы недоступны — трафик идёт на узлы с этим фильтром.</div>
                             <div class="section-label" style="margin-top:12px;margin-bottom:6px;">Тип</div>
                             <select id="groupEditType_new" class="gsg-select" style="width:100%;">
                                 <option value="url-test">Auto (мин. пинг)</option>
@@ -3193,6 +3210,9 @@
                                     <div class="section-label" style="margin-top:12px;margin-bottom:6px;">Фильтр узлов</div>
                                     <input type="text" id="groupEditFilter" class="gsg-input" value="${pg.node_filter || ''}" placeholder="Stockholm, NY" style="width:100%;" oninput="GatewayApp.ui.updateGroupPreview()">
                                     <div id="groupMatchedNodes" style="font-size:11px;color:#93c5fd;margin-top:6px;min-height:18px;display:flex;flex-wrap:wrap;gap:4px;"></div>
+                                    <div class="section-label" style="margin-top:12px;margin-bottom:6px;display:flex;align-items:center;gap:6px;">Резервный фильтр <span style="font-weight:400;color:#64748b;font-size:10px;">(необязательно)</span></div>
+                                    <input type="text" id="groupEditFallbackFilter" class="gsg-input" value="${pg.fallback_filter || ''}" placeholder="оставить пустым = без резерва" style="width:100%;">
+                                    <div style="font-size:10px;color:#64748b;margin-top:4px;line-height:1.5;">Когда все основные узлы недоступны, трафик переходит на узлы с этим фильтром. Для AI-групп оставлять пустым: NY-IP критичен, fallback на Stockholm заблокирует Claude/OpenAI.</div>
                                     <div class="section-label" style="margin-top:12px;margin-bottom:6px;">Тип</div>
                                     <select id="groupEditType" class="gsg-select" style="width:100%;">
                                         <option value="url-test" ${pg.type==='url-test'?'selected':''}>Auto (мин. пинг)</option>
@@ -3258,6 +3278,8 @@
                 document.getElementById('group-editor-title').textContent = 'Новая группа';
                 document.getElementById('groupEditName_new').value = '';
                 document.getElementById('groupEditFilter_new').value = '';
+                const fbEl = document.getElementById('groupEditFallbackFilter_new');
+                if (fbEl) fbEl.value = '';
                 document.getElementById('groupEditType_new').value = 'url-test';
                 document.getElementById('groupEditDomains_new').value = '';
                 ui.exclClear('exclContainer_new');
@@ -7231,11 +7253,13 @@
                 const suffix = editId ? '' : '_new';
                 const nameEl = document.getElementById('groupEditName' + suffix);
                 const filterEl = document.getElementById('groupEditFilter' + suffix);
+                const fallbackFilterEl = document.getElementById('groupEditFallbackFilter' + suffix);
                 const typeEl = document.getElementById('groupEditType' + suffix);
                 const domainsEl = document.getElementById('groupEditDomains' + suffix);
 
                 const name = (nameEl?.value || '').trim();
                 const node_filter = (filterEl?.value || '').trim();
+                const fallback_filter = (fallbackFilterEl?.value || '').trim();
                 const type = typeEl?.value || 'url-test';
                 const rules = (domainsEl?.value || '').split('\n').map(d => d.trim()).filter(d => d && !d.startsWith('#'));
 
@@ -7267,13 +7291,13 @@
 
                 let res;
                 if (editId) {
-                    const payload = { node_filter, type, rules, ...exclData };
+                    const payload = { node_filter, fallback_filter, type, rules, ...exclData };
                     // Имя можно менять только для не-builtin
                     const pg = state.proxyGroups.find(g => g.id === editId);
                     if (!pg?.builtin && name) payload.name = name;
                     res = await utils.apiCall(`/groups/${editId}`, { method: 'PUT', body: JSON.stringify(payload) });
                 } else {
-                    res = await utils.apiCall('/groups', { method: 'POST', body: JSON.stringify({ name, node_filter, type, rules, ...exclData }) });
+                    res = await utils.apiCall('/groups', { method: 'POST', body: JSON.stringify({ name, node_filter, fallback_filter, type, rules, ...exclData }) });
                 }
                 if (res) {
                     // Сбрасываем кэш exclusions для сохранённой группы

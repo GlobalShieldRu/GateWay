@@ -396,13 +396,25 @@ def main():
             continue
 
         filter_str = pg.get("node_filter", "").lower().strip()
+        fallback_filter_str = pg.get("fallback_filter", "").lower().strip()
 
         if filter_str:
             filters = [f.strip() for f in filter_str.split(',') if f.strip()]
-            matched = [n for n in node_names if any(f in n.lower() for f in filters)]
+            primary = [n for n in node_names if any(f in n.lower() for f in filters)]
         else:
-            matched = list(node_names)
+            primary = list(node_names)
 
+        # fallback_filter — узлы дополнительно добавляются в конец списка group.
+        # Для group типа `fallback` Mihomo пробует proxies по порядку → primary
+        # используется первым, fallback подключается только когда все primary мертвы.
+        # Пример: group ai с node_filter=NY и fallback_filter=Stockholm — пока NY жив
+        # AI-трафик идёт через NY, при падении всех NY-узлов → Stockholm.
+        fallback_nodes = []
+        if fallback_filter_str:
+            fb_filters = [f.strip() for f in fallback_filter_str.split(',') if f.strip()]
+            fallback_nodes = [n for n in node_names if any(f in n.lower() for f in fb_filters) and n not in primary]
+
+        matched = primary + fallback_nodes
         proxies = matched if matched else (node_names if node_names else ["GSG-FALLBACK"])
 
         # Для группы auto: VK-узел ставим ПЕРВЫМ, потому что fallback использует
@@ -760,16 +772,19 @@ def main():
             device_sub.append(f"GEOSITE,tiktok,{tiktok_target}")
             for td in ["tiktokv.com", "tiktokcdn.com", "tiktokcdn-eu.com", "tiktokcdn-us.com", "bytedance.com", "byteimg.com", "ibytedtos.com", "ipstatp.com", "musical.ly"]:
                 device_sub.append(f"DOMAIN-SUFFIX,{td},{tiktok_target}")
-            # Добавляем domain_rules из proxy_groups ДО rkn-domains,
-            # чтобы AI-домены (gemini, claude и др.) имели приоритет
-            # над rkn-domains где они тоже могут быть прописаны.
-            for dr in domain_rules:
-                device_sub.append(dr)
+            # domain_rules НЕ дублируем в sub-rule: они уже отрабатывают в основной
+            # chain ПЕРЕД SUB-RULE — если бы матчили, попало бы туда. В sub-rule
+            # они были мёртвым кодом ~538 правил × 18 устройств (см. рефакторинг
+            # 2026-05-15). Здесь оставляем только per-device логику: Telegram-CIDR,
+            # TikTok-по-tiktok_target, RKN-set по target и MATCH,target.
             if rulesets.get('rkn_bypass', True):
                 for site in ["youtube", "meta", "instagram", "twitter"]:
                     device_sub.append(f"GEOSITE,{site},{target}")
                 device_sub.append(f"RULE-SET,rkn-domains,{target}")
-            device_sub.append("MATCH,DIRECT")
+            # smart-режим: catch-all → через target (VPN), не DIRECT.
+            # GEOIP,RU,DIRECT уже отработал ВЫШЕ в основной chain — сюда доходят только не-RU IP без SNI.
+            # DIRECT ломал бы Supercell game (54.x:9339), Apple iCloud (172.224.x), apple-relay по IP.
+            device_sub.append(f"MATCH,{target}")
             sub_rules[sub_name] = device_sub
             ip_rules.append(f"SUB-RULE,(SRC-IP-CIDR,{ip}/32),{sub_name}")
 
