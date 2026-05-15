@@ -1,0 +1,12 @@
+[Unit]
+Description=GSG network auto-detect (home/dacha switch)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/gsg-network-detect.py
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target

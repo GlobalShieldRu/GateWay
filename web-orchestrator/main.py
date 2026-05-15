@@ -1399,11 +1399,31 @@ async def get_devices():
             async with aiofiles.open(GSG_CONFIG_DIR / ".reload_singbox", 'w') as f:
                 await f.write("1")
 
+    # Online определяется строго: устройство активно прямо сейчас.
+    # Раньше всё что попадало в ARP/leases считалось online → UI показывал ложные
+    # цифры (на 139 после переезда видно «21 онлайн» при реальных 0).
+    # Источники сигнала:
+    #   1. ARP flag REACHABLE (0x2) — kernel недавно подтвердил MAC по probe
+    #   2. devices_activity.json[mac] < 5 мин назад — recent активность
+    #   3. monitor.stats имеет IP — TrafficMonitor видит live трафик
+    ARP_REACHABLE = 0x2
+    now = time.time()
+    monitor_ips = set(monitor.stats.keys())
+
     result = []
     for d in active_devices:
         mac = d.get('mac', '')
         conf = mac_configs.get(mac, {})
         current_ip = d['ip']
+
+        is_online = False
+        if d.get('_arp_flags', 0) & ARP_REACHABLE:
+            is_online = True
+        elif mac and (now - activity.get(mac, 0)) < 300:
+            is_online = True
+        elif current_ip in monitor_ips:
+            is_online = True
+
         result.append({
             **d,
             "mode": conf.get("mode", "smart"),
@@ -1412,6 +1432,7 @@ async def get_devices():
             "custom_name": conf.get("custom_name", ""),
             "current_ip": current_ip,
             "block_vpn_app": conf.get("block_vpn_app", False),
+            "online": is_online,
         })
     return result
 

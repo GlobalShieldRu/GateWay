@@ -211,14 +211,26 @@ PYEOF
     # docker-compose.yml не использует переменные).
     [[ -f "$GSG_DIR/.env" ]] && { rm -f "$GSG_DIR/.env"; log "удалён устаревший .env"; }
 
-    # Синхронизация systemd-юнитов: если в репо появились новые *.service —
+    # Host-скрипты в /usr/local/bin/ — обновляем из репо при изменении.
+    # Сейчас один: gsg-network-detect.py (автодетект home/dacha сети).
+    log "Синхронизация host-скриптов..."
+    if [[ -f "$GSG_DIR/network-detect/main.py" ]]; then
+        target_script="/usr/local/bin/gsg-network-detect.py"
+        if [[ ! -f "$target_script" ]] || ! cmp -s "$GSG_DIR/network-detect/main.py" "$target_script"; then
+            cp "$GSG_DIR/network-detect/main.py" "$target_script"
+            chmod +x "$target_script"
+            log "  + gsg-network-detect.py (new/changed)"
+        fi
+    fi
+
+    # Синхронизация systemd-юнитов: если в репо появились новые *.service/*.timer —
     # ставим их без участия пользователя. Иначе фичи требующие host-сервисов
     # (например network-watcher) недоступны до ручного `systemctl enable` —
     # пользователь GSG этого делать не будет (см. feedback memory: GSG автономен).
     # См. install.sh — он делает то же при первой установке.
     log "Синхронизация systemd-юнитов..."
     UNITS_CHANGED=0
-    for unit_src in "$GSG_DIR"/gsg-*.service; do
+    for unit_src in "$GSG_DIR"/gsg-*.service "$GSG_DIR"/gsg-*.timer; do
         [[ -f "$unit_src" ]] || continue
         unit_name="$(basename "$unit_src")"
         target="/etc/systemd/system/$unit_name"
@@ -230,13 +242,15 @@ PYEOF
     done
     if [[ "$UNITS_CHANGED" -eq 1 ]]; then
         systemctl daemon-reload
-        for unit_src in "$GSG_DIR"/gsg-*.service; do
+        for unit_src in "$GSG_DIR"/gsg-*.service "$GSG_DIR"/gsg-*.timer; do
             [[ -f "$unit_src" ]] || continue
             unit_name="$(basename "$unit_src")"
             # gsg-updater (мы сами) — restart позже отдельно, чтобы не убить
             # текущий процесс посреди OTA-цикла.
             [[ "$unit_name" == "gsg-updater.service" ]] && continue
             systemctl enable "$unit_name" >> "$LOG" 2>&1 || true
+            # Для .timer — restart нормально (он перезапустит timer schedule).
+            # Для .service — рестарт нужен чтобы подхватить новый код.
             systemctl restart "$unit_name" >> "$LOG" 2>&1 || true
             log "  ↻ ${unit_name} enabled+restarted"
         done

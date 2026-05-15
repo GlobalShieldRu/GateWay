@@ -1,0 +1,10 @@
+[Unit]
+Description=GSG network auto-detect periodic probe
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=1min
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target
