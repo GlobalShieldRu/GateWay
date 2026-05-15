@@ -1,11 +1,105 @@
-import os, sys, json, asyncio, aiofiles, socket, subprocess, ipaddress
+import os, sys, json, asyncio, aiofiles, socket, subprocess, ipaddress, time
 from pathlib import Path
+from urllib.request import urlopen
+from urllib.error import URLError
 
 GSG_CONFIG_DIR = Path("/etc/gsg")
 GSG_DEVICES_FILE = GSG_CONFIG_DIR / "devices.json"
 GSG_NODES_FILE  = GSG_CONFIG_DIR / "nodes.json"
+GSG_RU_CIDRS_CACHE = GSG_CONFIG_DIR / "ru_cidrs.txt"
 RELOAD_SIGNAL_FILE = GSG_CONFIG_DIR / ".reload_nftables"
 TPROXY_PORT = int(os.getenv("GSG_TPROXY_PORT", "12345"))
+
+# Источник полного списка RU-CIDR: обновляется ежедневно, ~30k блоков.
+# Fallback при недоступности — hardcoded baseline ниже.
+RU_CIDRS_URL = "https://www.ipdeny.com/ipblocks/data/countries/ru.zone"
+RU_CIDRS_REFRESH_SEC = 24 * 3600  # обновлять раз в сутки
+
+# Минимальный hardcoded baseline — RU-AS с максимальным трафиком русских юзеров.
+# Используется когда внешний список недоступен (первый запуск без интернета,
+# ipdeny.com отдаёт 5xx). Покрывает 80%+ повседневного RU-трафика.
+# Yandex/Mail.ru/VK/Sberbank/Ozon/Avito/Megafon/Beeline/Rostelecom.
+RU_BASELINE_CIDRS = [
+    # Yandex AS13238 (поиск, почта, такси, маркет, музыка, метрика)
+    "5.45.192.0/18", "5.255.192.0/18", "37.9.64.0/18", "37.140.128.0/18",
+    "77.88.0.0/18", "87.250.224.0/19", "93.158.128.0/18", "95.108.128.0/17",
+    "100.43.64.0/19", "141.8.128.0/18", "178.154.128.0/17", "213.180.192.0/19",
+    # Mail.ru / VK Group AS47764, AS47541
+    "217.69.128.0/20", "95.163.32.0/19", "94.100.176.0/20", "185.5.136.0/22",
+    "87.240.128.0/18", "95.142.192.0/20",
+    # Sberbank AS35237
+    "213.59.16.0/20", "194.54.0.0/16", "185.71.0.0/16",
+    # Ozon AS199709 / NetByNet
+    "185.73.192.0/22",
+    # Avito AS44676
+    "178.248.96.0/19",
+    # Ростелеком AS12389, AS8997
+    "213.59.0.0/16", "95.161.64.0/20", "217.118.0.0/16",
+    # Билайн/Вымпелком AS3216
+    "176.211.0.0/16", "94.79.0.0/16",
+    # Мегафон AS31133, ВымпелКом
+    "92.255.0.0/16", "178.248.0.0/16",
+    # Госуслуги/ЕСИА/Минцифры
+    "109.207.0.0/16",
+]
+
+
+def _validate_cidr_list(text: str) -> list[str]:
+    """Парсит текст со списком CIDR (один на строку), возвращает валидные."""
+    out = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        try:
+            net = ipaddress.ip_network(line, strict=False)
+            if net.version == 4:
+                out.append(str(net))
+        except ValueError:
+            continue
+    return out
+
+
+def load_ru_cidrs() -> list[str]:
+    """Загружает актуальный список RU-CIDR. Источники по приоритету:
+    1. Внешний URL (ipdeny.com) — если кэш старше 24ч или отсутствует
+    2. Локальный кэш — если есть и моложе 24ч (или внешний недоступен)
+    3. Hardcoded baseline — последняя линия обороны
+    """
+    use_cache = False
+    if GSG_RU_CIDRS_CACHE.exists():
+        age = time.time() - GSG_RU_CIDRS_CACHE.stat().st_mtime
+        if age < RU_CIDRS_REFRESH_SEC:
+            use_cache = True
+            print(f"[INFO] RU-CIDR cache свежий ({int(age/3600)}ч), пропускаем обновление", flush=True)
+
+    if not use_cache:
+        try:
+            with urlopen(RU_CIDRS_URL, timeout=10) as r:
+                text = r.read().decode("utf-8", errors="replace")
+            cidrs = _validate_cidr_list(text)
+            if len(cidrs) >= 100:  # sanity check — должно быть тысячи блоков
+                GSG_RU_CIDRS_CACHE.parent.mkdir(parents=True, exist_ok=True)
+                GSG_RU_CIDRS_CACHE.write_text("\n".join(cidrs))
+                print(f"[INFO] Загружено {len(cidrs)} RU-CIDR из {RU_CIDRS_URL}", flush=True)
+                return cidrs
+            else:
+                print(f"[WARN] {RU_CIDRS_URL} вернул только {len(cidrs)} CIDR — подозрительно мало, игнорируем", flush=True)
+        except (URLError, TimeoutError, OSError) as e:
+            print(f"[WARN] Не удалось скачать RU-CIDR: {e}", flush=True)
+
+    if GSG_RU_CIDRS_CACHE.exists():
+        try:
+            text = GSG_RU_CIDRS_CACHE.read_text()
+            cidrs = _validate_cidr_list(text)
+            if cidrs:
+                print(f"[INFO] Используется кэш RU-CIDR: {len(cidrs)} блоков", flush=True)
+                return cidrs
+        except Exception as e:
+            print(f"[WARN] Кэш RU-CIDR повреждён: {e}", flush=True)
+
+    print(f"[INFO] Используется hardcoded baseline RU-CIDR: {len(RU_BASELINE_CIDRS)} блоков", flush=True)
+    return RU_BASELINE_CIDRS
 
 def detect_lan_cidr() -> str:
     """Автодетект LAN-подсети через `ip route`. Источник истины — ОС, а не env.
@@ -71,6 +165,19 @@ table inet gsg {{
         }};
     }}
 
+    # RU-CIDR bypass: пакеты к российским IP идут через kernel routing, минуя
+    # Mihomo TPROXY. Решает класс проблем «Mihomo dial DIRECT к RU-IP иногда
+    # таймаутит» (Ozon/Yandex/Sber flapping, см. инцидент 2026-05-15). С bypass:
+    # - меньше overhead для RU-трафика (нет Mihomo middleman)
+    # - устойчивость к flapping одного IP в DNS round-robin (Mac/iPhone сам
+    #   делает Happy Eyeballs retry между IP через kernel TCP-стек)
+    # - снижает нагрузку на Mihomo (conntrack, memory, CPU)
+    # Источник: ipdeny.com daily refresh, fallback — hardcoded baseline в коде.
+    set ru_bypass_nets {{
+        type ipv4_addr; flags interval;
+        elements = {{ {ru_cidrs} }};
+    }}
+
     chain prerouting_nat {{
         type nat hook prerouting priority dstnat; policy accept;
         iif lo return
@@ -102,6 +209,11 @@ table inet gsg {{
         # QUIC-bypass whitelist: эти сервисы при выходе через DIRECT по UDP
         # работают штатно (см. set quic_bypass_nets выше). Должно быть ДО reject.
         ip daddr @quic_bypass_nets udp dport 443 return
+
+        # RU-CIDR bypass для ВСЕХ протоколов (TCP/UDP/ICMP) — пакеты к RU-IP
+        # минуют Mihomo TPROXY. Должно быть ДО UDP/443 reject (иначе UDP к
+        # RU-серверам реджектится без причины) и ДО tproxy redirect.
+        ip daddr @ru_bypass_nets return
 
         # QUIC blackhole-fix: всё остальное UDP/443 от LAN реджектим — Mihomo
         # TPROXY UDP не возвращает ответы клиенту, и без ICMP unreachable
@@ -273,12 +385,19 @@ class NetEnforcer:
             node_direct_rule = f'        ip daddr @node_servers return'
             print(f"[INFO] Node bypass (no TPROXY): {len(node_ips)} нод", flush=True)
 
+        # RU-CIDR bypass: загружаем актуальный список (внешний или кэш или baseline).
+        # Грузим в executor чтобы не блокировать event-loop сетевым запросом.
+        ru_cidrs = await asyncio.get_event_loop().run_in_executor(None, load_ru_cidrs)
+        ru_cidrs_str = ", ".join(ru_cidrs) if ru_cidrs else "127.0.0.99/32"
+        print(f"[INFO] RU bypass set: {len(ru_cidrs)} CIDR блоков", flush=True)
+
         conf = NFT_TEMPLATE.format(
             bypass_ips=", ".join(bp),
             node_set=node_set,
             node_direct_rule=node_direct_rule,
             tproxy_port=TPROXY_PORT,
             lan_cidr=LAN_CIDR,
+            ru_cidrs=ru_cidrs_str,
         )
 
         async with aiofiles.open("/tmp/gsg.nft", 'w') as f: await f.write(conf)
@@ -289,10 +408,17 @@ class NetEnforcer:
 
     async def run(self):
         await self.apply()
+        last_ru_refresh = time.time()
         while True:
             if RELOAD_SIGNAL_FILE.exists():
                 RELOAD_SIGNAL_FILE.unlink()
                 await self.apply()
+            # Раз в сутки — пере-applay чтобы подтянуть свежий список RU-CIDR.
+            # load_ru_cidrs() сам определит нужно ли качать или взять кэш.
+            if time.time() - last_ru_refresh > RU_CIDRS_REFRESH_SEC:
+                print("[INFO] Periodic refresh of RU bypass list", flush=True)
+                await self.apply()
+                last_ru_refresh = time.time()
             await asyncio.sleep(2)
 
 if __name__ == "__main__": asyncio.run(NetEnforcer().run())

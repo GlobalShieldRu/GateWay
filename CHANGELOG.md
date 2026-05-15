@@ -4,6 +4,9 @@
 
 ## [Unreleased]
 
+### Добавлено
+- **nft bypass для RU-CIDR — RU-трафик минует Mihomo TPROXY** (`net-enforcer/main.py`). Решает класс проблем «Mihomo dial DIRECT к RU-IP периодически таймаутит» (Ozon/Yandex/Sber/Wildberries flapping при DNS round-robin когда часть IP мёртва, см. инцидент 2026-05-15). Новый nft set `ru_bypass_nets` с ~11k CIDR блоков загружается из `ipdeny.com/ipblocks/data/countries/ru.zone` (тройной fallback: внешний URL → локальный кэш `/etc/gsg/ru_cidrs.txt` → hardcoded baseline 30 CIDR для Yandex/Mail.ru/VK/Sber/Ozon/Avito/Megafon/Beeline/Rostelecom/Госуслуги). Правило `ip daddr @ru_bypass_nets return` стоит в `prerouting_mangle` после `quic_bypass_nets` и **до** UDP/443 reject + tproxy redirect — пакеты к RU-IP идут через kernel routing → ISP, без Mihomo. Эффекты: (1) меньше overhead для RU-трафика, (2) устойчивость к flapping одного IP (Mac/iPhone Happy Eyeballs retry через kernel TCP сам выберет живой IP), (3) разгрузка Mihomo. Daily refresh — каждые 24ч `NetEnforcer.run()` пере-applay чтобы подтянуть свежий список.
+
 ### Исправлено
 - **Критично: smart-режим ломал IP-only трафик (Clash Royale, Apple Push, iCloud-by-IP, gaming-серверы без SNI)** (`tunnel-provider/generate_config.py`). Sub-rule для smart-устройств заканчивался `MATCH,DIRECT` — весь трафик, попадавший в SUB-RULE и не сматчившийся по DOMAIN-/RKN-/GEOSITE-правилам, уходил DIRECT с RU-IP клиента. Supercell game server `54.x:9339` → DIRECT → i/o timeout, Apple iCloud-by-IP → DIRECT → timeout. На 139 раньше работало потому что устройство было в `mode=global` (без sub-rule). При переезде на 254 iPhone получил новый MAC (iOS Privacy randomization) → дефолтный `mode=smart` → попал под баг. Фикс: `MATCH,{target}` (VPN-группа устройства) — IP-only трафик идёт через VPN, согласовано с философией smart-режима «всё через VPN кроме явно RU». `GEOIP,RU,DIRECT` уже отрабатывает в основной chain до SUB-RULE → RU-IP сюда не доходят.
 
