@@ -118,8 +118,21 @@ def detect_lan_cidr() -> str:
         net = ipaddress.ip_network(cidr_str, strict=False)
         return str(net)
     except Exception as e:
-        print(f"[WARN] detect_lan_cidr fallback к 10.10.1.0/24: {e}", flush=True)
-        return "10.10.1.0/24"
+        # Fallback без subprocess: src-IP default-route через UDP-сокет.
+        # Хардкод-CIDR убран — лучше упасть чем тихо работать с неправильной подсетью.
+        print(f"[WARN] detect_lan_cidr через 'ip route' не удался: {e}; пробую через socket", flush=True)
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("1.1.1.1", 53))
+            ip = s.getsockname()[0]
+            s.close()
+            # Допускаем /24 — самая частая маска в LAN
+            prefix = ip.rsplit(".", 1)[0]
+            return f"{prefix}.0/24"
+        except Exception as e2:
+            raise RuntimeError(
+                f"Не удалось определить LAN CIDR. ip route: {e}; socket: {e2}"
+            )
 
 LAN_CIDR = detect_lan_cidr()
 print(f"[INFO] LAN CIDR autodetected: {LAN_CIDR}", flush=True)

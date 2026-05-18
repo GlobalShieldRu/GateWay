@@ -50,7 +50,24 @@ DNSMASQ_LEASES  = Path("/var/lib/misc/dnsmasq.leases")
 GLOBALSHIELD_DOMAIN = "globalshield.ru"
 GLOBALSHIELD_API = "https://api.globalshield.ru/v1"
 
-GATEWAY_IP = os.getenv("GSG_GATEWAY_IP", "10.10.1.139")
+def _detect_lan_ip() -> str:
+    """IP интерфейса по которому GSG ходит наружу (src-IP default-route).
+
+    Через UDP-сокет к 1.1.1.1:53 без отправки пакетов — стандартный трюк
+    получить src-IP из ядра без зависимости от /sbin/ip или netplan.
+    """
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("1.1.1.1", 53))
+        ip = s.getsockname()[0]
+    finally:
+        s.close()
+    if not ip or ip == "0.0.0.0":
+        raise RuntimeError("Не удалось определить LAN-IP GSG (нет default route?)")
+    return ip
+
+
+GATEWAY_IP = _detect_lan_ip()
 socket.setdefaulttimeout(0.3)
 
 # ── Per-file write locks (prevent concurrent JSON corruption) ─────────────────
@@ -2333,11 +2350,14 @@ async def delete_group(group_id: str):
 
 @app.get("/api/dhcp")
 async def get_dhcp():
+    # Pool по умолчанию: .100-.200 в /24 текущего LAN.
+    # Раньше хардкодилось 10.10.1.100-200 — ломалось при переносе GSG в другую сеть.
+    prefix = GATEWAY_IP.rsplit(".", 1)[0]  # "10.10.2"
     default = {
         "gateway": GATEWAY_IP,
-        "pool_start": os.getenv("GSG_DHCP_START", "10.10.1.100"),
-        "pool_end": os.getenv("GSG_DHCP_END", "10.10.1.200"),
-        "dns": GATEWAY_IP
+        "pool_start": f"{prefix}.100",
+        "pool_end": f"{prefix}.200",
+        "dns": GATEWAY_IP,
     }
     return await read_json(GSG_DHCP_FILE, default)
 
