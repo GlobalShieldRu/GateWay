@@ -1340,11 +1340,75 @@ async def get_nodes_dash():
 
     return nodes
 
+async def _collect_via_gsg_ips() -> set:
+    """IP клиентов которые реально идут через GSG прямо сейчас.
+
+    Источники: (1) conntrack — форвардируемые соединения (dst ВНЕ LAN);
+    (2) Mihomo /connections — текущие активные через TPROXY;
+    (3) monitor.stats — недавняя активность через Mihomo.
+
+    Только эти IP считаются «клиентами GSG» в UI. Соседи L2 которые
+    ходят мимо GSG (через внешний роутер) сюда не попадают.
+    """
+    ips: set = set()
+    lan_prefix = GATEWAY_IP.rsplit(".", 1)[0] + "."
+
+    # 1) Mihomo /connections — текущие активные сессии
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.get("http://127.0.0.1:9090/connections", timeout=1.0)
+            if r.status_code == 200:
+                for c in r.json().get("connections") or []:
+                    src = (c.get("metadata") or {}).get("sourceIP", "")
+                    if src and src != GATEWAY_IP and src.startswith(lan_prefix):
+                        ips.add(src)
+    except Exception:
+        pass
+
+    # 2) Conntrack — форвардируемые пакеты (dst вне LAN)
+    try:
+        async with aiofiles.open("/proc/net/nf_conntrack", "r") as f:
+            async for line in f:
+                src_ip = None
+                dst_ip = None
+                for tok in line.split():
+                    if tok.startswith("src=") and src_ip is None:
+                        src_ip = tok[4:]
+                    elif tok.startswith("dst=") and dst_ip is None:
+                        dst_ip = tok[4:]
+                    if src_ip and dst_ip:
+                        break
+                if not src_ip or not src_ip.startswith(lan_prefix):
+                    continue
+                if src_ip == GATEWAY_IP:
+                    continue
+                # dst в LAN — это локальное соединение (например к UI GSG), не форвард
+                if dst_ip and dst_ip.startswith(lan_prefix):
+                    continue
+                ips.add(src_ip)
+    except Exception:
+        pass
+
+    # 3) monitor.stats — недавно активные через Mihomo
+    for ip in monitor.stats.keys():
+        if isinstance(ip, str) and ip.startswith(lan_prefix) and ip != GATEWAY_IP:
+            ips.add(ip)
+
+    return ips
+
+
 @app.get("/api/devices")
 async def get_devices():
     active_ips = set(monitor.stats.keys())
     active_devices = await parse_arp_and_leases(active_ips)
     configs = await read_json(GSG_DEVICES_FILE, {})
+
+    # В gateway-only режиме показываем ТОЛЬКО клиентов которые реально идут
+    # через GSG. Иначе UI забивается соседями по L2 (роутер, IoT, чужие хосты).
+    settings = await read_json(GSG_SETTINGS_FILE, _SETTINGS_DEFAULTS)
+    if not settings.get("dhcp_enabled", True):
+        via_gsg = await _collect_via_gsg_ips()
+        active_devices = [d for d in active_devices if d.get("ip") in via_gsg]
 
     def _looks_like_mac(s: str) -> bool:
         parts = s.split(':')
