@@ -453,6 +453,17 @@ systemctl enable gsg-netwatch.service
 systemctl restart gsg-netwatch.service 2>/dev/null || systemctl start gsg-netwatch.service
 success "Network watchdog включён (systemd: gsg-netwatch.service)"
 
+# ── GSG Warmer — прогрев src-port для anti-DDoS upstream ────────────────────────
+info "Установка GSG Warmer (cold-start lag mitigation)..."
+cp "${INSTALL_DIR}/gsg-warmer.sh" /usr/local/bin/gsg-warmer
+chmod +x /usr/local/bin/gsg-warmer
+cp "${INSTALL_DIR}/gsg-warmer.service" /etc/systemd/system/gsg-warmer.service
+cp "${INSTALL_DIR}/gsg-warmer.timer"   /etc/systemd/system/gsg-warmer.timer
+systemctl daemon-reload
+systemctl enable gsg-warmer.timer
+systemctl restart gsg-warmer.timer 2>/dev/null || systemctl start gsg-warmer.timer
+success "GSG Warmer запущен (systemd: gsg-warmer.timer, каждые 4 минуты)"
+
 # ── Выбор зеркала PyPI ────────────────────────
 echo ""
 info "Выбор зеркала PyPI..."

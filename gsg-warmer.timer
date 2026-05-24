@@ -1,0 +1,11 @@
+[Unit]
+Description=GSG Warmer — run every 4 minutes
+
+[Timer]
+OnBootSec=90s
+OnUnitActiveSec=4min
+AccuracySec=15s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

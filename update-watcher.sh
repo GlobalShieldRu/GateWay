@@ -212,7 +212,6 @@ PYEOF
     [[ -f "$GSG_DIR/.env" ]] && { rm -f "$GSG_DIR/.env"; log "удалён устаревший .env"; }
 
     # Host-скрипты в /usr/local/bin/ — обновляем из репо при изменении.
-    # Сейчас один: gsg-network-detect.py (автодетект home/dacha сети).
     log "Синхронизация host-скриптов..."
     if [[ -f "$GSG_DIR/network-detect/main.py" ]]; then
         target_script="/usr/local/bin/gsg-network-detect.py"
@@ -220,6 +219,14 @@ PYEOF
             cp "$GSG_DIR/network-detect/main.py" "$target_script"
             chmod +x "$target_script"
             log "  + gsg-network-detect.py (new/changed)"
+        fi
+    fi
+    if [[ -f "$GSG_DIR/gsg-warmer.sh" ]]; then
+        target_script="/usr/local/bin/gsg-warmer"
+        if [[ ! -f "$target_script" ]] || ! cmp -s "$GSG_DIR/gsg-warmer.sh" "$target_script"; then
+            cp "$GSG_DIR/gsg-warmer.sh" "$target_script"
+            chmod +x "$target_script"
+            log "  + gsg-warmer (new/changed)"
         fi
     fi
 
