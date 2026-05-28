@@ -200,25 +200,44 @@ def main():
     }
 
     # DNS-стратегия:
-    #   - RU-домены (+.ru/+.рф/+.su) — через Yandex DNS (77.88.8.8). У него RU-edge
-    #     для Yandex/profi.ru/hh.ru (быстрее чем глобальный edge через 8.8.8.8).
-    #   - Всё остальное — через Cloudflare (1.1.1.1) + Google (8.8.8.8). Они дают
-    #     не-RU EDNS-Client-Subnet → CDN (AWS Cloudfront, Akamai, etc.) отдают
-    #     **не-RU edge** → не ломает Supercell/Clash Royale и другие глобальные
-    #     сервисы у которых RU-edge заблокирован/anti-DDoS-restricted.
+    #   - RU-домены (+.ru/+.рф/+.su) — через Yandex DNS (77.88.8.8) plain UDP.
+    #     RU-edge для Yandex/profi.ru/hh.ru — быстрее. РКН не фильтрует .ru.
+    #   - Всё остальное — через **DoH** (Cloudflare/Google). РКН добавляет домены
+    #     в DNS-фильтр (например `*.hunyuanglobal.com` → подмена на 0.0.0.1),
+    #     UDP/53 ответы перехватываются провайдером. DoH через HTTPS/443 это
+    #     обходит — RU DNS-фильтр не видит содержимое HTTPS-запроса.
+    #     Подтверждено инцидентом 2026-05-28: hunyuanglobal через plain DNS = 0.0.0.1,
+    #     через DoH = реальный IP 43.159.95.76.
+    #   - `default-nameserver` остаётся plain — нужен для bootstrap (резолв
+    #     самих DoH-хостов `cloudflare-dns.com`/`dns.google` при старте Mihomo).
     #
-    # Раньше 77.88.8.8 был первым в `nameserver` — RU-edge у AWS Cloudfront
-    # триггерил anti-DDoS для российских IP. См. инцидент 2026-05-14.
-    # fake-ip пробовали — ломает `GEOIP,ru,no-resolve`. См. 2026-05-13.
+    # Прошлые grappes:
+    #   - Раньше 77.88.8.8 был первым в `nameserver` — RU-edge у AWS Cloudfront
+    #     триггерил anti-DDoS для российских IP. См. инцидент 2026-05-14.
+    #   - fake-ip пробовали — ломает `GEOIP,ru,no-resolve`. См. 2026-05-13.
     server_config["dns"] = {
         "enable": True,
         "listen": "0.0.0.0:1053",
         "ipv6": False,
-        "nameserver": ["1.1.1.1", "8.8.8.8"],
+        # ⚠️ Только DoH-провайдеры БЕЗ автоматического ECS. Google DoH
+        # (dns.google) автоматически добавляет EDNS-Client-Subnet из IP клиента
+        # (нашего end0 = RU subnet) → китайские authoritative-серверы Tencent
+        # (`*.hunyuanglobal.com`) возвращают по ECS-RU `0.0.0.1`. См. инцидент
+        # 2026-05-28. Cloudflare и AdGuard DoH ECS не используют.
+        "nameserver": [
+            "https://cloudflare-dns.com/dns-query",
+            "https://dns.adguard-dns.com/dns-query",
+        ],
         "default-nameserver": ["1.1.1.1", "8.8.8.8"],
         "nameserver-policy": {
-            "geosite:cn,private":  ["77.88.8.8", "1.1.1.1"],
+            # `private` — локальные домены (10.x, 192.168.x, *.local) резолвим напрямую
+            "geosite:private":     ["77.88.8.8", "1.1.1.1"],
+            # `+.ru/.рф/.su` — РКН не блокирует свои домены, plain UDP быстрее
             "+.ru,+.рф,+.su":      ["77.88.8.8", "1.1.1.1"],
+            # ⚠️ geosite:cn убран отсюда 2026-05-28: китайские домены
+            # (`*.hunyuanglobal.com`, `*.tencent.com`) попадают под РКН-фильтр UDP
+            # DNS → подмена на `0.0.0.1`. Теперь они идут через DoH (как все
+            # остальные) — `nameserver` выше.
         },
     }
 
