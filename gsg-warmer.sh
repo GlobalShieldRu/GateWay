@@ -44,7 +44,17 @@ DOMAINS=(
 warm() {
     local d="$1" t0 dt
     t0=$(date +%s%3N)
-    if curl --head --silent --max-time "$TIMEOUT" -o /dev/null "https://$d/" 2>/dev/null; then
+    # GET с range первых 4KB — anti-DDoS видит реальный HTTP-запрос (не HEAD)
+    # и удлинённую TCP-сессию (TLS+HTTP+body), src-port дольше держится в
+    # whitelist. См. инцидент 2026-05-29: HEAD-warmer деградировал к утру,
+    # 8 grey-list'ящих банков fail'или каждый цикл.
+    # --http1.1 — anti-DDoS на HTTP/2 multiplex может игнорировать «короткие» streams.
+    if curl --silent --max-time "$TIMEOUT" --http1.1 \
+            -H 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15' \
+            -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' \
+            -H 'Accept-Language: ru,en;q=0.5' \
+            -H 'Range: bytes=0-4095' \
+            -o /dev/null "https://$d/" 2>/dev/null; then
         dt=$(( $(date +%s%3N) - t0 ))
         echo "ok ${dt}ms $d"
     else
