@@ -21,6 +21,11 @@ services:
     volumes:
       - gsg_config:/etc/gsg
       - dhcp_data:/var/lib/misc:ro
+      # Даёт web-orchestrator возможность `docker exec gsg-tunnel …` —
+      # синхронный regen Mihomo config при изменении режима устройства
+      # в UI. Без этого приходится ждать inotify+debounce (30с), и цикл
+      # иногда пропускает событие. См. инцидент 2026-07-02.
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - TELEGRAM_BOT_TOKEN=8502362211:AAHkFjHvTfyMw8RpEyE_iy60m5ofOATy1wQ
       - TELEGRAM_NOTIFY_USERS_CHAT_ID=-1002944439448

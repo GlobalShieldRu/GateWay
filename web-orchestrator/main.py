@@ -1682,6 +1682,16 @@ async def update_device(ip: str, data: DeviceUpdate):
             await f.write("1")
         async with aiofiles.open(GSG_CONFIG_DIR / ".reload_singbox", 'w') as f:
             await f.write("1")
+        # Синхронный regen + Mihomo reload — inotify+debounce в
+        # tunnel-provider иногда пропускает событие (rename/atomic write не
+        # ловится, 30-сек debounce объединяет несколько правок в одну и
+        # реально исполняет только последнюю). Инцидент 2026-07-02, retail:
+        # переключение iPad `global→smart` в UI не пересобрало Mihomo config
+        # → правило `SRC-IP-CIDR,<ip>,auto` осталось от прежнего global
+        # режима → smart-логика (RU DIRECT) не работала → Rutube через VPN
+        # → блок. Триггер-файлы оставляем как fallback (safety net на случай
+        # если docker exec недоступен из web-orchestrator по любой причине).
+        asyncio.create_task(_regen_tunnel_config_sync())
     # Trigger dnsmasq reload if reserved_ip or MAC changed
     old_reserved = existing.get('reserved_ip') or existing.get('static_ip', '')
     reserved_changed = new_reserved != old_reserved
@@ -1692,6 +1702,45 @@ async def update_device(ip: str, data: DeviceUpdate):
     if reserved_changed and new_mac and new_reserved:
         asyncio.create_task(_dhcp_force_renew(ip, new_mac))
     return {"success": True}
+
+
+async def _regen_tunnel_config_sync():
+    """Форс-регенерация Mihomo config + reload через API.
+    Вызывается из handler'ов которые меняют routing state (devices, groups,
+    subscription). Не полагается на inotify+debounce цикл tunnel-provider'а —
+    те могут проглотить одиночное событие из-за атомарной записи файла.
+    Работает через `docker exec` к контейнеру gsg-tunnel: у web-orchestrator
+    смонтирован docker.sock через volume. Провал не блокирует ответ API —
+    fallback механизм (.reload_singbox) всё равно сработает через inotify."""
+    try:
+        # 1) regenerate config.yaml из subscription+devices+rules
+        proc = await asyncio.create_subprocess_exec(
+            "docker", "exec", "gsg-tunnel",
+            "python3", "/usr/local/bin/generate_config.py",
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            logging.warning(
+                f"[REGEN] generate_config.py rc={proc.returncode} "
+                f"stderr={stderr.decode()[:300]}"
+            )
+            return
+        # 2) hot-reload Mihomo (без потери TPROXY-сокета)
+        try:
+            async with httpx.AsyncClient(timeout=8.0) as client:
+                r = await client.put(
+                    "http://127.0.0.1:9090/configs?force=true", json={}
+                )
+                if r.status_code != 204:
+                    logging.warning(f"[REGEN] Mihomo reload http={r.status_code}")
+                    return
+        except Exception as e:
+            logging.warning(f"[REGEN] Mihomo reload error: {e}")
+            return
+        logging.info("[REGEN] config regenerated + Mihomo reloaded")
+    except Exception as e:
+        logging.warning(f"[REGEN] failed: {e}")
 
 
 async def _dhcp_force_renew(old_ip: str, mac: str):

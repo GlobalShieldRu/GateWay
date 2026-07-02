@@ -82,7 +82,13 @@ fi
 # ── Мониторинг изменений (на лету) ───────────────────────────
 RELOAD_TRIGGER_FILE="/tmp/gsg_reload_pending"
 RELOAD_LAST_TS=0
-RELOAD_DEBOUNCE=30  # секунд тишины перед reload
+# Раньше 30 сек — раздражало юзера (переключил режим в UI → 30 сек ждать)
+# и увеличивало шанс что событие потеряется/схлопнется если человек в UI
+# кликал несколько раз подряд. Web-orchestrator теперь вызывает regen
+# синхронно через docker exec (main.py::_regen_tunnel_config_sync), а этот
+# цикл — fallback safety net. 5 сек достаточно чтобы объединить batch
+# правок но не блокировать пользователя.
+RELOAD_DEBOUNCE=5
 
 # Слушаем события и выставляем флаг — debounce обработает их пачкой
 inotifywait -m -e close_write,moved_to,create "$GSG_CONFIG_DIR" 2>/dev/null | while read path action file; do

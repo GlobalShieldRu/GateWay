@@ -14,6 +14,12 @@ FROM python:3.11-slim
 ARG DEBIAN_FRONTEND=noninteractive
 WORKDIR /app
 
+# docker-cli — для synchronous regen через `docker exec gsg-tunnel …`
+# из handlers'ов. Без inotify+debounce цикла который иногда проглатывает
+# события (инцидент 2026-07-02).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    docker.io && rm -rf /var/lib/apt/lists/*
+
 # Переносим готовые скомпилированные пакеты
 COPY --from=builder /install /usr/local
 COPY . .
