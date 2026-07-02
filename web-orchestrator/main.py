@@ -53,18 +53,60 @@ GLOBALSHIELD_API = "https://api.globalshield.ru/v1"
 def _detect_lan_ip() -> str:
     """IP интерфейса по которому GSG ходит наружу (src-IP default-route).
 
-    Через UDP-сокет к 1.1.1.1:53 без отправки пакетов — стандартный трюк
-    получить src-IP из ядра без зависимости от /sbin/ip или netplan.
+    Основной способ — UDP-сокет к 1.1.1.1:53 без отправки пакетов
+    (getsockname после connect берёт src-IP из ядра).
+
+    Fallback #1 — retry с backoff: при cold-boot Docker может стартовать
+    контейнер ДО того как NetworkManager поднял eth0 и получил default
+    route. connect тогда бросает Errno 101 "Network is unreachable".
+    Retry-ем 6 раз с задержкой 2с = до 12с ожидания.
+
+    Fallback #2 — /proc/net/route: если и через 12с сеть не готова,
+    читаем таблицу маршрутизации напрямую. Работает даже без интернета:
+    достаточно default gateway на любом интерфейсе.
     """
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    last_err: Exception | None = None
+    for attempt in range(6):
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            try:
+                s.connect(("1.1.1.1", 53))
+                ip = s.getsockname()[0]
+            finally:
+                s.close()
+            if ip and ip != "0.0.0.0":
+                return ip
+        except OSError as e:
+            last_err = e
+            time.sleep(2)
+            continue
+    # Fallback: /proc/net/route → интерфейс дефолтного маршрута → src-IP
     try:
-        s.connect(("1.1.1.1", 53))
-        ip = s.getsockname()[0]
-    finally:
-        s.close()
-    if not ip or ip == "0.0.0.0":
-        raise RuntimeError("Не удалось определить LAN-IP GSG (нет default route?)")
-    return ip
+        with open("/proc/net/route") as f:
+            for line in f.readlines()[1:]:
+                fields = line.split()
+                if len(fields) >= 4 and fields[1] == "00000000":
+                    iface = fields[0]
+                    # /sbin/ip недоступен в контейнерах, читаем через netlink
+                    # руками: SIOCGIFADDR через fcntl
+                    import fcntl, struct
+                    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    try:
+                        packed = fcntl.ioctl(
+                            s.fileno(), 0x8915,  # SIOCGIFADDR
+                            struct.pack('256s', iface.encode()[:15])
+                        )
+                        ip = socket.inet_ntoa(packed[20:24])
+                        if ip and ip != "0.0.0.0":
+                            return ip
+                    finally:
+                        s.close()
+    except Exception as fb_err:
+        raise RuntimeError(
+            f"Не удалось определить LAN-IP GSG. UDP-connect: {last_err}; "
+            f"/proc/net/route fallback: {fb_err}"
+        ) from last_err
+    raise RuntimeError("Не удалось определить LAN-IP GSG (нет default route)")
 
 
 GATEWAY_IP = _detect_lan_ip()

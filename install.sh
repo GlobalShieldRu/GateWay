@@ -179,10 +179,23 @@ echo ""
 echo -e "  ${BOLD}Рекомендуемый статический IP для GSG:${NC} ${GREEN}${SUGGESTED_IP}${NC}"
 echo -e "  (Выбирается рядом с роутером, вне DHCP пула)"
 echo ""
-read -rp "  IP для GSG [${SUGGESTED_IP}]: " GATEWAY_IP
+# Все `read` читаем из /dev/tty, а не из stdin — иначе при `curl | sudo bash`
+# stdin занят потоком скрипта, и read съедает следующие строки install.sh
+# как «пользовательский ввод». Если tty недоступен (например запуск из cron) —
+# используем дефолты и не спрашиваем.
+if [ -r /dev/tty ]; then
+    read -rp "  IP для GSG [${SUGGESTED_IP}]: " GATEWAY_IP </dev/tty
+else
+    GATEWAY_IP=""
+    info "TTY недоступен — использую значения по умолчанию"
+fi
 GATEWAY_IP="${GATEWAY_IP:-${SUGGESTED_IP}}"
 
-read -rp "  LAN-интерфейс [${DETECTED_IFACE}]: " LAN_IFACE
+if [ -r /dev/tty ]; then
+    read -rp "  LAN-интерфейс [${DETECTED_IFACE}]: " LAN_IFACE </dev/tty
+else
+    LAN_IFACE=""
+fi
 LAN_IFACE="${LAN_IFACE:-${DETECTED_IFACE}}"
 
 SUBNET_PREFIX=$(echo "$GATEWAY_IP" | cut -d. -f1-3)
@@ -194,7 +207,11 @@ echo -e "  ${BOLD}Режим DHCP${NC}"
 echo -e "    • ${GREEN}Включён${NC}  — GSG раздаёт IP клиентам (на роутере DHCP отключить)"
 echo -e "    • ${YELLOW}Выключён${NC} — GSG работает только как шлюз, DHCP остаётся на роутере"
 echo ""
-read -rp "  Включить DHCP-сервер на GSG? [Y/n]: " DHCP_ANSWER
+if [ -r /dev/tty ]; then
+    read -rp "  Включить DHCP-сервер на GSG? [Y/n]: " DHCP_ANSWER </dev/tty
+else
+    DHCP_ANSWER=""
+fi
 DHCP_ANSWER="${DHCP_ANSWER:-y}"
 case "$DHCP_ANSWER" in
     [Nn]*) DHCP_ENABLED="false" ;;
@@ -202,9 +219,14 @@ case "$DHCP_ANSWER" in
 esac
 
 if [ "$DHCP_ENABLED" = "true" ]; then
-    read -rp "  DHCP пул — начало [${DEFAULT_START}]: " DHCP_START
+    if [ -r /dev/tty ]; then
+        read -rp "  DHCP пул — начало [${DEFAULT_START}]: " DHCP_START </dev/tty
+        read -rp "  DHCP пул — конец  [${DEFAULT_END}]: "   DHCP_END </dev/tty
+    else
+        DHCP_START=""
+        DHCP_END=""
+    fi
     DHCP_START="${DHCP_START:-$DEFAULT_START}"
-    read -rp "  DHCP пул — конец  [${DEFAULT_END}]: " DHCP_END
     DHCP_END="${DHCP_END:-$DEFAULT_END}"
 else
     # Значения нужны в .env / docker-compose для шаблона dnsmasq, но контейнер
@@ -498,6 +520,32 @@ docker compose build $PIP_BUILD_ARGS
 
 info "Запуск контейнеров..."
 docker compose up -d
+
+# ── Ждём что все 4 контейнера в состоянии "Up" ──
+# Кейс: web-orchestrator при cold-boot может ловить "Network is unreachable"
+# в _detect_lan_ip если NetworkManager ещё не поднял eth0. restart:always
+# ретраит, но после нескольких неудач docker переводит в backoff и бросает.
+# Проверяем явно: ждём до 60с чтобы все 4 контейнера были Up. Если нет —
+# перезапускаем; тогда сеть уже готова и стартует нормально.
+info "Проверка что все контейнеры запустились..."
+wait_containers_up() {
+    local max_wait=60 elapsed=0 all_up=0
+    while [ "$elapsed" -lt "$max_wait" ]; do
+        all_up=$(docker compose ps --format json 2>/dev/null | \
+                 python3 -c "import json,sys; c=[json.loads(l) for l in sys.stdin if l.strip()]; print(sum(1 for x in c if x.get('State')=='running'))" 2>/dev/null || echo 0)
+        [ "$all_up" = "4" ] && return 0
+        sleep 3; elapsed=$((elapsed+3))
+    done
+    return 1
+}
+if ! wait_containers_up; then
+    warn "Не все 4 контейнера поднялись за 60с — пересоздаю (сеть уже готова)"
+    docker compose up -d --force-recreate
+    if ! wait_containers_up; then
+        error "Контейнеры не поднимаются после 2 попыток. Логи:"
+        docker compose logs --tail 20
+    fi
+fi
 
 # ── DHCP-пул в settings.json (единственное GSG-решение — что раздавать клиентам) ──
 # IP/iface/gateway/DNS контейнеры читают из ОС (`ip route`, `ip addr`) — не дублируем.
