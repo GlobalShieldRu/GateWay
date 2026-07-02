@@ -41,6 +41,30 @@ DEFAULT_DIRECT_DOMAINS = [
     "userapi.com",                                # legacy VK API
     "mycdn.me",                                   # mail.ru CDN
     "apptracer.ru",                               # VK app SDK tracer
+    # RU-стриминговые сервисы (все geo-block на не-RU IP) —
+    # инцидент 2026-07-02, retail-user, Hisense TV: Кинопоиск/Rutube на VPN
+    # видели шведский IP → отказ. `DOMAIN-SUFFIX,ru,DIRECT` в конце chain
+    # не всегда срабатывает вовремя (короткие соединения могут пропасть в
+    # sniffer race). Дублируем явно:
+    "kinopoisk.ru", "hd.kinopoisk.ru", "kp.cdn.yandex.net",
+    "okko.tv", "okko.sport",
+    "ivi.ru", "ivi.tv",
+    "wink.ru", "wink.rt.ru",
+    "premier.one", "premiernew.ru",
+    "more.tv",
+    "start.ru",
+    "smotrim.ru",                                 # ВГТРК онлайн
+    "rutube.ru",
+    "1tv.ru",
+    "ntv.ru",
+    "vgtrk.ru",
+    "kion.ru",                                    # МТС Kion
+    "kino.mail.ru", "video.mail.ru",
+    "videocdn.tv",                                # универсальный CDN RU-стримингов
+    "yastatic.net", "mds.yandex.net",             # Yandex CDN для Кинопоиска
+    "strm.yandex.net", "avatars.mds.yandex.net",
+    "ott-widget.yandex.net", "api.ott.yandex.net",
+    "frontend.vh.yandex.ru", "vh.yandex.ru",
 ]
 
 DEFAULT_DIRECT_IP_CIDRS = [
