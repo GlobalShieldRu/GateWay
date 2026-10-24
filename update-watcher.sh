@@ -159,7 +159,7 @@ process_trigger() {
     cd "$GSG_DIR"
 
     log "[STAGE:1/6] Загрузка обновлений..."
-    if ! git -c http.timeout=30 -c http.lowSpeedLimit=0 fetch origin main >> "$LOG" 2>&1; then
+    if ! git -c http.timeout=30 -c http.lowSpeedLimit=0 fetch --tags --force origin main >> "$LOG" 2>&1; then
         log "ОШИБКА: git fetch не удался"
         rm -f "$TRIGGER"
         update_post_state "failed_fetch"
@@ -167,10 +167,24 @@ process_trigger() {
     fi
 
     log "[STAGE:2/6] Применение обновлений..."
+    # Ставим тег релиза, а не HEAD main: раскатка идёт до 72 ч, и поздние
+    # stable-устройства должны получить тот же код, что канарейки, а не то, что
+    # успело попасть в main за это время. Версию решения пишет web-orchestrator
+    # в триггер (target_version=X.Y.Z); без неё — последний тег vX.Y.Z; без
+    # тегов (форк/старая установка) — прежнее поведение origin/main.
+    local target_version target_ref
+    target_version=$(echo "$content" | sed -n 's/^target_version=\([0-9][0-9.]*\)$/\1/p' | head -1)
+    if [[ -n "$target_version" ]] && git rev-parse -q --verify "refs/tags/v$target_version" >/dev/null; then
+        target_ref="v$target_version"
+    else
+        target_ref=$(git tag -l 'v[0-9]*' --sort=-v:refname | head -1)
+        [[ -n "$target_ref" ]] || target_ref="origin/main"
+    fi
+    log "Цель обновления: $target_ref"
     # Запоминаем хэш собственного скрипта ДО git reset — если он изменился, в
     # конце цикла рестартим gsg-updater чтобы systemd подхватил новый код.
     SELF_HASH_BEFORE=$(sha256sum "$0" 2>/dev/null | awk '{print $1}')
-    if ! git reset --hard origin/main >> "$LOG" 2>&1; then
+    if ! git reset --hard "$target_ref" >> "$LOG" 2>&1; then
         log "ОШИБКА: git reset не удался"
         rm -f "$TRIGGER"
         update_post_state "failed_reset"

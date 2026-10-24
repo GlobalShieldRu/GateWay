@@ -993,7 +993,8 @@ async def _auto_update_loop():
                             import os as _os
                             fd = _os.open(str(UPDATE_TRIGGER), _os.O_CREAT | _os.O_EXCL | _os.O_WRONLY, 0o644)
                             with _os.fdopen(fd, 'w') as f:
-                                f.write(f"auto_update_triggered_at={datetime.now().isoformat()}\n")
+                                f.write(f"auto_update_triggered_at={datetime.now().isoformat()}\n"
+                                        f"target_version={latest}\n")
         except FileExistsError:
             pass
         except Exception as e:
