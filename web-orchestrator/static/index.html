@@ -817,6 +817,14 @@
                         </button>
                         <input type="file" id="restoreFileInput" accept=".zip" style="display:none" onchange="GatewayApp.actions.restoreBackup(this)">
                     </div>
+                    <!-- Канал авто-обновлений: stable — поэтапная раскатка (rollout.json), canary — сразу после релиза -->
+                    <div style="display:flex;align-items:center;justify-content:flex-end;gap:4px;margin-top:4px;" data-tip="Канал автообновления: «Стабильный» получает релиз поэтапно, «Ранний» — сразу после публикации. Ручная кнопка обновления работает в любом канале.">
+                        <span style="font-size:9px;color:#64748b;">Канал</span>
+                        <select id="gsgUpdateChannel" onchange="GatewayApp.actions.setUpdateChannel(this.value)" style="font-size:9px;padding:0 2px;height:16px;border-radius:4px;background:rgba(100,116,139,0.08);border:1px solid rgba(100,116,139,0.25);color:#94a3b8;cursor:pointer;">
+                            <option value="stable">Стабильный</option>
+                            <option value="canary">Ранний</option>
+                        </select>
+                    </div>
                 </div>
             </div>
         </div>
@@ -8056,6 +8064,17 @@
                     }
                 }
                 ui.showToast(next ? 'Автообновление включено' : 'Автообновление выключено', 'success');
+            },
+
+            setUpdateChannel: async (channel) => {
+                const sel = document.getElementById('gsgUpdateChannel');
+                const data = await utils.apiCall('/settings', { method: 'PATCH', body: JSON.stringify({ update_channel: channel }) });
+                if (!data) {
+                    ui.showToast('Ошибка сохранения канала обновлений', 'error');
+                    if (sel) sel.value = channel === 'canary' ? 'stable' : 'canary';
+                    return;
+                }
+                ui.showToast(channel === 'canary' ? 'Канал обновлений: ранний (сразу после релиза)' : 'Канал обновлений: стабильный (поэтапно)', 'success');
             }
         };
 
@@ -8477,6 +8496,8 @@
                         btn.dataset.tip = 'Автообновление выключено — нажмите чтобы включить';
                     }
                 }
+                const chSel = document.getElementById('gsgUpdateChannel');
+                if (chSel) chSel.value = s?.update_channel === 'canary' ? 'canary' : 'stable';
                 // DHCP-toggle (gateway-only режим)
                 const dhcpToggle = document.getElementById('dhcpEnabledToggle');
                 if (dhcpToggle) {

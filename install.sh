@@ -651,7 +651,7 @@ else
     GSG_PASSWORD=""
 fi
 
-# ── settings.json: режим DHCP, авто-обновления ────────────────────────────────
+# ── settings.json: режим DHCP, авто-обновления, канал обновлений ────────────────────────────────
 # Сливаемся с уже существующим settings.json (если был от прошлого запуска),
 # чтобы не потерять пользовательские поля.
 docker exec gsg-web-orchestrator python3 -c "
@@ -663,6 +663,7 @@ if os.path.exists(path):
     except: data = {}
 data['dhcp_enabled'] = ${DHCP_ENABLED}
 data.setdefault('auto_update', True)
+data.setdefault('update_channel', 'stable')
 with open(path, 'w') as f:
     json.dump(data, f)
 print('ok')

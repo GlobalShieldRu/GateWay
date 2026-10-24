@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 # GSG Smart Gateway — Release Script
 # Использование:
-#   ./release.sh 1.2.0              — тег + GitHub Release + Telegram (без деплоя на устройство)
+#   ./release.sh 1.2.0              — тег + GitHub Release + rollout.json (без Telegram, без деплоя)
+#   ./release.sh 1.2.0 --telegram   — дополнительно подготовить и отправить пост в Telegram
 #   ./release.sh 1.2.0 --deploy     — с деплоем на сервер (не нужно: GSG обновляется через веб OTA)
 #   ./release.sh 1.2.0 --dry-run    — показать что будет сделано, ничего не менять
+#
+# rollout.json (поэтапная раскатка) прикладывается к релизу по умолчанию:
+# stable-устройства получают релиз 0% → 10% через 24 ч → 100% через 72 ч,
+# канарейки — сразу. Управление после релиза: ./rollout.sh pause|resume|set|status
 
 set -euo pipefail
 
@@ -35,11 +40,15 @@ die()  { echo -e "${RED}[error]${NC} $*" >&2; exit 1; }
 VERSION="${1:-}"
 DEPLOY=false   # GSG обновляется через веб OTA, не через SSH
 DRY_RUN=false
+# Telegram-пост только по явному флагу: черновик собирается из технического
+# CHANGELOG и без ручной правки клиентам не подходит
+TELEGRAM=false
 
 for arg in "${@:2}"; do
   case "$arg" in
     --deploy)    DEPLOY=true ;;
     --dry-run)   DRY_RUN=true ;;
+    --telegram)  TELEGRAM=true ;;
     *) die "Неизвестный аргумент: $arg" ;;
   esac
 done
@@ -71,6 +80,20 @@ fi
 CURRENT_VERSION=$(grep 'GSG_VERSION = ' "$MAIN_PY" | sed 's/.*"\(.*\)".*/\1/')
 log "Текущая версия: ${BOLD}$CURRENT_VERSION${NC} → Новая версия: ${BOLD}$VERSION${NC}"
 
+# Дефолтный план раскатки (см. web-orchestrator/update_policy.py)
+rollout_default_json() {
+  cat <<'JSON'
+{
+  "paused": false,
+  "stages": [
+    {"after_hours": 0, "percent": 0},
+    {"after_hours": 24, "percent": 10},
+    {"after_hours": 72, "percent": 100}
+  ]
+}
+JSON
+}
+
 # ─── Dry run ─────────────────────────────────────────────────────────────────
 if $DRY_RUN; then
   echo ""
@@ -78,9 +101,10 @@ if $DRY_RUN; then
   echo "  1. Обновить GSG_VERSION в $MAIN_PY: $CURRENT_VERSION → $VERSION"
   echo "  2. git commit + git tag v$VERSION"
   echo "  3. git push origin main --tags"
-  echo "  4. gh release create v$VERSION"
+  echo "  4. gh release create v$VERSION + asset rollout.json:"
+  rollout_default_json | sed 's/^/       /'
   $DEPLOY && echo "  5. SSH деплой на $SERVER" || echo "  5. Деплой пропущен (--no-deploy)"
-  echo "  6. Telegram уведомление"
+  $TELEGRAM && echo "  6. Telegram уведомление" || echo "  6. Telegram пропущен (нужен --telegram)"
   echo ""
   exit 0
 fi
@@ -167,11 +191,18 @@ if command -v gh &>/dev/null; then
     fi
   fi
 
+  # rollout.json прикладываем в том же вызове: устройства читают его с первой
+  # же проверки после публикации. Имя asset должно быть ровно rollout.json.
+  ROLLOUT_DIR=$(mktemp -d)
+  rollout_default_json > "$ROLLOUT_DIR/rollout.json"
   gh release create "v$VERSION" \
     --title "GSG Smart Gateway v$VERSION" \
     --notes "${GH_NOTES:-Релиз v$VERSION}" \
-    --latest
+    --latest \
+    "$ROLLOUT_DIR/rollout.json"
+  rm -rf "$ROLLOUT_DIR"
   ok "GitHub Release создан: https://github.com/GlobalShieldRu/GateWay/releases/tag/v$VERSION"
+  ok "Раскатка: 0% → 10% (24 ч) → 100% (72 ч), канарейки — сразу. Управление: ./rollout.sh"
 else
   warn "gh CLI не найден — GitHub Release не создан. Установи: https://cli.github.com"
 fi
@@ -197,7 +228,9 @@ else
 fi
 
 # ─── 7. Telegram уведомление ─────────────────────────────────────────────────
-if [[ -n "$TG_TOKEN" && -n "$TG_CHAT" ]]; then
+if ! $TELEGRAM; then
+  log "Telegram-пост пропущен (по умолчанию). Для поста: --telegram"
+elif [[ -n "$TG_TOKEN" && -n "$TG_CHAT" ]]; then
   log "Подготовка Telegram-поста..."
 
   # Генерируем черновик из CHANGELOG (упрощённый, для пользователей)

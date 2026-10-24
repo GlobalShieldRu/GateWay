@@ -12,7 +12,7 @@ import aiofiles
 import hashlib
 import secrets
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from collections import defaultdict, OrderedDict
 from fastapi import FastAPI, HTTPException, Request, Response, Cookie, UploadFile, File
@@ -20,6 +20,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
+
+from update_policy import is_newer, decide_auto_update, CHANNELS as UPDATE_CHANNELS, DEFAULT_CHANNEL as DEFAULT_UPDATE_CHANNEL
 
 GSG_VERSION = "1.14.1"
 _start_time = time.time()
@@ -42,7 +44,7 @@ GSG_SETTINGS_FILE = GSG_CONFIG_DIR / "settings.json"
 # Дефолты для автономной модели GSG: пользователь зашёл в UI один раз, потом
 # забыл на месяцы. Поэтому автообновление и DHCP — включены по умолчанию.
 # Чтобы выключить — заходит в UI и явно переключает.
-_SETTINGS_DEFAULTS = {"auto_update": True, "dhcp_enabled": True, "dhcp_start": None, "dhcp_end": None}
+_SETTINGS_DEFAULTS = {"auto_update": True, "update_channel": "stable", "dhcp_enabled": True, "dhcp_start": None, "dhcp_end": None}
 GSG_AUTH_FILE   = GSG_CONFIG_DIR / "auth.json"
 GSG_APPS_FILE   = GSG_CONFIG_DIR / "apps.json"
 DNSMASQ_LEASES  = Path("/var/lib/misc/dnsmasq.leases")
@@ -928,8 +930,34 @@ async def _ai_routing_guard_loop():
             logging.warning(f"[AI-GUARD] Loop error: {e}")
 
 
+AUTO_UPDATE_ATTEMPT_FILE = GSG_CONFIG_DIR / ".auto_update_attempt.json"
+AUTO_UPDATE_INTERVAL = 3600  # 1 ч: лимит GitHub API 60 запросов/ч на IP — с запасом
+
+
+def _au_log(msg: str):
+    # print, а не logging.info: uvicorn запущен с --log-level warning, root-logger
+    # без basicConfig — info-сообщения не доходили до `docker logs`
+    print(f"[AUTO-UPDATE] {msg}", flush=True)
+
+
+async def _fetch_rollout(client: httpx.AsyncClient, release: dict) -> Optional[dict]:
+    """Скачивает asset rollout.json релиза. Нет asset / ошибка → None (консервативный дефолт)."""
+    asset = next((a for a in release.get("assets") or [] if a.get("name") == "rollout.json"), None)
+    if not asset or not asset.get("browser_download_url"):
+        return None
+    try:
+        # browser_download_url редиректит на objects.githubusercontent.com, не тратит лимит API
+        r = await client.get(asset["browser_download_url"], follow_redirects=True)
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        _au_log(f"rollout.json не скачался: {e}")
+        return None
+
+
 async def _auto_update_loop():
-    """Ежечасная проверка: если включено автообновление и вышла новая версия — запускаем OTA."""
+    """Ежечасная проверка: если включено автообновление и вышла новая версия — запускаем OTA
+    с учётом канала (stable/canary) и поэтапной раскатки (rollout.json). См. update_policy.py."""
     await asyncio.sleep(300)  # ждём 5 минут после старта
     while True:
         try:
@@ -940,20 +968,37 @@ async def _auto_update_loop():
                     r.raise_for_status()
                     data = r.json()
                     latest = data.get("tag_name", "").lstrip("v")
-                    if latest and latest != GSG_VERSION and latest > GSG_VERSION:
-                        if not UPDATE_TRIGGER.exists():
-                            logging.info(f"[AUTO-UPDATE] Обнаружена новая версия {latest}, запускаем OTA")
+                    if is_newer(latest, GSG_VERSION):
+                        channel = settings.get("update_channel") or DEFAULT_UPDATE_CHANNEL
+                        device = await read_json(GSG_DEVICE_FILE, {})
+                        last_attempt = await read_json(AUTO_UPDATE_ATTEMPT_FILE, {})
+                        # rollout.json нужен только stable — канарейке незачем тратить запрос
+                        rollout = await _fetch_rollout(client, data) if channel != "canary" else None
+                        ok, reason = decide_auto_update(
+                            current=GSG_VERSION, latest=latest, channel=channel,
+                            device_id=device.get("device_id", ""),
+                            published_at=data.get("published_at"), rollout=rollout,
+                            now=datetime.now(timezone.utc), last_attempt=last_attempt,
+                        )
+                        if not ok:
+                            _au_log(f"v{GSG_VERSION} → v{latest} отложено: {reason}")
+                        elif UPDATE_TRIGGER.exists():
+                            _au_log("Обновление уже запущено, пропускаем")
+                        else:
+                            _au_log(f"v{GSG_VERSION} → v{latest}, запускаем OTA: {reason}")
+                            # Запоминаем попытку ДО триггера: если OTA откатится, не повторяем
+                            # ту же версию каждый час (decide_auto_update ждёт 24 ч)
+                            AUTO_UPDATE_ATTEMPT_FILE.write_text(json.dumps(
+                                {"version": latest, "at": datetime.now(timezone.utc).isoformat()}))
                             import os as _os
                             fd = _os.open(str(UPDATE_TRIGGER), _os.O_CREAT | _os.O_EXCL | _os.O_WRONLY, 0o644)
                             with _os.fdopen(fd, 'w') as f:
                                 f.write(f"auto_update_triggered_at={datetime.now().isoformat()}\n")
-                        else:
-                            logging.info("[AUTO-UPDATE] Обновление уже запущено, пропускаем")
         except FileExistsError:
             pass
         except Exception as e:
-            logging.warning(f"[AUTO-UPDATE] Ошибка проверки: {e}")
-        await asyncio.sleep(21600)  # проверка каждые 6 часов
+            _au_log(f"Ошибка проверки: {e}")
+        await asyncio.sleep(AUTO_UPDATE_INTERVAL)
 
 
 @app.on_event("startup")
@@ -2811,6 +2856,8 @@ async def get_settings():
 
 @app.patch("/api/settings")
 async def patch_settings(data: dict):
+    if "update_channel" in data and data["update_channel"] not in UPDATE_CHANNELS:
+        raise HTTPException(400, f"update_channel: допустимо {', '.join(UPDATE_CHANNELS)}")
     current = await read_json(GSG_SETTINGS_FILE, _SETTINGS_DEFAULTS)
     prev_dhcp_enabled = current.get("dhcp_enabled", True)
     current.update(data)
@@ -2990,7 +3037,7 @@ async def check_update():
             return {
                 "current": GSG_VERSION,
                 "latest": latest,
-                "has_update": latest != GSG_VERSION and latest > GSG_VERSION,
+                "has_update": is_newer(latest, GSG_VERSION),
                 "release_notes": data.get("body", ""),
                 "release_url": data.get("html_url", "")
             }
