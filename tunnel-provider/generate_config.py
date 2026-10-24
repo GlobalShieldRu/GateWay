@@ -6,13 +6,15 @@ import httpx
 import time
 from pathlib import Path
 
-GSG_CONFIG_DIR = Path("/etc/gsg")
+# Пути переопределяются env-переменными только для offline-тестов (tests/unit);
+# на устройстве переменные не заданы — используются прежние /etc/gsg и /etc/mihomo.
+GSG_CONFIG_DIR = Path(os.getenv("GSG_CONFIG_DIR", "/etc/gsg"))
 GSG_DEVICES_FILE = GSG_CONFIG_DIR / "devices.json"
 GSG_RULES_FILE = GSG_CONFIG_DIR / "rules.json"
 GSG_RULESETS_FILE = GSG_CONFIG_DIR / "rulesets.json"
 GSG_SUBSCRIPTION_FILE = GSG_CONFIG_DIR / "subscription.json"
 GSG_NODES_FILE = GSG_CONFIG_DIR / "nodes.json"
-MIHOMO_CONFIG = Path("/etc/mihomo/config.yaml")
+MIHOMO_CONFIG = Path(os.getenv("GSG_MIHOMO_CONFIG", "/etc/mihomo/config.yaml"))
 
 # Дефолтные исключения (DIRECT) для всех proxy-групп
 DEFAULT_EXCLUSIONS = [
@@ -715,7 +717,7 @@ def main():
     # ru_direct: сайты, доступные только внутри России — идут напрямую.
     # Требует geosite.dat от runetfreedom (маркер /etc/mihomo/.geosite-runetfreedom).
     # Категория ru-available-only-inside НЕ содержит YouTube/Telegram (отдельные категории).
-    _has_runetfreedom = os.path.exists("/etc/mihomo/.geosite-runetfreedom")
+    _has_runetfreedom = (MIHOMO_CONFIG.parent / ".geosite-runetfreedom").exists()
     if rulesets.get('ru_direct', True) and _has_runetfreedom:
         domain_rules.append("GEOSITE,ru-available-only-inside,DIRECT")
         print("[GSG] ru_direct: GEOSITE,ru-available-only-inside → DIRECT", flush=True)

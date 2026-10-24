@@ -1,0 +1,20 @@
+{
+  "proxy_groups": [
+    {"id": "auto", "name": "Auto", "node_filter": "", "type": "fallback", "builtin": true, "rules": ["example-proxy.com"]},
+    {"id": "ai", "name": "AI", "node_filter": "NY", "fallback_filter": "Stockholm", "type": "fallback", "builtin": true,
+     "rules": ["openai", "chatgpt.com", "anthropic.com", "claude.ai", "aistudio.google.com"]},
+    {"id": "bypass", "name": "Bypass", "node_filter": "", "type": "direct", "builtin": true,
+     "rules": ["bank.example.ru", "192.168.50.0/24", "10.20.30.40"]},
+    {"id": "user_streaming", "name": "Стриминг", "node_filter": "stockholm", "type": "url-test", "builtin": false,
+     "exclusions_disabled": ["mil.ru"], "exclusions_custom": ["local-cdn.example.net"],
+     "rules": ["netflix.com", "nflxvideo.net", "spotify.com", "# комментарий", ""]}
+  ],
+  "route_overrides": [
+    {"domain": "hh.ru", "target": "DIRECT"},
+    {"domain": "github.com", "target": "group:auto"},
+    {"domain": "ipinfo.io", "target": "node:🇺🇸 NY | Обход блокировок"},
+    {"ip-cidr": "203.0.113.0/24", "target": "REJECT"},
+    {"domain": "missing-node.example", "target": "node:Нет такого узла"},
+    {"domain": "missing-group.example", "target": "group:nosuchgroup"}
+  ]
+}

@@ -1,0 +1,6 @@
+{"nodes": [
+  {"tag": "🇸🇪 Stockholm | VK", "type": "vless", "server": "se1.example.invalid", "server_port": 443},
+  {"tag": "🇸🇪 Stockholm | Kinopoisk", "type": "vless", "server": "se2.example.invalid", "server_port": 443},
+  {"tag": "🇺🇸 NY | Обход блокировок", "type": "vless", "server": "ny1.example.invalid", "server_port": 443},
+  {"tag": "🇺🇸 NY 2", "type": "vless", "server": "ny2.example.invalid", "server_port": 8443}
+], "updated": "1761300000.0"}

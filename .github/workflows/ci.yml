@@ -1,0 +1,59 @@
+# CI GSG Smart Gateway: синтаксис Python/JS, offline unit-тесты, сборка Docker-образов.
+# tests/test_update_stress.py требует живое устройство — здесь НЕ запускается.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-test:
+    name: Синтаксис и unit-тесты
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # Как в образах: python:3.11-slim и debian bookworm (python3 3.11)
+          python-version: "3.11"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: py_compile всех .py
+        run: git ls-files -z '*.py' | xargs -0 python -m py_compile
+
+      - name: bash -n всех .sh
+        run: git ls-files -z '*.sh' | xargs -0 -n1 bash -n
+
+      - name: Синтаксис inline-JS в HTML
+        run: python tests/check_inline_js.py web-orchestrator/static/*.html
+
+      - name: Зависимости тестов
+        run: pip install -r tests/unit/requirements.txt
+
+      - name: Unit-тесты (offline)
+        run: python -m pytest tests/unit -q
+
+  docker-build:
+    name: Сборка Docker-образов
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # amd64 достаточно: цель — поймать сломанный Dockerfile, а не собрать arm64-образы
+      - name: docker compose build (все 4 сервиса)
+        run: docker compose build --pull

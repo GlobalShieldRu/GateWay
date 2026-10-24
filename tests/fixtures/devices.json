@@ -1,0 +1,8 @@
+{
+  "aa:bb:cc:00:00:01": {"hostname": "laptop", "current_ip": "192.168.1.101", "mode": "smart", "assigned_node": "auto"},
+  "aa:bb:cc:00:00:02": {"hostname": "phone", "current_ip": "192.168.1.102", "mode": "global", "assigned_node": "ai"},
+  "aa:bb:cc:00:00:03": {"hostname": "tv", "current_ip": "192.168.1.103", "mode": "bypass", "assigned_node": "auto"},
+  "aa:bb:cc:00:00:04": {"hostname": "kid-tablet", "current_ip": "192.168.1.104", "mode": "block", "assigned_node": "auto"},
+  "aa:bb:cc:00:00:05": {"hostname": "desktop", "current_ip": "192.168.1.105", "mode": "smart", "assigned_node": "ai", "tiktok_node": "Stockholm"},
+  "aa:bb:cc:00:00:06": {"hostname": "no-ip-yet", "mode": "smart"}
+}

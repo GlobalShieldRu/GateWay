@@ -1,0 +1,12 @@
+# Ответ сервера подписки (формат Clash/Mihomo) для offline-тестов.
+# Узлы вымышленные: домены .invalid, uuid/ключи — заглушки.
+proxies:
+  - {name: "🇸🇪 Stockholm | VK", type: vless, server: se1.example.invalid, port: 443, uuid: 00000000-0000-4000-8000-000000000001, network: tcp, tls: true, servername: vk.com, reality-opts: {public-key: TEST-PUBLIC-KEY-1, short-id: "00"}, client-fingerprint: chrome}
+  - {name: "🇸🇪 Stockholm | Kinopoisk", type: vless, server: se2.example.invalid, port: 443, uuid: 00000000-0000-4000-8000-000000000002, network: tcp, tls: true, servername: kinopoisk.ru, reality-opts: {public-key: TEST-PUBLIC-KEY-2, short-id: "01"}, client-fingerprint: chrome}
+  - {name: "🇺🇸 NY | Обход блокировок", type: vless, server: ny1.example.invalid, port: 443, uuid: 00000000-0000-4000-8000-000000000003, network: ws, tls: true, servername: ny1.example.invalid, ws-opts: {path: /ws}}
+  - {name: "🇺🇸 NY 2", type: vless, server: ny2.example.invalid, port: 8443, uuid: 00000000-0000-4000-8000-000000000004, network: tcp, tls: true, servername: www.example.com, reality-opts: {public-key: TEST-PUBLIC-KEY-4, short-id: "02"}}
+proxy-groups:
+  - {name: PROXY, type: select, proxies: ["🇸🇪 Stockholm | VK", "🇺🇸 NY 2"]}
+  - {name: auto, type: url-test, proxies: ["🇸🇪 Stockholm | VK"], url: "http://www.gstatic.com/generate_204", interval: 300}
+rules:
+  - MATCH,PROXY
