@@ -25,7 +25,7 @@ from device_notify import send_device_notify
 import selfcheck
 from update_policy import is_newer, decide_auto_update, CHANNELS as UPDATE_CHANNELS, DEFAULT_CHANNEL as DEFAULT_UPDATE_CHANNEL
 
-GSG_VERSION = "1.14.3"
+GSG_VERSION = "1.14.4"
 _start_time = time.time()
 
 app = FastAPI(title="GSG Smart Gateway API")
