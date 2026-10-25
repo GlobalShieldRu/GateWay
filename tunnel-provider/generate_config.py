@@ -188,6 +188,18 @@ def main():
     with open(GSG_NODES_FILE, 'w') as f:
         json.dump({"nodes": gui_nodes, "updated": str(time.time())}, f)
 
+    # Группы и правила ссылаются только на прокси, которые реально попали в конфиг.
+    # Подписка недоступна, нет proxies_backup.yaml и старого config.yaml, а nodes.json
+    # непустой: nodes собраны из nodes.json (без ключей/uuid) и в proxies не попадают.
+    # Раньше группы ссылались на эти имена, и Mihomo отвергал конфиг целиком.
+    # nodes.json при этом не трогаем — UI продолжает показывать список узлов.
+    _real_proxy_names = {p.get("name") for p in (server_config.get("proxies") or []) if isinstance(p, dict)}
+    _missing_nodes = [n.get("name") for n in nodes if n.get("name") not in _real_proxy_names]
+    if _missing_nodes:
+        print(f"[WARN] {len(_missing_nodes)} узлов без полного конфига (подписка и бэкап недоступны) — "
+              f"в группы не включаем: {', '.join(str(x) for x in _missing_nodes[:5])}", flush=True)
+        nodes = [n for n in nodes if n.get("name") in _real_proxy_names]
+
     node_names = [n["name"] for n in nodes]
 
     matched_global = "auto"
@@ -641,6 +653,15 @@ def main():
         g_name = f"CUSTOM-{group.get('id', 'unknown')}"
         filter_str = group.get("node_filter", "").lower()
         matched_nodes = [n for n in node_names if filter_str in n.lower()]
+        # Legacy custom_groups: раньше правила ссылались на CUSTOM-<id>, но сама
+        # proxy-group нигде не создавалась → Mihomo отвергал конфиг. Создаём её.
+        if matched_nodes and g_name not in existing_group_names:
+            server_config["proxy-groups"].append({
+                "name": g_name, "type": "url-test", "proxies": matched_nodes,
+                "url": "http://www.gstatic.com/generate_204",
+                "interval": 120, "lazy": True, "timeout": 15000, "tolerance": 50,
+            })
+            existing_group_names.append(g_name)
         target = g_name if matched_nodes else "auto"
         for domain in group.get("domains", []):
             if domain.strip():

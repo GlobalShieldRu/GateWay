@@ -162,11 +162,35 @@ def test_subscription_down_restores_backup(tmp_path, monkeypatch):
     assert {p["name"] for p in cfg["proxies"]} == {p["name"] for p in first["proxies"]}
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "Известный дефект: подписка недоступна, бэкапа proxies_backup.yaml и старого "
-    "config.yaml нет, а nodes.json непустой → proxies=[GSG-FALLBACK], но группы "
-    "ссылаются на имена узлов из nodes.json, и Mihomo такой конфиг не примет. "
-    "Поведение генератора в этой задаче не меняем — тест фиксирует дефект."))
 def test_subscription_down_without_backup(tmp_path, monkeypatch):
+    """Подписка недоступна, бэкапа proxies_backup.yaml и старого config.yaml нет,
+    а nodes.json непустой: конфиг валиден (группы не ссылаются на узлы без
+    полного конфига), nodes.json сохранён для UI."""
     cfg, raw = _run_generator(tmp_path, monkeypatch, subscription="down")
     _assert_invariants(cfg, raw)
+    assert [p["name"] for p in cfg["proxies"]] == ["GSG-FALLBACK"]
+    nodes = json.loads((tmp_path / "gsg" / "nodes.json").read_text())["nodes"]
+    fixture_nodes = json.loads((FIXTURES / "nodes.json").read_text())["nodes"]
+    assert [n["tag"] for n in nodes] == [n["tag"] for n in fixture_nodes]
+
+
+def test_legacy_custom_groups_create_proxy_group(tmp_path, monkeypatch):
+    """Legacy custom_groups: правило на CUSTOM-<id> требует существующей группы."""
+    rules = json.loads((FIXTURES / "rules.json").read_text())
+    rules["custom_groups"] = [
+        {"id": "legacy1", "enabled": True, "node_filter": "", "domains": ["legacy-one.example"]},
+        {"id": "legacy2", "enabled": True, "node_filter": "no-such-node-zzz",
+         "domains": ["https://legacy-two.example/path"]},
+        {"id": "off", "enabled": False, "node_filter": "", "domains": ["off.example"]},
+    ]
+    rules_path = tmp_path / "rules_custom.json"
+    rules_path.write_text(json.dumps(rules))
+    cfg, raw = _run_generator(tmp_path / "run", monkeypatch, extra={"rules.json": rules_path})
+    _assert_invariants(cfg, raw)
+    groups = {g["name"]: g for g in cfg["proxy-groups"]}
+    assert "CUSTOM-legacy1" in groups and groups["CUSTOM-legacy1"]["proxies"]
+    assert "DOMAIN-SUFFIX,legacy-one.example,CUSTOM-legacy1" in cfg["rules"]
+    # Фильтр без совпадений → правило уходит в auto, группа не создаётся
+    assert "CUSTOM-legacy2" not in groups
+    assert "DOMAIN-SUFFIX,legacy-two.example,auto" in cfg["rules"]
+    assert not any("off.example" in r for r in cfg["rules"])
