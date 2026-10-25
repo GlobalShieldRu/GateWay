@@ -2,7 +2,7 @@
 # GSG Smart Gateway — управление поэтапной раскаткой релиза (asset rollout.json)
 # Использование:
 #   ./rollout.sh status [X.Y.Z]          — показать rollout.json и текущий процент
-#   ./rollout.sh pause  [X.Y.Z]          — остановить раскатку на stable (канарейки не затрагивает)
+#   ./rollout.sh pause  [X.Y.Z]          — аварийный стоп раскатки для всех каналов, включая canary
 #   ./rollout.sh resume [X.Y.Z]          — снять паузу
 #   ./rollout.sh set <percent> [X.Y.Z]   — зафиксировать процент (заменяет все стадии одной:
 #                                          {"after_hours": 0, "percent": N}); set 100 — раскатить всем

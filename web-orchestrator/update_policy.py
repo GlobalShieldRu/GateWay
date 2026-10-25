@@ -11,7 +11,8 @@
     отсчёт after_hours — от published_at релиза;
   - устройство попадает в корзину 0..99 по sha256(device_id) — стабильно между
     проверками, у разных устройств равномерно;
-  - канал "canary" обновляется сразу, "stable" — когда корзина < percent и не paused;
+  - канал "canary" обновляется сразу, "stable" — когда корзина < percent;
+  - paused — аварийный стоп для ВСЕХ каналов, включая canary;
   - нет rollout.json / битый — stable ждёт DEFAULT_STABLE_DELAY_HOURS после публикации.
 """
 import hashlib
@@ -137,6 +138,11 @@ def decide_auto_update(*, current: str, latest: str, channel: str, device_id: st
                 return False, (f"{ctx}: v{latest} уже пробовали {since:.1f} ч назад "
                                f"(вероятно автооткат), повтор через {RETRY_SAME_VERSION_HOURS} ч")
 
+    ro = validate_rollout(rollout)
+    # Пауза — аварийный стоп раскатки: останавливает и канарейку тоже
+    if ro is not None and ro["paused"]:
+        return False, f"{ctx}: раскатка на паузе"
+
     if channel == "canary":
         return True, f"{ctx}: канарейка обновляется сразу"
 
@@ -145,7 +151,6 @@ def decide_auto_update(*, current: str, latest: str, channel: str, device_id: st
         return False, f"{ctx}: у релиза нет published_at — ждём"
     hours = (now - pub).total_seconds() / 3600
 
-    ro = validate_rollout(rollout)
     if ro is None:
         if hours >= DEFAULT_STABLE_DELAY_HOURS:
             return True, (f"{ctx}: rollout.json нет, прошло {hours:.1f} ч "
@@ -153,8 +158,6 @@ def decide_auto_update(*, current: str, latest: str, channel: str, device_id: st
         return False, (f"{ctx}: rollout.json нет, прошло {hours:.1f} ч "
                        f"< {DEFAULT_STABLE_DELAY_HOURS} ч — ждём")
 
-    if ro["paused"]:
-        return False, f"{ctx}: раскатка на паузе"
     pct = current_percent(ro, hours)
     if bucket < pct:
         return True, f"{ctx}, раскатка={pct}% ({hours:.1f} ч после публикации): обновляемся"

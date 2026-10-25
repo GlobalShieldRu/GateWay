@@ -973,8 +973,8 @@ async def _auto_update_loop():
                         channel = settings.get("update_channel") or DEFAULT_UPDATE_CHANNEL
                         device = await read_json(GSG_DEVICE_FILE, {})
                         last_attempt = await read_json(AUTO_UPDATE_ATTEMPT_FILE, {})
-                        # rollout.json нужен только stable — канарейке незачем тратить запрос
-                        rollout = await _fetch_rollout(client, data) if channel != "canary" else None
+                        # rollout.json нужен всем: stable — проценты, canary — флаг паузы
+                        rollout = await _fetch_rollout(client, data)
                         ok, reason = decide_auto_update(
                             current=GSG_VERSION, latest=latest, channel=channel,
                             device_id=device.get("device_id", ""),

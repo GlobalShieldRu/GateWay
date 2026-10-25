@@ -159,3 +159,9 @@ def test_release_and_rollout_scripts_default_matches_policy():
     assert found[0] == found[1]
     assert [s["percent"] for s in found[0]["stages"]] == [0, 10, 100]
     assert up.current_percent(found[0], 72) == 100
+
+
+def test_paused_blocks_canary_too():
+    # Пауза — аварийный стоп: канарейка тоже не обновляется
+    ok, reason = _decide(channel="canary", published_at=_pub(0), rollout={**ROLLOUT, "paused": True})
+    assert ok is False and "пауз" in reason

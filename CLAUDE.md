@@ -55,7 +55,7 @@ override_rules → domain_rules (из групп) → ip_rules (устройст
 
 **Релиз перед OTA:** `./release.sh X.Y.Z` — обновляет GSG_VERSION, создаёт тег, GitHub Release с asset `rollout.json`. Telegram-пост — только с `--telegram`. Без релиза OTA не покажет новую версию.
 
-**Авто-обновление и раскатка:** `_auto_update_loop` раз в час смотрит `releases/latest`; решение — `web-orchestrator/update_policy.py` (числовое сравнение версий, корзина `sha256(device_id) % 100`, канал `settings.json:update_channel` stable/canary, `rollout.json` стадии `after_hours`/`percent` от `published_at`, без `rollout.json` stable ждёт 72 ч). Управление раскаткой: `./rollout.sh pause|resume|set <percent>|status [X.Y.Z]`. Ручная кнопка в UI раскатку обходит.
+**Авто-обновление и раскатка:** `_auto_update_loop` раз в час смотрит `releases/latest`; решение — `web-orchestrator/update_policy.py` (числовое сравнение версий, корзина `sha256(device_id) % 100`, канал `settings.json:update_channel` stable/canary, `rollout.json` стадии `after_hours`/`percent` от `published_at`, без `rollout.json` stable ждёт 72 ч). Управление раскаткой: `./rollout.sh pause|resume|set <percent>|status [X.Y.Z]` (pause останавливает все каналы, включая canary). Ручная кнопка в UI раскатку обходит.
 
 **CI:** `.github/workflows/ci.yml` — py_compile, bash -n, inline-JS, `pytest tests/unit` (offline, фикстуры `tests/fixtures/`), `docker compose build`. `tests/test_update_stress.py` требует живое устройство и в CI не запускается.
 
