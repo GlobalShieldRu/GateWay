@@ -56,4 +56,8 @@ jobs:
 
       # amd64 достаточно: цель — поймать сломанный Dockerfile, а не собрать arm64-образы
       - name: docker compose build (все 4 сервиса)
+        # build.network: host в compose требует entitlement network.host у bake;
+        # классический билдер (как на устройствах) его не спрашивает
+        env:
+          COMPOSE_BAKE: "false"
         run: docker compose build --pull
