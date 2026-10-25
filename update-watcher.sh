@@ -165,6 +165,15 @@ except: print('?')
     gsg_notify update_failed "Откат на v${prev_version}: ${reason}" "version=${prev_version}" "trigger=${trigger_type}"
 }
 
+# Есть ли на устройстве исполняемый файл из ExecStart юнита (.timer — всегда да).
+# Префиксы systemd (-, @, +, !) отбрасываем.
+unit_exec_present() {
+    local unit_src="$1" exe
+    [[ "$unit_src" == *.service ]] || return 0
+    exe=$(sed -n 's/^ExecStart=[-@+!]*\([^ ]*\).*/\1/p' "$unit_src" | head -1)
+    [[ -z "$exe" || -x "$exe" ]]
+}
+
 # ── Обработка одного триггера ─────────────────────────────────────────────────
 process_trigger() {
     local content
@@ -281,6 +290,17 @@ PYEOF
         [[ -f "$unit_src" ]] || continue
         unit_name="$(basename "$unit_src")"
         target="/etc/systemd/system/$unit_name"
+        # Юнит, чей ExecStart на устройство не установлен (служебные сервисы
+        # разработки, отключённый в install.sh gsg-watchdog), не включаем:
+        # иначе systemd крутит его в вечном рестарте с 203/EXEC. Если он уже
+        # был включён прошлым OTA — выключаем.
+        if ! unit_exec_present "$unit_src"; then
+            if systemctl is-enabled "$unit_name" >/dev/null 2>&1 || systemctl is-active "$unit_name" >/dev/null 2>&1; then
+                systemctl disable --now "$unit_name" >> "$LOG" 2>&1 || true
+                log "  − ${unit_name} выключен: ExecStart не установлен на устройстве"
+            fi
+            continue
+        fi
         if [[ ! -f "$target" ]] || ! cmp -s "$unit_src" "$target"; then
             log "  + ${unit_name} (new/changed)"
             cp "$unit_src" "$target"
@@ -292,6 +312,7 @@ PYEOF
         for unit_src in "$GSG_DIR"/gsg-*.service "$GSG_DIR"/gsg-*.timer; do
             [[ -f "$unit_src" ]] || continue
             unit_name="$(basename "$unit_src")"
+            unit_exec_present "$unit_src" || continue
             # gsg-updater (мы сами) — restart позже отдельно, чтобы не убить
             # текущий процесс посреди OTA-цикла.
             [[ "$unit_name" == "gsg-updater.service" ]] && continue

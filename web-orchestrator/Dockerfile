@@ -17,8 +17,14 @@ WORKDIR /app
 # docker-cli — для synchronous regen через `docker exec gsg-tunnel …`
 # из handlers'ов. Без inotify+debounce цикла который иногда проглатывает
 # события (инцидент 2026-07-02).
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    docker.io && rm -rf /var/lib/apt/lists/*
+# В Debian 13 CLI вынесен в пакет docker-cli (docker.io — только демон, а CLI у
+# него в Recommends и при --no-install-recommends не ставится); в Debian 12
+# пакета docker-cli нет, и CLI лежит в docker.io. Сборка падает, если docker не появился.
+RUN apt-get update \
+    && (apt-get install -y --no-install-recommends docker-cli \
+        || apt-get install -y --no-install-recommends docker.io) \
+    && rm -rf /var/lib/apt/lists/* \
+    && docker --version
 
 # Переносим готовые скомпилированные пакеты
 COPY --from=builder /install /usr/local
