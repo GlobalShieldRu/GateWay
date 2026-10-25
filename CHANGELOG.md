@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [1.14.2] — 2026-10-25
+
 ### Добавлено
 - **CI на GitHub Actions** (`.github/workflows/ci.yml`): на push и PR в `main` — `py_compile` всех `.py`, `bash -n` всех `.sh`, синтаксис inline-JS в HTML (`tests/check_inline_js.py`), offline unit-тесты (`tests/unit/`) и сборка Docker-образов всех четырёх сервисов (amd64).
 - **Offline-тесты генератора Mihomo-конфига** (`tests/unit/test_generate_config.py`, фикстуры в `tests/fixtures/`): проверяют, что DNS идёт только через DoH, `GEOIP,ru,DIRECT` стоит раньше правил устройств, есть `MATCH`, а группы и правила ссылаются только на существующие прокси.
