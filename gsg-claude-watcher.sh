@@ -9,7 +9,7 @@
 #   1. Читает /connections Mihomo
 #   2. Находит "Claude-pattern" соединения которые идут НЕ через NY
 #   3. Авто-добавляет домен в группу `ai` (через rules.json + Mihomo reload)
-#   4. Шлёт Telegram-уведомление "Auto-routed <domain> via NY"
+#   4. Шлёт уведомление "Auto-routed <domain> via NY" через API GlobalShield
 #
 # Принципы:
 #   - Идемпотентность: повторно не добавляет
@@ -24,7 +24,8 @@ CONFIG_DIR="/var/lib/docker/volumes/gsg_gsg_config/_data"
 RULES_FILE="${CONFIG_DIR}/rules.json"
 LOG_FILE="/var/log/gsg-claude-watcher.log"
 MIHOMO_API="http://127.0.0.1:9090"
-TG_CONFIG="${CONFIG_DIR}/telegram.json"
+DEVICE_FILE="${CONFIG_DIR}/device.json"
+GSG_API="https://api.globalshield.ru/v1"
 CHECK_INTERVAL=60
 RELOAD_COOLDOWN=30
 
@@ -35,17 +36,46 @@ log() {
     echo "[$ts] $*" | tee -a "$LOG_FILE"
 }
 
-tg_alert() {
-    local msg="$1"
-    [ -f "$TG_CONFIG" ] || return 0
-    local token chat
-    token=$(python3 -c "import json;print(json.load(open('$TG_CONFIG')).get('bot_token',''))" 2>/dev/null || echo "")
-    chat=$(python3 -c "import json;print(json.load(open('$TG_CONFIG')).get('chat_id',''))" 2>/dev/null || echo "")
-    [ -z "$token" ] || [ -z "$chat" ] && return 0
-    curl -s --max-time 5 "https://api.telegram.org/bot${token}/sendMessage" \
-        -d "chat_id=${chat}" \
-        -d "text=🛡️ Claude-watcher: ${msg}" \
-        -d "parse_mode=HTML" > /dev/null 2>&1
+# Уведомление через API GlobalShield: устройство токен бота не знает, сообщение
+# собирает backend. Аргументы: kind text [key=value ...]. Best-effort, всегда 0.
+# Запрос делает python3 (urllib), чтобы device_token не попадал в argv/ps.
+gsg_notify() {
+    local kind="$1" text="$2"
+    shift 2
+    if [[ ! -f "$DEVICE_FILE" ]]; then
+        log "notify ${kind}: устройство не зарегистрировано (нет device.json) — пропуск"
+        return 0
+    fi
+    local result
+    result=$(python3 - "$DEVICE_FILE" "$GSG_API" "$kind" "$text" "$@" <<'PY' 2>&1
+import json, sys, urllib.request
+dev_file, api, kind, text, *pairs = sys.argv[1:]
+try:
+    dev = json.load(open(dev_file))
+except Exception:
+    dev = {}
+did, tok = dev.get("device_id", ""), dev.get("device_token", "")
+if not did or not tok:
+    print("устройство не зарегистрировано — пропуск")
+    sys.exit(0)
+fields = {}
+for p in pairs[:20]:
+    k, _, v = p.partition("=")
+    if k and v:
+        fields[k] = v[:100]
+body = json.dumps({"kind": kind, "text": text[:2000], "fields": fields}).encode()
+req = urllib.request.Request(api.rstrip("/") + "/devices/notify", data=body, method="POST",
+                             headers={"Content-Type": "application/json",
+                                      "X-Device-ID": did, "X-Device-Token": tok})
+try:
+    with urllib.request.urlopen(req, timeout=10) as r:
+        print(f"HTTP {r.status}")
+except Exception as e:
+    print(f"ошибка: {e}")
+PY
+)
+    log "notify ${kind}: ${result:-нет ответа}"
+    return 0
 }
 
 log "=== gsg-claude-watcher started (interval=${CHECK_INTERVAL}s) ==="
@@ -136,7 +166,7 @@ PYEOF
                     -d '{"path": "/etc/mihomo/config.yaml"}' \
                     "${MIHOMO_API}/configs" > /dev/null 2>&1
                 last_reload=$(date +%s)
-                tg_alert "Auto-routed via NY: <code>${ADDED}</code>"
+                gsg_notify auto_route "${ADDED}" "source=gsg-claude-watcher"
             fi
         fi
     fi

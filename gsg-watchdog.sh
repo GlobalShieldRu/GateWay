@@ -10,7 +10,7 @@
 #   3. Мониторить файл-маркер /etc/gsg/.tunnel_restart_request — рестарт по запросу
 #      (web-orchestrator или другие компоненты создают маркер, нам его достаточно найти)
 #   4. Cooldown 90с между рестартами (защита от флаппинга)
-#   5. Лог в /var/log/gsg-watchdog.log + Telegram alert (опционально)
+#   5. Лог в /var/log/gsg-watchdog.log + уведомление через API GlobalShield
 #
 # Причина существования:
 # После множества API reload'ов Mihomo (`curl PUT /configs`) внутренний state
@@ -27,7 +27,8 @@ CHECK_INTERVAL=30
 FAIL_THRESHOLD=2
 HEALTH_URL="http://www.gstatic.com/generate_204"
 MIHOMO_API="http://127.0.0.1:9090"
-TG_CONFIG="${CONFIG_DIR}/telegram.json"
+DEVICE_FILE="${CONFIG_DIR}/device.json"
+GSG_API="https://api.globalshield.ru/v1"
 
 fail_count=0
 last_restart=0
@@ -37,18 +38,46 @@ log() {
     echo "[$ts] $*" | tee -a "$LOG_FILE"
 }
 
-# Отправка Telegram-алерта (best-effort, файл telegram.json имеет bot_token и chat_id)
-tg_alert() {
-    local msg="$1"
-    [ -f "$TG_CONFIG" ] || return 0
-    local token chat
-    token=$(python3 -c "import json;print(json.load(open('$TG_CONFIG')).get('bot_token',''))" 2>/dev/null)
-    chat=$(python3 -c "import json;print(json.load(open('$TG_CONFIG')).get('chat_id',''))" 2>/dev/null)
-    [ -z "$token" ] || [ -z "$chat" ] && return 0
-    curl -s --max-time 5 "https://api.telegram.org/bot${token}/sendMessage" \
-        -d "chat_id=${chat}" \
-        -d "text=🛡️ GSG Watchdog: ${msg}" \
-        -d "parse_mode=HTML" > /dev/null 2>&1
+# Уведомление через API GlobalShield: устройство токен бота не знает, сообщение
+# собирает backend. Аргументы: kind text [key=value ...]. Best-effort, всегда 0.
+# Запрос делает python3 (urllib), чтобы device_token не попадал в argv/ps.
+gsg_notify() {
+    local kind="$1" text="$2"
+    shift 2
+    if [[ ! -f "$DEVICE_FILE" ]]; then
+        log "notify ${kind}: устройство не зарегистрировано (нет device.json) — пропуск"
+        return 0
+    fi
+    local result
+    result=$(python3 - "$DEVICE_FILE" "$GSG_API" "$kind" "$text" "$@" <<'PY' 2>&1
+import json, sys, urllib.request
+dev_file, api, kind, text, *pairs = sys.argv[1:]
+try:
+    dev = json.load(open(dev_file))
+except Exception:
+    dev = {}
+did, tok = dev.get("device_id", ""), dev.get("device_token", "")
+if not did or not tok:
+    print("устройство не зарегистрировано — пропуск")
+    sys.exit(0)
+fields = {}
+for p in pairs[:20]:
+    k, _, v = p.partition("=")
+    if k and v:
+        fields[k] = v[:100]
+body = json.dumps({"kind": kind, "text": text[:2000], "fields": fields}).encode()
+req = urllib.request.Request(api.rstrip("/") + "/devices/notify", data=body, method="POST",
+                             headers={"Content-Type": "application/json",
+                                      "X-Device-ID": did, "X-Device-Token": tok})
+try:
+    with urllib.request.urlopen(req, timeout=10) as r:
+        print(f"HTTP {r.status}")
+except Exception as e:
+    print(f"ошибка: {e}")
+PY
+)
+    log "notify ${kind}: ${result:-нет ответа}"
+    return 0
 }
 
 # Перезапуск gsg-tunnel с защитой от флаппинга
@@ -61,7 +90,7 @@ do_restart() {
         return 1
     fi
     log "RESTART gsg-tunnel: $reason"
-    tg_alert "Auto-restart tunnel: $reason"
+    gsg_notify tunnel_restart "$reason" "source=gsg-watchdog"
     docker restart gsg-tunnel > /dev/null 2>&1
     last_restart=$(date +%s)
     # Даём Mihomo 20 секунд на полный запуск + прогрев health-check

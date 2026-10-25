@@ -77,16 +77,16 @@ class DeviceUpdate(BaseModel):
 
 ## Telegram уведомления
 
-- Токен: env `TELEGRAM_BOT_TOKEN`
-- Chat ID: env `TELEGRAM_NOTIFY_USERS_CHAT_ID`
-- Роутинг: через `http://127.0.0.1:2080` (Mihomo, т.к. Telegram заблокирован в РФ)
-- Parse mode: HTML (`<b>`, `<a href='...'>`, `<code>`)
+- Устройство токена бота не знает и в Telegram напрямую не ходит.
+- Уведомления — `POST {GLOBALSHIELD_API}/devices/notify` с заголовками `X-Device-ID` / `X-Device-Token`
+  из `device.json`; тело `{"kind": ..., "text": ..., "fields": {...}}`, сообщение собирает backend.
+- kind: `feedback`, `tunnel_restart`, `update_ok`, `update_failed`, `auto_route`.
+- В контейнере — `web-orchestrator/device_notify.py`, на хосте — функция `gsg_notify` в `update-watcher.sh`,
+  `gsg-watchdog.sh`, `gsg-claude-watcher.sh`. Не зарегистрировано — пропуск с записью в лог.
 
 ## Переменные окружения
 
 ```
-TELEGRAM_BOT_TOKEN
-TELEGRAM_NOTIFY_USERS_CHAT_ID
 GSG_TPROXY_PORT (default: 12345)
 GLOBALSHIELD_API (default: https://api.globalshield.ru)
 ```

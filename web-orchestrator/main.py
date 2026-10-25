@@ -21,6 +21,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 
+from device_notify import send_device_notify
 from update_policy import is_newer, decide_auto_update, CHANNELS as UPDATE_CHANNELS, DEFAULT_CHANNEL as DEFAULT_UPDATE_CHANNEL
 
 GSG_VERSION = "1.14.1"
@@ -2639,9 +2640,6 @@ async def post_feedback(req: FeedbackRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    tg_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
-    tg_chat  = os.getenv("TELEGRAM_NOTIFY_USERS_CHAT_ID", "").strip()
-
     async def _send_feedback_notification():
         import platform
 
@@ -2683,70 +2681,32 @@ async def post_feedback(req: FeedbackRequest):
         except Exception:
             pass
 
-        device_id = "–"
-        device_token = ""
-        try:
-            async with aiofiles.open(GSG_DEVICE_FILE, 'r') as f:
-                _dev = json.loads(await f.read())
-                device_id    = _dev.get("device_id", "–")
-                device_token = _dev.get("device_token", "")
-        except Exception:
-            pass
-
-        # Пробуем получить Telegram ID пользователя по токену подписки
-        tg_user_line = ""
+        # Токен подписки: по нему backend найдёт Telegram пользователя (resolve-user на сервере)
+        sub_token = ""
         try:
             sub_data = json.loads(open(GSG_SUBSCRIPTION_FILE).read())
             sub_url = sub_data.get("url", "")
             sub_token = sub_url.rstrip("/").split("/")[-1] if sub_url else ""
-            if sub_token:
-                async with httpx.AsyncClient(timeout=5.0) as cl:
-                    resolve_resp = await cl.get(
-                        f"{GLOBALSHIELD_API}/devices/resolve-user",
-                        params={"token": sub_token},
-                        headers={"X-Device-ID": device_id, "X-Device-Token": device_token},
-                    )
-                    if resolve_resp.status_code == 200:
-                        tg_uid = resolve_resp.json().get("telegram_id")
-                        if tg_uid:
-                            tg_user_line = f"📱 <a href='tg://user?id={tg_uid}'>Написать в Telegram</a>\n"
         except Exception:
             pass
 
-        name_part = entry['name'] if entry['name'] else "Аноним"
-        tg_username_line = ""
-        if entry.get('telegram'):
-            tg_username_line = f"✉️ <a href='https://t.me/{entry['telegram']}'>@{entry['telegram']}</a>\n"
-        text = (
-            f"📬 <b>Обратная связь GSG</b>\n"
-            f"➖➖➖➖➖➖➖➖➖\n"
-            f"👤 {name_part}\n"
-            f"{tg_username_line}"
-            f"{tg_user_line}"
-            f"💬 {entry['message']}\n"
-            f"➖➖➖➖➖➖➖➖➖\n"
-            f"💻 {board} | {arch} | {ram_gb}\n"
-            f"🌐 {ext_ip} — {isp}\n"
-            f"📍 {region}\n"
-            f"🆔 <code>{device_id}</code>\n"
-            f"🕐 {entry['ts'][:16].replace('T', ' ')}\n"
-            f"#feedback"
-        )
-        try:
-            # Роутим через локальный Mihomo-прокси (порт 2080) — Telegram заблокирован в РФ
-            async with httpx.AsyncClient(proxy="http://127.0.0.1:2080") as client:
-                await client.post(
-                    f"https://api.telegram.org/bot{tg_token}/sendMessage",
-                    json={"chat_id": tg_chat, "text": text, "parse_mode": "HTML"},
-                    timeout=10.0
-                )
-        except Exception:
-            pass
+        device = await read_json(GSG_DEVICE_FILE, {})
+        await send_device_notify(GLOBALSHIELD_API, device, "feedback", entry["message"], {
+            "name":      entry["name"],
+            "telegram":  entry.get("telegram", ""),
+            "board":     board,
+            "arch":      arch,
+            "ram":       ram_gb,
+            "ext_ip":    ext_ip,
+            "isp":       isp,
+            "region":    region,
+            "ts":        entry["ts"][:16].replace("T", " "),
+            "sub_token": sub_token,
+        })
 
-    if tg_token and tg_chat:
-        # Fire-and-forget: HTTP-ответ не должен ждать гео-lookup + Telegram (до ~19с),
-        # иначе UI зависает на 8-секундном фронтенд-таймауте и показывает «Ошибка».
-        asyncio.create_task(_send_feedback_notification())
+    # Fire-and-forget: HTTP-ответ не должен ждать гео-lookup + отправку (до ~19с),
+    # иначе UI зависает на 8-секундном фронтенд-таймауте и показывает «Ошибка».
+    asyncio.create_task(_send_feedback_notification())
 
     return {"ok": True}
 
@@ -2808,25 +2768,10 @@ async def _do_tunnel_hard_restart(reason: str) -> dict:
 
     logging.info(f"[tunnel-restart] Триггер записан, ждём выполнения update-watcher.sh")
 
-    # Telegram-уведомление
-    tg_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
-    tg_chat  = os.getenv("TELEGRAM_NOTIFY_USERS_CHAT_ID", "").strip()
-    if tg_token and tg_chat:
-        try:
-            text = (
-                f"🔄 <b>Авто-восстановление tunnel</b>\n"
-                f"➖➖➖➖➖➖➖➖➖\n"
-                f"Причина: {reason}\n"
-                f"Контейнер <code>gsg-tunnel</code> перезапущен автоматически."
-            )
-            async with httpx.AsyncClient(proxy="http://127.0.0.1:2080") as client:
-                await client.post(
-                    f"https://api.telegram.org/bot{tg_token}/sendMessage",
-                    json={"chat_id": tg_chat, "text": text, "parse_mode": "HTML"},
-                    timeout=10.0
-                )
-        except Exception:
-            pass
+    # Уведомление через API GlobalShield (сообщение собирает backend)
+    device = await read_json(GSG_DEVICE_FILE, {})
+    await send_device_notify(GLOBALSHIELD_API, device, "tunnel_restart", reason,
+                             {"source": "web-orchestrator"})
 
     return {"ok": True, "reason": reason}
 

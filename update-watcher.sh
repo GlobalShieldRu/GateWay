@@ -10,26 +10,52 @@ TRIGGER="$CONFIG_VOL/.update_trigger"
 LOG="$CONFIG_VOL/.update_log"
 STATE_FILE="$CONFIG_VOL/.update_state.json"
 
-RELEASE_ENV="$GSG_DIR/.release.env"
-[[ -f "$RELEASE_ENV" ]] && source "$RELEASE_ENV"
-TG_TOKEN="${TELEGRAM_BOT_TOKEN:-}"
-TG_CHAT="${TELEGRAM_NOTIFY_CHAT_ID:-}"
+DEVICE_FILE="$CONFIG_VOL/device.json"
+GSG_API="https://api.globalshield.ru/v1"
 
 # ── Вспомогательные функции ───────────────────────────────────────────────────
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG"; }
 
-send_telegram() {
-    local text="$1"
-    [[ -z "$TG_TOKEN" || -z "$TG_CHAT" ]] && return 0
-    local proxy_args=""
-    if curl -s --proxy "http://127.0.0.1:2080" --max-time 3 https://t.me > /dev/null 2>&1; then
-        proxy_args="--proxy http://127.0.0.1:2080"
+# Уведомление через API GlobalShield: устройство токен бота не знает, сообщение
+# собирает backend. Аргументы: kind text [key=value ...]. Best-effort, всегда 0.
+# Запрос делает python3 (urllib), чтобы device_token не попадал в argv/ps.
+gsg_notify() {
+    local kind="$1" text="$2"
+    shift 2
+    if [[ ! -f "$DEVICE_FILE" ]]; then
+        log "notify ${kind}: устройство не зарегистрировано (нет device.json) — пропуск"
+        return 0
     fi
-    curl -s -o /dev/null $proxy_args \
-        -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
-        -H "Content-Type: application/json" \
-        -d "{\"chat_id\": \"${TG_CHAT}\", \"text\": $(echo "$text" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'), \"parse_mode\": \"HTML\", \"disable_web_page_preview\": true}" \
-        2>/dev/null || true
+    local result
+    result=$(python3 - "$DEVICE_FILE" "$GSG_API" "$kind" "$text" "$@" <<'PY' 2>&1
+import json, sys, urllib.request
+dev_file, api, kind, text, *pairs = sys.argv[1:]
+try:
+    dev = json.load(open(dev_file))
+except Exception:
+    dev = {}
+did, tok = dev.get("device_id", ""), dev.get("device_token", "")
+if not did or not tok:
+    print("устройство не зарегистрировано — пропуск")
+    sys.exit(0)
+fields = {}
+for p in pairs[:20]:
+    k, _, v = p.partition("=")
+    if k and v:
+        fields[k] = v[:100]
+body = json.dumps({"kind": kind, "text": text[:2000], "fields": fields}).encode()
+req = urllib.request.Request(api.rstrip("/") + "/devices/notify", data=body, method="POST",
+                             headers={"Content-Type": "application/json",
+                                      "X-Device-ID": did, "X-Device-Token": tok})
+try:
+    with urllib.request.urlopen(req, timeout=10) as r:
+        print(f"HTTP {r.status}")
+except Exception as e:
+    print(f"ошибка: {e}")
+PY
+)
+    log "notify ${kind}: ${result:-нет ответа}"
+    return 0
 }
 
 save_state() {
@@ -115,7 +141,7 @@ except: print('')
     fi
     if [[ -z "$prev_hash" ]]; then
         log "ОШИБКА: нет hash для отката"
-        send_telegram "GSG Rollback FAILED — нет hash"
+        gsg_notify update_failed "Откат не выполнен: нет hash предыдущей версии" "trigger=${trigger_type}" "reason=${reason}"
         return 1
     fi
     log "Откат к $prev_hash..."
@@ -136,7 +162,7 @@ try:
 except: print('?')
 " 2>/dev/null || echo "?")
     log "Откат завершён — v$prev_version ($prev_hash)"
-    send_telegram "GSG Rollback — v${prev_version} (${trigger_type}): ${reason}"
+    gsg_notify update_failed "Откат на v${prev_version}: ${reason}" "version=${prev_version}" "trigger=${trigger_type}"
 }
 
 # ── Обработка одного триггера ─────────────────────────────────────────────────
@@ -319,7 +345,7 @@ PYEOF
         new_version=$(grep 'GSG_VERSION = ' "$GSG_DIR/web-orchestrator/main.py" 2>/dev/null \
                       | sed 's/.*"\(.*\)".*/\1/' || echo "?")
         log "===== Обновление завершено: v$new_version ====="
-        send_telegram "GSG обновлён до v${new_version}"
+        gsg_notify update_ok "" "version=${new_version}"
         # Если сам update-watcher.sh изменился — рестартим себя через systemd,
         # иначе текущий процесс продолжит работать со старым кодом до reboot.
         SELF_HASH_AFTER=$(sha256sum "$0" 2>/dev/null | awk '{print $1}')
