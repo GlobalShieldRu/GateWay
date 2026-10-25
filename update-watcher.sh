@@ -174,6 +174,51 @@ unit_exec_present() {
     [[ -z "$exe" || -x "$exe" ]]
 }
 
+# Синхронизация systemd-юнитов с репо. Вызывается в OTA и при старте watcher:
+# после самообновления новый код watcher сразу чинит юниты, не дожидаясь
+# следующего OTA (иначе зацикленные сервисы живут до следующего релиза).
+sync_units() {
+    log "Синхронизация systemd-юнитов..."
+    UNITS_CHANGED=0
+    for unit_src in "$GSG_DIR"/gsg-*.service "$GSG_DIR"/gsg-*.timer; do
+        [[ -f "$unit_src" ]] || continue
+        unit_name="$(basename "$unit_src")"
+        target="/etc/systemd/system/$unit_name"
+        # Юнит, чей ExecStart на устройство не установлен (служебные сервисы
+        # разработки, отключённый в install.sh gsg-watchdog), не включаем:
+        # иначе systemd крутит его в вечном рестарте с 203/EXEC. Если он уже
+        # был включён прошлым OTA — выключаем.
+        if ! unit_exec_present "$unit_src"; then
+            if systemctl is-enabled "$unit_name" >/dev/null 2>&1 || systemctl is-active "$unit_name" >/dev/null 2>&1; then
+                systemctl disable --now "$unit_name" >> "$LOG" 2>&1 || true
+                log "  − ${unit_name} выключен: ExecStart не установлен на устройстве"
+            fi
+            continue
+        fi
+        if [[ ! -f "$target" ]] || ! cmp -s "$unit_src" "$target"; then
+            log "  + ${unit_name} (new/changed)"
+            cp "$unit_src" "$target"
+            UNITS_CHANGED=1
+        fi
+    done
+    if [[ "$UNITS_CHANGED" -eq 1 ]]; then
+        systemctl daemon-reload
+        for unit_src in "$GSG_DIR"/gsg-*.service "$GSG_DIR"/gsg-*.timer; do
+            [[ -f "$unit_src" ]] || continue
+            unit_name="$(basename "$unit_src")"
+            unit_exec_present "$unit_src" || continue
+            # gsg-updater (мы сами) — restart позже отдельно, чтобы не убить
+            # текущий процесс посреди OTA-цикла.
+            [[ "$unit_name" == "gsg-updater.service" ]] && continue
+            systemctl enable "$unit_name" >> "$LOG" 2>&1 || true
+            # Для .timer — restart нормально (он перезапустит timer schedule).
+            # Для .service — рестарт нужен чтобы подхватить новый код.
+            systemctl restart "$unit_name" >> "$LOG" 2>&1 || true
+            log "  ↻ ${unit_name} enabled+restarted"
+        done
+    fi
+
+}
 # ── Обработка одного триггера ─────────────────────────────────────────────────
 process_trigger() {
     local content
@@ -284,46 +329,7 @@ PYEOF
     # (например network-watcher) недоступны до ручного `systemctl enable` —
     # пользователь GSG этого делать не будет (см. feedback memory: GSG автономен).
     # См. install.sh — он делает то же при первой установке.
-    log "Синхронизация systemd-юнитов..."
-    UNITS_CHANGED=0
-    for unit_src in "$GSG_DIR"/gsg-*.service "$GSG_DIR"/gsg-*.timer; do
-        [[ -f "$unit_src" ]] || continue
-        unit_name="$(basename "$unit_src")"
-        target="/etc/systemd/system/$unit_name"
-        # Юнит, чей ExecStart на устройство не установлен (служебные сервисы
-        # разработки, отключённый в install.sh gsg-watchdog), не включаем:
-        # иначе systemd крутит его в вечном рестарте с 203/EXEC. Если он уже
-        # был включён прошлым OTA — выключаем.
-        if ! unit_exec_present "$unit_src"; then
-            if systemctl is-enabled "$unit_name" >/dev/null 2>&1 || systemctl is-active "$unit_name" >/dev/null 2>&1; then
-                systemctl disable --now "$unit_name" >> "$LOG" 2>&1 || true
-                log "  − ${unit_name} выключен: ExecStart не установлен на устройстве"
-            fi
-            continue
-        fi
-        if [[ ! -f "$target" ]] || ! cmp -s "$unit_src" "$target"; then
-            log "  + ${unit_name} (new/changed)"
-            cp "$unit_src" "$target"
-            UNITS_CHANGED=1
-        fi
-    done
-    if [[ "$UNITS_CHANGED" -eq 1 ]]; then
-        systemctl daemon-reload
-        for unit_src in "$GSG_DIR"/gsg-*.service "$GSG_DIR"/gsg-*.timer; do
-            [[ -f "$unit_src" ]] || continue
-            unit_name="$(basename "$unit_src")"
-            unit_exec_present "$unit_src" || continue
-            # gsg-updater (мы сами) — restart позже отдельно, чтобы не убить
-            # текущий процесс посреди OTA-цикла.
-            [[ "$unit_name" == "gsg-updater.service" ]] && continue
-            systemctl enable "$unit_name" >> "$LOG" 2>&1 || true
-            # Для .timer — restart нормально (он перезапустит timer schedule).
-            # Для .service — рестарт нужен чтобы подхватить новый код.
-            systemctl restart "$unit_name" >> "$LOG" 2>&1 || true
-            log "  ↻ ${unit_name} enabled+restarted"
-        done
-    fi
-
+    sync_units
     log "[STAGE:3/6] Сборка контейнеров..."
     # docker compose v5 может возвращать RC=0 даже при ошибке (баг BuildKit).
     # Дополнительно проверяем вывод на признаки ошибки.
@@ -385,6 +391,7 @@ PYEOF
 
 # ── Главный цикл (демон) ─────────────────────────────────────────────────────
 log "Update watcher запущен (inotifywait mode)"
+( cd "$GSG_DIR" && sync_units ) || log "Синхронизация юнитов при старте не удалась (продолжаем)"
 
 # Обработать триггер если уже существует при старте
 if [[ -f "$TRIGGER" ]]; then

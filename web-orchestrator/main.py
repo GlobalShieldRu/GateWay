@@ -2788,7 +2788,7 @@ async def tunnel_hard_restart(request: Request):
 # и выполнение действий через уже существующие механизмы.
 GSG_HEALTH_FILE = GSG_CONFIG_DIR / "health.json"
 SELFHEAL_STATE_FILE = GSG_CONFIG_DIR / ".selfheal_state.json"
-SELFCHECK_FIRST_DELAY = 120   # первый прогон через ~2 мин после старта
+SELFCHECK_FIRST_DELAY = 300   # первый прогон через 5 мин: после OTA туннелю нужно прогреться, иначе ложный down
 SELFCHECK_INTERVAL = 300      # далее каждые 5 минут
 SELFCHECK_FRESH = 900         # старше — для heartbeat/дашборда считаем, что данных нет
 # Сколько ждём, пока хостовый gsg-watchdog заберёт маркер .tunnel_restart_request

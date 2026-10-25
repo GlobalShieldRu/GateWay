@@ -225,7 +225,9 @@ def build_tunnel_check(tunnel: dict, auto_now: Optional[str] = None) -> dict:
         check.update(status="warn", severity="degraded",
                      detail="ответ получен, но группа auto ушла в DIRECT — узлы не используются")
     else:
-        check.update(status="ok", detail=f"{tunnel.get('ms')} мс" + (f", auto → {auto_now}" if auto_now else ""))
+        # Запрос идёт по правилам маршрутизации (generate_204 Google обычно уходит в
+        # группу ai), поэтому auto указываем отдельно, а не как маршрут этого запроса
+        check.update(status="ok", detail=f"{tunnel.get('ms')} мс" + (f"; группа auto сейчас → {auto_now}" if auto_now else ""))
     return check
 
 
