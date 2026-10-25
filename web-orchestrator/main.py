@@ -22,6 +22,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 
 from device_notify import send_device_notify
+import selfcheck
 from update_policy import is_newer, decide_auto_update, CHANNELS as UPDATE_CHANNELS, DEFAULT_CHANNEL as DEFAULT_UPDATE_CHANNEL
 
 GSG_VERSION = "1.14.2"
@@ -477,6 +478,8 @@ async def send_heartbeat():
             except Exception:
                 pass
 
+            # Свежая самопроверка — источник nodes_online/nodes_total/mihomo_ok
+            health = _selfcheck_fresh()
             # mihomo_ok — TCP connect на порт 9090
             mihomo_ok = False
             try:
@@ -485,6 +488,8 @@ async def send_heartbeat():
                 mihomo_ok = True
             except Exception:
                 pass
+            if health:
+                mihomo_ok = bool(health["facts"].get("mihomo_ok"))
 
             # active_connections
             active_connections = 0
@@ -519,6 +524,9 @@ async def send_heartbeat():
                         nodes_online += 1  # неизвестно — считаем онлайн
             except Exception:
                 pass
+            if health:
+                nodes_online = int(health["facts"].get("nodes_alive") or 0)
+                nodes_total = int(health["facts"].get("nodes_total") or 0)
 
             # cpu_temp — None если сенсор отсутствует (например RK3528A на Armbian
             # community kernel 6.18 — TSADC-driver пока не в mainline). UI покажет «—».
@@ -1038,6 +1046,7 @@ async def startup_event():
     asyncio.create_task(_periodic_heartbeat())
     asyncio.create_task(_auto_update_loop())
     asyncio.create_task(_ai_routing_guard_loop())
+    asyncio.create_task(_selfcheck_loop())
 
 @app.get("/api/traffic")
 async def get_traffic():
@@ -1355,49 +1364,24 @@ async def get_network_status():
 
 @app.get("/api/nodes/ping")
 async def ping_nodes():
-    """Пингует каждый уникальный сервер один раз, применяет результат ко всем узлам на нём."""
+    """Свежий delay-тест КАЖДОГО узла по тегу через Mihomo (своим протоколом, включая
+    Hysteria2 и узлы вне групп). Результат попадает в кэш самопроверки."""
     data = await read_json(GSG_NODES_FILE, {"nodes": []})
     nodes = data.get("nodes", [])
-
-    # Один представитель на каждый уникальный server-хост
-    unique_servers: dict[str, dict] = {}
-    for n in nodes:
-        srv = n.get("server", "")
-        if srv and srv not in unique_servers:
-            unique_servers[srv] = n
-
-    server_results: dict[str, int] = {}
-
-    async def measure_server(srv: str, n: dict):
-        tag = n.get("tag", "")
-        try:
-            async with httpx.AsyncClient(timeout=6.0) as client:
-                r = await client.get(
-                    f"http://127.0.0.1:9090/proxies/{tag}/delay",
-                    params={"url": "https://www.google.com/", "timeout": 5000}
-                )
-                server_results[srv] = r.json().get("delay", -1) if r.status_code == 200 else -1
-        except Exception:
-            server_results[srv] = -1
-
-    await asyncio.gather(*(measure_server(srv, n) for srv, n in unique_servers.items()))
-
-    # Все узлы одного сервера получают одинаковый пинг
-    return {n.get("tag", ""): server_results.get(n.get("server", ""), -1) for n in nodes}
+    # Кнопка в UI ждёт ответ до 8 с: все узлы параллельно, 3 с на каждый из двух URL
+    results = await selfcheck.probe_nodes(nodes, concurrency=max(1, len(nodes)), timeout_ms=3000)
+    _node_health.update(results)
+    return {tag: r.get("delay", -1) for tag, r in results.items()}
 
 @app.get("/api/nodes/dashboard")
 async def get_nodes_dash():
+    """Статус узла — строго по его тегу из самопроверки (selfcheck.node_view).
+    Пустой кэш: последняя задержка из истории Mihomo; для TCP-протоколов
+    последний фолбэк — TCP-пинг сервера; UDP (Hysteria2) TCP-пингом не проверяем."""
     data = await read_json(GSG_NODES_FILE, {"nodes": []})
     nodes = data.get("nodes", [])
+    now = time.time()
 
-    # Один представитель на каждый уникальный server-хост
-    unique_servers: dict[str, dict] = {}
-    for n in nodes:
-        srv = n.get("server", "")
-        if srv and srv not in unique_servers:
-            unique_servers[srv] = n
-
-    # Получаем задержки из Mihomo (берём последнюю запись истории)
     mihomo_delays: dict[str, int] = {}
     try:
         async with httpx.AsyncClient(timeout=2.0) as client:
@@ -1410,23 +1394,27 @@ async def get_nodes_dash():
     except Exception:
         pass
 
-    server_ping: dict[str, int] = {}
-
-    async def ping_server(srv: str, n: dict):
-        tag = n.get("tag", "")
-        p = mihomo_delays.get(tag, -1)
-        if p <= 0:
-            # История устарела или показывает ошибку — свежий TCP-пинг
-            p = await ping_tcp(n["server"], int(n["server_port"]))
-        server_ping[srv] = p
-
-    await asyncio.gather(*(ping_server(srv, n) for srv, n in unique_servers.items()))
-
+    need_tcp: dict[tuple, list] = {}
     for n in nodes:
-        p = server_ping.get(n.get("server", ""), -1)
-        n["ping"] = p
-        n["status"] = "online" if p > 0 else "offline"
+        tag = n.get("tag", "")
+        view = selfcheck.node_view(n, _node_health.get(tag), now, mihomo_delays.get(tag))
+        if view is None:
+            key = (n.get("server", ""), n.get("server_port"))
+            need_tcp.setdefault(key, []).append(n)
+        else:
+            n.update(view)
 
+    async def tcp_fallback(key, group):
+        srv, port = key
+        try:
+            p = await ping_tcp(srv, int(port)) if srv and port else -1
+        except Exception:
+            p = -1
+        for n in group:
+            n.update({"status": "online" if p > 0 else "offline", "ping": p, "source": "tcp",
+                      "reason": "" if p > 0 else "TCP-порт сервера недоступен (самопроверка ещё не прошла)"})
+
+    await asyncio.gather(*(tcp_fallback(k, g) for k, g in need_tcp.items()))
     return nodes
 
 async def _collect_via_gsg_ips() -> set:
@@ -1758,7 +1746,8 @@ async def _regen_tunnel_config_sync():
     те могут проглотить одиночное событие из-за атомарной записи файла.
     Работает через `docker exec` к контейнеру gsg-tunnel: у web-orchestrator
     смонтирован docker.sock через volume. Провал не блокирует ответ API —
-    fallback механизм (.reload_singbox) всё равно сработает через inotify."""
+    fallback механизм (.reload_singbox) всё равно сработает через inotify.
+    Возвращает True, если и генерация, и hot-reload прошли (нужно самолечению)."""
     try:
         # 1) regenerate config.yaml из subscription+devices+rules
         proc = await asyncio.create_subprocess_exec(
@@ -1772,7 +1761,7 @@ async def _regen_tunnel_config_sync():
                 f"[REGEN] generate_config.py rc={proc.returncode} "
                 f"stderr={stderr.decode()[:300]}"
             )
-            return
+            return False
         # 2) hot-reload Mihomo (без потери TPROXY-сокета)
         try:
             async with httpx.AsyncClient(timeout=8.0) as client:
@@ -1781,13 +1770,15 @@ async def _regen_tunnel_config_sync():
                 )
                 if r.status_code != 204:
                     logging.warning(f"[REGEN] Mihomo reload http={r.status_code}")
-                    return
+                    return False
         except Exception as e:
             logging.warning(f"[REGEN] Mihomo reload error: {e}")
-            return
+            return False
         logging.info("[REGEN] config regenerated + Mihomo reloaded")
+        return True
     except Exception as e:
         logging.warning(f"[REGEN] failed: {e}")
+        return False
 
 
 async def _dhcp_force_renew(old_ip: str, mac: str):
@@ -2791,6 +2782,182 @@ async def tunnel_hard_restart(request: Request):
     if not result["ok"] and result.get("cooldown"):
         raise HTTPException(status_code=429, detail=result["error"])
     return result
+
+# ── Самопроверка (E2) и самолечение (E3) ──────────────────────────────────────
+# Логика решений — selfcheck.py (чистые функции, unit-тесты); здесь — расписание
+# и выполнение действий через уже существующие механизмы.
+GSG_HEALTH_FILE = GSG_CONFIG_DIR / "health.json"
+SELFHEAL_STATE_FILE = GSG_CONFIG_DIR / ".selfheal_state.json"
+SELFCHECK_FIRST_DELAY = 120   # первый прогон через ~2 мин после старта
+SELFCHECK_INTERVAL = 300      # далее каждые 5 минут
+SELFCHECK_FRESH = 900         # старше — для heartbeat/дашборда считаем, что данных нет
+# Сколько ждём, пока хостовый gsg-watchdog заберёт маркер .tunnel_restart_request
+# (его цикл 30 с + проверка групп до 20 с). Не забрал — перезапускаем сами.
+SELFHEAL_MARKER_WAIT = 75
+
+_node_health: dict = {}       # tag → результат delay-теста (кэш для дашборда)
+_selfcheck_last: dict = {}    # последний полный прогон (то же, что в health.json)
+_selfcheck_lock = asyncio.Lock()
+
+
+def _sh_log(msg: str):
+    # print, как _au_log: uvicorn с --log-level warning не пропускает logging.info
+    print(f"[SELF-HEAL] {msg}", flush=True)
+
+
+def _selfcheck_fresh() -> Optional[dict]:
+    if _selfcheck_last and time.time() - float(_selfcheck_last.get("ts") or 0) <= SELFCHECK_FRESH:
+        return _selfcheck_last
+    return None
+
+
+def _save_health(result: dict):
+    try:
+        selfcheck.write_json_atomic(GSG_HEALTH_FILE, result)
+    except Exception as e:
+        _sh_log(f"не удалось записать {GSG_HEALTH_FILE}: {e}")
+
+
+async def _core_proxy_names() -> Optional[set]:
+    m = await selfcheck.probe_mihomo()
+    return m["proxies"] if m["ok"] else None
+
+
+async def _selfheal_restart_core(reason: str) -> tuple:
+    """Перезапуск ядра через существующий механизм _do_tunnel_hard_restart (маркер +
+    уведомление tunnel_restart). Маркер обрабатывает хостовый gsg-watchdog.sh, но
+    install.sh его не ставит — если маркер за SELFHEAL_MARKER_WAIT с никто не забрал,
+    делаем `docker restart gsg-tunnel` сами (docker.sock смонтирован, как для regen)."""
+    res = await _do_tunnel_hard_restart(f"self-heal: {reason}")
+    if not res.get("ok") and not res.get("cooldown"):
+        return False, f"маркер не записан: {res.get('error')}"
+    # cooldown: рестарт уже запрошен <90 с назад (например, health watchdog туннеля)
+    via = "недавний запрос (cooldown)" if res.get("cooldown") and not TUNNEL_RESTART_TRIGGER.exists() else "gsg-watchdog"
+    deadline = time.time() + SELFHEAL_MARKER_WAIT
+    while time.time() < deadline and TUNNEL_RESTART_TRIGGER.exists():
+        await asyncio.sleep(5)
+    if TUNNEL_RESTART_TRIGGER.exists():
+        try:
+            TUNNEL_RESTART_TRIGGER.unlink()
+        except FileNotFoundError:
+            pass
+        via = "docker restart"
+        proc = await asyncio.create_subprocess_exec(
+            "docker", "restart", "gsg-tunnel",
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        _out, err = await proc.communicate()
+        if proc.returncode != 0:
+            return False, f"docker restart rc={proc.returncode}: {err.decode()[:120]}"
+    # Ждём API ядра (до 2 мин), затем прогрев групп в entrypoint.sh
+    for _ in range(24):
+        await asyncio.sleep(5)
+        if (await selfcheck.probe_mihomo())["ok"]:
+            break
+    else:
+        return False, f"ядро не поднялось после рестарта ({via})"
+    await asyncio.sleep(30)
+    nodes = (await read_json(GSG_NODES_FILE, {"nodes": []})).get("nodes", [])
+    results = await selfcheck.probe_nodes(nodes)
+    _node_health.update(results)
+    alive = sum(1 for r in results.values() if r.get("status") == "ok")
+    return alive > 0, f"рестарт ({via}): живых узлов {alive}/{len(nodes)}"
+
+
+async def _selfheal_execute(action: str, reason: str) -> tuple:
+    """Выполняет действие лестницы и проверяет результат. Возвращает (ok, detail)."""
+    if action == "regen_config":
+        if not await _regen_tunnel_config_sync():
+            return False, "generate_config/hot-reload не прошли"
+        await asyncio.sleep(15)
+        dns_check = selfcheck.build_dns_check(await selfcheck.probe_dns(GATEWAY_IP), GATEWAY_IP)
+        return dns_check["status"] == "ok", f"DNS после regen: {dns_check['detail']}"[:200]
+    if action == "refresh_subscription":
+        # generate_config.py при каждом запуске заново скачивает подписку
+        if not await _regen_tunnel_config_sync():
+            return False, "подписка/генерация/hot-reload не прошли"
+        await asyncio.sleep(20)
+        nodes = (await read_json(GSG_NODES_FILE, {"nodes": []})).get("nodes", [])
+        core = await _core_proxy_names() or set()
+        in_core = sum(1 for n in nodes if n.get("tag") in core)
+        return in_core > 0, f"узлов в nodes.json {len(nodes)}, в ядре {in_core}"
+    if action == "restart_core":
+        return await _selfheal_restart_core(reason)
+    return False, f"неизвестное действие {action}"
+
+
+async def _selfcheck_run_once(heal: bool = True) -> dict:
+    global _selfcheck_last
+    async with _selfcheck_lock:
+        nodes = (await read_json(GSG_NODES_FILE, {"nodes": []})).get("nodes", [])
+        result = await selfcheck.run_selfcheck(GATEWAY_IP, nodes)
+        _node_health.update(result["nodes"])
+        bad = [f"{c['id']}: {c.get('detail')}" for c in result["checks"] if c.get("status") != "ok"]
+        if bad or (_selfcheck_last and _selfcheck_last.get("overall") != result["overall"]):
+            _sh_log(f"самопроверка: {result['overall']}" + (" — " + " | ".join(bad) if bad else ""))
+
+        state = selfcheck.normalize_heal_state(selfcheck.read_json_file(SELFHEAL_STATE_FILE, None))
+        action, reason, state = selfcheck.decide_heal(state, result["facts"], time.time())
+        if action and UPDATE_TRIGGER.exists():
+            # Идёт OTA: update-watcher сам пересобирает и поднимает контейнеры
+            action, reason = None, f"идёт OTA — действие отложено ({reason})"
+        heal_info = {"decision": reason, "action": None}
+        if action and heal:
+            title = selfcheck.ACTION_TITLES.get(action, action)
+            _sh_log(f"действие: {title} — причина: {reason}")
+            try:
+                ok, detail = await _selfheal_execute(action, reason)
+            except Exception as e:
+                ok, detail = False, f"исключение: {e}"
+            _sh_log(f"результат: {title} — {'успех' if ok else 'НЕУДАЧА'}: {detail}")
+            state, notify = selfcheck.record_heal_outcome(state, action, ok, time.time(), detail)
+            heal_info["action"] = {"action": action, "ok": ok, "detail": detail}
+            if notify:
+                _sh_log(f"стоп автодействий на 6 ч: {notify['reason']}")
+                device = await read_json(GSG_DEVICE_FILE, {})
+                await send_device_notify(
+                    GLOBALSHIELD_API, device, "tunnel_restart",
+                    f"Самолечение остановлено на 6 ч: {notify['reason']}",
+                    {**notify, "source": "self-heal"})
+        elif reason and result["overall"] != "ok":
+            _sh_log(f"без действия: {reason}")
+        try:
+            selfcheck.write_json_atomic(SELFHEAL_STATE_FILE, state)
+        except Exception as e:
+            _sh_log(f"не удалось сохранить состояние: {e}")
+
+        result["self_heal"] = {
+            **heal_info,
+            "paused_until": state.get("paused_until") or None,
+            "failed_in_row": state.get("failed_in_row", 0),
+            "streaks": state.get("streaks", {}),
+            "history": state.get("history", [])[-10:],
+        }
+        _selfcheck_last = result
+        _save_health(result)
+        return result
+
+
+async def _selfcheck_loop():
+    """Самопроверка: первый прогон через ~2 мин после старта, далее каждые 5 мин."""
+    await asyncio.sleep(SELFCHECK_FIRST_DELAY)
+    while True:
+        try:
+            await _selfcheck_run_once(heal=True)
+        except Exception as e:
+            _sh_log(f"ошибка самопроверки: {e}")
+        await asyncio.sleep(SELFCHECK_INTERVAL)
+
+
+@app.get("/api/health")
+async def get_health():
+    """Результат последней самопроверки (под общей авторизацией API)."""
+    if _selfcheck_last:
+        return _selfcheck_last
+    data = selfcheck.read_json_file(GSG_HEALTH_FILE, None)
+    if isinstance(data, dict) and data.get("checks") is not None:
+        return data
+    return {"timestamp": None, "overall": "unknown", "checks": [], "nodes": {}}
+
 
 # ── Settings ──────────────────────────────────────────────────────────────────
 
